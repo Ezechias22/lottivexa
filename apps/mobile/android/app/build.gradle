@@ -6,5 +6,3 @@ android { namespace 'com.lottivexa.mobile'; compileSdk 36; ndkVersion '27.0.1207
   buildTypes { release { signingConfig signingConfigs.debug } }
 }
 flutter { source '../..' }
-
-

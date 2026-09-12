@@ -43,13 +43,11 @@ class MobileRuntime {
     final directory = await getApplicationSupportDirectory();
     final store = OfflineStore('${directory.path}/lottivexa.db');
     final cipher = PayloadCipher(SecretKey(base64Decode(encoded)));
-    final savedApiUrl = await secure.read(key: 'api_base_url');
     final api = ApiClient(
       session,
-      baseUrl: savedApiUrl ??
-          const String.fromEnvironment(
+      baseUrl: const String.fromEnvironment(
             'API_URL',
-            defaultValue: 'http://10.0.2.2:4000',
+            defaultValue: 'https://lottivexa-api.onrender.com',
           ),
     );
     final printer = MobilePrintService(store: store, cipher: cipher, api: api);

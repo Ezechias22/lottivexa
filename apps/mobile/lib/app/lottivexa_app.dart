@@ -64,4 +64,3 @@ class AppShell extends StatelessWidget {
     return Scaffold(appBar: AppBar(title: const Text('LOTTIVEXA'), actions: [if (runtime.pendingCount > 0) Badge(label: Text('${runtime.pendingCount}'), child: const Icon(Icons.sync_problem)), if (runtime.session.hasPermission('reports.view')) IconButton(onPressed: () => context.push('/reports'), icon: const Icon(Icons.analytics)), IconButton(onPressed: () => context.push('/notifications'), icon: const Icon(Icons.notifications)),IconButton(onPressed:()=>context.go('/settings'),tooltip:'Settings',icon:const Icon(Icons.settings))]), body: child, bottomNavigationBar: NavigationBar(selectedIndex:selected<0?0:selected,onDestinationSelected: (i) => context.go(paths[i]), destinations: destinations));
   }
 }
-
