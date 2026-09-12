@@ -47,7 +47,7 @@ class LottivexaApp extends StatelessWidget {
   }
   final MobileRuntime runtime;
   late final GoRouter router;
-  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Lottivexa',debugShowCheckedModeBanner:false,locale:locale,supportedLocales:AppLanguage.supported,localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
+  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Lottivexa',debugShowCheckedModeBanner:false,locale:const Locale('fr'),supportedLocales:const[Locale('fr')],localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
 }
 
 class AppShell extends StatelessWidget {
@@ -64,3 +64,4 @@ class AppShell extends StatelessWidget {
     return Scaffold(appBar: AppBar(title: const Text('LOTTIVEXA'), actions: [if (runtime.pendingCount > 0) Badge(label: Text('${runtime.pendingCount}'), child: const Icon(Icons.sync_problem)), if (runtime.session.hasPermission('reports.view')) IconButton(onPressed: () => context.push('/reports'), icon: const Icon(Icons.analytics)), IconButton(onPressed: () => context.push('/notifications'), icon: const Icon(Icons.notifications)),IconButton(onPressed:()=>context.go('/settings'),tooltip:'Settings',icon:const Icon(Icons.settings))]), body: child, bottomNavigationBar: NavigationBar(selectedIndex:selected<0?0:selected,onDestinationSelected: (i) => context.go(paths[i]), destinations: destinations));
   }
 }
+
