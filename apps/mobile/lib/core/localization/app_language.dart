@@ -16,6 +16,7 @@ class AppLanguage {
     'Mwen bliye modpas mwen':'Mot de passe oublié','Ranpli tout chan yo.':'Remplissez tous les champs.','Tenant, username oswa modpas la pa kòrèk.':'Client, nom d’utilisateur ou mot de passe incorrect.',
     'Sèvè a pa reponn. Eseye ankò.':'Le serveur ne répond pas. Réessayez.','Koneksyon an echwe. Eseye ankò.':'Échec de connexion. Réessayez.','Tanpri tann…':'Veuillez patienter…',
     'Nouvo mizajou disponib':'Nouvelle mise à jour disponible','Yon nouvo vèsyon LOTTIVEXA disponib. Mete app la ajou pou jwenn koreksyon ak amelyorasyon yo.':'Une nouvelle version de LOTTIVEXA est disponible. Installez-la pour obtenir les correctifs et améliorations.','Pita':'Plus tard','METE AJOU':'METTRE À JOUR',
+    'Chwazi lang ou':'Choisissez votre langue','Ou kapab chanje lang lan nenpòt lè.':'Vous pourrez modifier la langue à tout moment.',
   };
   static Future<void>restore()async{final value=await _storage.read(key:_key);current.value=Locale(value=='fr'?'fr':'ht');}
   static Future<void>set(String code)async{if(code!='ht'&&code!='fr')return;current.value=Locale(code);await _storage.write(key:_key,value:code);}
