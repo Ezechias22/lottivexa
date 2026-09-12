@@ -1,0 +1,11 @@
+CREATE TYPE "NotificationChannel" AS ENUM ('IN_APP','PUSH','EMAIL','SMS');
+CREATE TYPE "NotificationStatus" AS ENUM ('PENDING','SENT','FAILED','READ');
+CREATE TABLE "Notification"("id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" UUID REFERENCES "Tenant"("id") ON DELETE RESTRICT,"userId" UUID REFERENCES "User"("id") ON DELETE CASCADE,"type" VARCHAR(100) NOT NULL,"channel" "NotificationChannel" NOT NULL DEFAULT 'IN_APP',"title" VARCHAR(200) NOT NULL,"body" TEXT NOT NULL,"data" JSONB,"status" "NotificationStatus" NOT NULL DEFAULT 'PENDING',"readAt" TIMESTAMPTZ,"sentAt" TIMESTAMPTZ,"failedAt" TIMESTAMPTZ,"error" TEXT,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE "NotificationPreference"("id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),"tenantId" UUID REFERENCES "Tenant"("id") ON DELETE RESTRICT,"userId" UUID NOT NULL REFERENCES "User"("id") ON DELETE CASCADE,"eventType" VARCHAR(100) NOT NULL,"channel" "NotificationChannel" NOT NULL,"enabled" BOOLEAN NOT NULL DEFAULT true,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),"updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),UNIQUE("userId","eventType","channel"));
+CREATE INDEX "notification_inbox" ON "Notification"("tenantId","userId","status","createdAt" DESC);
+CREATE INDEX "notification_delivery" ON "Notification"("status","channel","createdAt");
+CREATE INDEX "notification_preference_user" ON "NotificationPreference"("tenantId","userId");
+ALTER TABLE "Notification" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "NotificationPreference" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_notification_isolation ON "Notification" USING("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true') WITH CHECK("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');
+CREATE POLICY tenant_notification_preference_isolation ON "NotificationPreference" USING("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true') WITH CHECK("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');

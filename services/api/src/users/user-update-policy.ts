@@ -1,0 +1,3 @@
+import{BadRequestException}from'@nestjs/common';
+export type UserUpdate={username?:string;email?:string;phone?:string;roleIds?:string[]};
+export function userUpdate(input:UserUpdate){const result={...input,username:input.username?.trim(),email:input.email?.trim(),phone:input.phone?.trim(),roleIds:input.roleIds?[...new Set(input.roleIds)]:undefined};if(!Object.values(result).some(x=>x!==undefined))throw new BadRequestException('EMPTY_UPDATE');if(result.username==='')throw new BadRequestException('INVALID_USERNAME');if(result.roleIds?.length===0)throw new BadRequestException('ROLE_REQUIRED');return result}

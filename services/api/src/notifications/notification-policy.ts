@@ -1,0 +1,1 @@
+export function canReceive(preferences:{eventType:string;channel:string;enabled:boolean}[],eventType:string,channel:string){const rule=preferences.find(x=>x.eventType===eventType&&x.channel===channel);return rule?.enabled??channel==='IN_APP'}

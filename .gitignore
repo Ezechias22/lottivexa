@@ -1,0 +1,37 @@
+node_modules
+.next
+dist
+coverage
+.env
+*.log
+.dart_tool
+build
+
+# Local and production secrets
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+**/.env.test
+**/.env.*.local
+
+# Generated mobile and archive files
+*.apk
+*.aab
+*.zip
+
+# Generated IDE, TypeScript, Flutter and Python files
+.vscode/
+*.tsbuildinfo
+**/local.properties
+**/Generated.xcconfig
+**/flutter_export_environment.sh
+**/ephemeral/
+**/__pycache__/
+*.pyc

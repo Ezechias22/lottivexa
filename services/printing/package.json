@@ -1,0 +1,1 @@
+{"name":"@lottivexa/printing-worker","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"tsx src/main.ts","build":"tsc --noEmit","start":"tsx src/main.ts","test":"vitest run","lint":"tsc --noEmit"},"dependencies":{"@lottivexa/printer-sdk":"workspace:*"},"devDependencies":{"@types/node":"^22.15.29","tsx":"^4.19.4","typescript":"^5.8.3","vitest":"^3.2.1"}}

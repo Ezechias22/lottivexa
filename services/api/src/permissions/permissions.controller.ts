@@ -1,0 +1,1 @@
+import{Controller,Get}from'@nestjs/common';import{RequirePermissions}from'../common/decorators/access.decorators';import{PermissionsService}from'./permissions.service';@Controller('permissions')export class PermissionsController{constructor(private service:PermissionsService){}@Get()@RequirePermissions('users.view')list(){return this.service.list()}}

@@ -1,0 +1,1 @@
+export default function Home(){return <main style={{fontFamily:'system-ui',maxWidth:900,margin:'auto',padding:'80px 25px'}}><b>LOTTIVEXA</b><h1 style={{fontSize:56}}>Lottery operations.<br/>One secure platform.</h1><p>Multi-tenant SaaS for branches, merchants, tickets, finance and reporting.</p></main>}

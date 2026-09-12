@@ -1,0 +1,4 @@
+import{BadRequestException}from'@nestjs/common';
+export type BillingCycle='MONTHLY'|'YEARLY';
+export function addBillingPeriods(value:Date,interval:BillingCycle,periods=1){if(!Number.isInteger(periods)||periods<1||periods>36)throw new BadRequestException('INVALID_BILLING_PERIODS');if(Number.isNaN(value.getTime()))throw new BadRequestException('INVALID_SUBSCRIPTION_DATE');const result=new Date(value),day=result.getUTCDate();result.setUTCDate(1);if(interval==='YEARLY')result.setUTCFullYear(result.getUTCFullYear()+periods);else result.setUTCMonth(result.getUTCMonth()+periods);const lastDay=new Date(Date.UTC(result.getUTCFullYear(),result.getUTCMonth()+1,0)).getUTCDate();result.setUTCDate(Math.min(day,lastDay));return result}
+export function extensionBase(now:Date,currentEnd:Date){return currentEnd>now?currentEnd:now}

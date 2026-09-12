@@ -1,0 +1,2 @@
+import{describe,expect,it}from'vitest';import{localDateParts,zonedTimeToUtc}from'./jobs-policy';
+describe('draw schedule timezone',()=>{it('converts Port-au-Prince wall time to UTC',()=>expect(zonedTimeToUtc('2026-09-08','14:30','America/Port-au-Prince').toISOString()).toBe('2026-09-08T18:30:00.000Z'));it('derives the correct local calendar day',()=>expect(localDateParts(new Date('2026-09-09T02:00:00Z'),'America/Port-au-Prince').date).toBe('2026-09-08'))});

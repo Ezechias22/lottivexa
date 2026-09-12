@@ -1,0 +1,1 @@
+import{Module}from'@nestjs/common';import{TicketsModule}from'../tickets/tickets.module';import{SyncController}from'./sync.controller';import{SyncService}from'./sync.service';@Module({imports:[TicketsModule],controllers:[SyncController],providers:[SyncService]})export class SyncModule{}

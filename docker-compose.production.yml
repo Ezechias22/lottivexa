@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env.production
+    command: ["postgres","-c","wal_level=replica","-c","archive_mode=on","-c","archive_command=test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f"]
+    volumes: [postgres_data:/var/lib/postgresql/data, wal_archive:/var/lib/postgresql/wal-archive]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 10s, timeout: 5s, retries: 10}
+    security_opt: [no-new-privileges:true]
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server","--appendonly","yes","--requirepass","${REDIS_PASSWORD}"]
+    volumes: [redis_data:/data]
+    healthcheck: {test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"], interval: 10s, timeout: 5s, retries: 10}
+    security_opt: [no-new-privileges:true]
+  api:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.api}
+    restart: unless-stopped
+    env_file: .env.production
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
+    read_only: true
+    volumes: [object_storage:/data/storage]
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    healthcheck: {test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/v1/health"], interval: 15s, timeout: 5s, retries: 10}
+  tenant-web:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.web, args: {APP: tenant-web, NEXT_PUBLIC_API_URL: /api/v1}}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    security_opt: [no-new-privileges:true]
+  master-admin:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.web, args: {APP: master-admin, NEXT_PUBLIC_API_URL: /api/v1}}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    security_opt: [no-new-privileges:true]
+  merchant-web:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.web, args: {APP: merchant-web, NEXT_PUBLIC_API_URL: /api/v1}}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    security_opt: [no-new-privileges:true]
+  public-site:
+    build: {context: ., dockerfile: infrastructure/docker/Dockerfile.web, args: {APP: public-site, NEXT_PUBLIC_API_URL: /api/v1}}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /app/.next/cache]
+    security_opt: [no-new-privileges:true]
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on: [api, tenant-web, master-admin, merchant-web, public-site]
+    ports: ["80:80", "443:443"]
+    environment: {NGINX_ENVSUBST_FILTER: "^(PLATFORM_DOMAIN)$", PLATFORM_DOMAIN: "${PLATFORM_DOMAIN}"}
+    volumes: [./infrastructure/nginx/lottivexa.conf:/etc/nginx/templates/default.conf.template:ro, ./infrastructure/nginx/custom-domains:/etc/nginx/custom-domains:ro, certificates:/etc/letsencrypt:ro, acme_web:/var/www/certbot]
+    security_opt: [no-new-privileges:true]
+  certbot:
+    image: certbot/certbot:v3.2.0
+    profiles: [operations]
+    env_file: .env.production
+    volumes: [certificates:/etc/letsencrypt, acme_web:/var/www/certbot, ./infrastructure/scripts:/opt/lottivexa/scripts:ro]
+volumes: {postgres_data: {}, redis_data: {}, acme_web: {}, certificates: {}, object_storage: {}, wal_archive: {}}

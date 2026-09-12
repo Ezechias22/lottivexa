@@ -1,0 +1,3 @@
+import{Body,Controller,Post}from'@nestjs/common';import{IsString}from'class-validator';import{CurrentUser}from'../common/decorators/current-user.decorator';import{RequirePermissions}from'../common/decorators/access.decorators';import type{Principal}from'../common/guards/jwt-auth.guard';import{PayoutsService}from'./payouts.service';
+class PayoutDto{@IsString()ticketReference!:string;@IsString()idempotencyKey!:string}
+@Controller('payouts')export class PayoutsController{constructor(private service:PayoutsService){}@Post()@RequirePermissions('tickets.pay')pay(@CurrentUser()u:Principal,@Body()dto:PayoutDto){return this.service.pay(u,dto)}}

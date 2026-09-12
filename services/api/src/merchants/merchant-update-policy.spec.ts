@@ -1,0 +1,2 @@
+import{describe,expect,it}from'vitest';import{merchantUpdate}from'./merchant-update-policy';
+describe('merchant update policy',()=>{it('trims editable identity fields',()=>expect(merchantUpdate({displayName:' Shop A ',username:' agent-a '})).toEqual({displayName:'Shop A',username:'agent-a'}));it('rejects an empty update',()=>expect(()=>merchantUpdate({})).toThrow('EMPTY_UPDATE'));it('rejects an empty login',()=>expect(()=>merchantUpdate({username:' '})).toThrow('INVALID_USERNAME'))});

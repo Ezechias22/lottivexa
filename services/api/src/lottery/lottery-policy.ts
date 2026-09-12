@@ -1,0 +1,6 @@
+import{BadRequestException,ConflictException}from'@nestjs/common';import type{DrawStatus}from'@lottivexa/database';
+const transitions:Record<DrawStatus,DrawStatus[]>={SCHEDULED:['OPEN','CANCELLED'],OPEN:['CLOSED','CANCELLED'],CLOSED:['RESULT_PENDING','CANCELLED'],RESULT_PENDING:['RESULT_PUBLISHED','CANCELLED'],RESULT_PUBLISHED:[],CANCELLED:[]};
+export function assertDrawTransition(from:DrawStatus,to:DrawStatus){if(!transitions[from].includes(to))throw new ConflictException('INVALID_DRAW_TRANSITION')}
+export function assertDrawTimes(opensAt:Date,closesAt:Date,resultAt:Date){if(!(opensAt<closesAt&&closesAt<=resultAt))throw new BadRequestException('INVALID_DRAW_TIMES')}
+export function isBettingOpen(status:DrawStatus,closesAt:Date,cutoffSeconds:number,now=new Date()){return status==='OPEN'&&now.getTime()<closesAt.getTime()-cutoffSeconds*1000}
+export function validateSelection(values:number[],count:number,min:number,max:number,allowRepeats:boolean){if(values.length!==count)throw new BadRequestException('INVALID_SELECTION_COUNT');if(values.some(v=>!Number.isInteger(v)||v<min||v>max))throw new BadRequestException('NUMBER_OUT_OF_RANGE');if(!allowRepeats&&new Set(values).size!==values.length)throw new BadRequestException('DUPLICATE_SELECTION')}

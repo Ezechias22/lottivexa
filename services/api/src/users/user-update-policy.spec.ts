@@ -1,0 +1,2 @@
+import{describe,expect,it}from'vitest';import{userUpdate}from'./user-update-policy';
+describe('user update policy',()=>{it('normalizes identity and removes duplicate roles',()=>expect(userUpdate({username:' admin ',roleIds:['a','a','b']})).toEqual({username:'admin',email:undefined,phone:undefined,roleIds:['a','b']}));it('rejects an empty update',()=>expect(()=>userUpdate({})).toThrow('EMPTY_UPDATE'));it('rejects an empty username',()=>expect(()=>userUpdate({username:' '})).toThrow('INVALID_USERNAME'))});

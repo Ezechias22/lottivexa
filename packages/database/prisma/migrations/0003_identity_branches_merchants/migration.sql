@@ -1,0 +1,10 @@
+CREATE TYPE "BranchStatus" AS ENUM ('ACTIVE','INACTIVE','SUSPENDED');
+CREATE TYPE "MerchantStatus" AS ENUM ('ACTIVE','DISABLED','SUSPENDED');
+CREATE TABLE "Branch" ("id" UUID PRIMARY KEY,"tenantId" UUID NOT NULL REFERENCES "Tenant"("id") ON DELETE RESTRICT,"code" VARCHAR(40) NOT NULL,"name" VARCHAR(160) NOT NULL,"address" TEXT,"phone" VARCHAR(32),"managerId" UUID REFERENCES "User"("id") ON DELETE SET NULL,"status" "BranchStatus" NOT NULL DEFAULT 'ACTIVE',"openingHours" JSONB,"settings" JSONB,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),"updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),"archivedAt" TIMESTAMPTZ,UNIQUE("tenantId","code"));
+CREATE TABLE "MerchantAccount" ("id" UUID PRIMARY KEY,"tenantId" UUID NOT NULL REFERENCES "Tenant"("id") ON DELETE RESTRICT,"userId" UUID NOT NULL UNIQUE REFERENCES "User"("id") ON DELETE RESTRICT,"branchId" UUID NOT NULL REFERENCES "Branch"("id") ON DELETE RESTRICT,"displayName" VARCHAR(160) NOT NULL,"merchantNumber" VARCHAR(50) NOT NULL,"status" "MerchantStatus" NOT NULL DEFAULT 'ACTIVE',"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),"updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),"archivedAt" TIMESTAMPTZ,UNIQUE("tenantId","merchantNumber"));
+CREATE INDEX "branch_tenant_status" ON "Branch"("tenantId","status");
+CREATE INDEX "merchant_tenant_branch_status" ON "MerchantAccount"("tenantId","branchId","status");
+ALTER TABLE "Branch" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "MerchantAccount" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_branch_isolation ON "Branch" USING ("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true') WITH CHECK ("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');
+CREATE POLICY tenant_merchant_isolation ON "MerchantAccount" USING ("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true') WITH CHECK ("tenantId"=nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');

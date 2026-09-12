@@ -1,0 +1,2 @@
+import{BadRequestException}from'@nestjs/common';
+export function deviceUpdate(input:{name?:string;branchId?:string;merchantId?:string|null}){if(input.name!==undefined&&!input.name.trim())throw new BadRequestException('INVALID_DEVICE_NAME');if(input.merchantId!==undefined&&input.branchId===undefined)throw new BadRequestException('BRANCH_REQUIRED_FOR_REASSIGNMENT');return{...input,name:input.name?.trim()}}

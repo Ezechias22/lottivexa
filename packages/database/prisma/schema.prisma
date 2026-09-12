@@ -1,0 +1,1171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+  LOCKED
+}
+
+enum DomainVerification {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum SslStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  REFUNDED
+  VOIDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum MerchantStatus {
+  ACTIVE
+  DISABLED
+  SUSPENDED
+}
+
+enum GameStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum DrawStatus {
+  SCHEDULED
+  OPEN
+  CLOSED
+  RESULT_PENDING
+  RESULT_PUBLISHED
+  CANCELLED
+}
+
+enum LimitScope {
+  TENANT
+  BRANCH
+  MERCHANT
+  GAME
+  DRAW
+  BET_TYPE
+  NUMBER
+}
+
+enum TicketStatus {
+  PENDING
+  VALID
+  WINNER
+  LOSER
+  CANCELLED
+  VOID
+  PAID
+  EXPIRED
+}
+
+enum TicketEventType {
+  CREATED
+  PRINTED
+  REPRINTED
+  CANCEL_REQUESTED
+  CANCELLED
+  RESULT_CHECKED
+  MARKED_WINNER
+  MARKED_LOSER
+  PAID
+  VOIDED
+}
+
+enum LedgerTransactionType {
+  SALE
+  COMMISSION
+  PAYOUT
+  CASH_IN
+  CASH_OUT
+  ADJUSTMENT
+  EXPENSE
+  DEPOSIT
+  WITHDRAWAL
+  OPENING_BALANCE
+  CLOSING_BALANCE
+}
+
+enum LedgerStatus {
+  POSTED
+  REVERSED
+}
+
+enum CommissionKind {
+  PERCENTAGE
+  FIXED
+  TIERED
+}
+
+enum CommissionScope {
+  TENANT
+  BRANCH
+  MERCHANT
+  GAME
+  BET_TYPE
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  CASH_IN
+  CASH_OUT
+  EXPENSE
+  DEPOSIT
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
+enum BalanceDifference {
+  BALANCED
+  SHORT
+  OVER
+}
+
+enum PrinterConnectionType {
+  BLUETOOTH
+  USB
+  NETWORK
+  LOTTERY_MACHINE
+}
+
+enum PrinterStatus {
+  PENDING
+  ONLINE
+  OFFLINE
+  ERROR
+  DISABLED
+}
+
+enum PrintJobStatus {
+  QUEUED
+  PROCESSING
+  PRINTED
+  FAILED
+  CANCELLED
+}
+
+enum DeviceStatus {
+  PENDING
+  ONLINE
+  OFFLINE
+  BLOCKED
+}
+
+enum SyncJobStatus {
+  RECEIVED
+  APPLIED
+  REJECTED
+  CONFLICT
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum ProviderResultEventStatus {
+  PENDING
+  PROCESSING
+  APPLIED
+  FAILED
+}
+
+model Tenant {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  slug                   String                  @unique @db.VarChar(63)
+  legalName              String                  @db.VarChar(200)
+  status                 TenantStatus            @default(PROVISIONING)
+  jurisdictionCode       String?                 @db.VarChar(20)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  archivedAt             DateTime?
+  users                  User[]
+  roles                  Role[]
+  settings               TenantSetting?
+  branding               TenantBranding?
+  domains                TenantDomain[]
+  subscriptions          Subscription[]
+  payments               SubscriptionPayment[]
+  invoices               Invoice[]
+  subscriptionEvents     SubscriptionEvent[]
+  branches               Branch[]
+  merchants              MerchantAccount[]
+  games                  Game[]
+  markets                Market[]
+  betTypes               BetType[]
+  draws                  Draw[]
+  lotteryRules           LotteryRule[]
+  bettingLimits          BettingLimit[]
+  tickets                Ticket[]
+  payouts                Payout[]
+  ledgerAccounts         LedgerAccount[]
+  ledgerTransactions     LedgerTransaction[]
+  commissionRules        CommissionRule[]
+  commissionTransactions CommissionTransaction[]
+  cashSessions           CashSession[]
+  cashMovements          CashMovement[]
+  printers               Printer[]
+  printTemplates         PrintTemplate[]
+  printJobs              PrintJob[]
+  devices                Device[]
+  syncJobs               SyncJob[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions      PushSubscription[]
+
+  @@index([status])
+}
+
+model User {
+  id                  String           @id @default(uuid()) @db.Uuid
+  tenantId            String?          @db.Uuid
+  email               String?          @db.Citext
+  phone               String?          @db.VarChar(32)
+  username            String           @db.Citext
+  passwordHash        String
+  status              UserStatus       @default(INVITED)
+  forcePasswordChange Boolean          @default(true)
+  twoFactorEnabled    Boolean          @default(false)
+  tokenVersion        Int              @default(0)
+  lastLoginAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  deletedAt           DateTime?
+  tenant              Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roles               UserRole[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
+  merchantAccount     MerchantAccount?
+  managedBranches     Branch[]         @relation("BranchManager")
+  ticketEvents        TicketEvent[]
+  notifications       Notification[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions   PushSubscription[]
+
+  @@unique([tenantId, username])
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String?          @db.Uuid
+  code        String           @db.VarChar(80)
+  name        String           @db.VarChar(120)
+  isSystem    Boolean          @default(false)
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([tenantId, code])
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(100)
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String @db.Uuid
+  roleId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Plan {
+  id                String         @id @default(uuid()) @db.Uuid
+  code              String         @unique @db.VarChar(60)
+  name              String         @db.VarChar(120)
+  monthlyPrice      Decimal        @db.Decimal(19, 4)
+  yearlyPrice       Decimal        @db.Decimal(19, 4)
+  currency          String         @db.Char(3)
+  trialDays         Int            @default(0)
+  maxMerchants      Int?
+  maxBranches       Int?
+  maxDevices        Int?
+  maxTickets        BigInt?
+  storageLimitBytes BigInt?
+  active            Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  features          PlanFeature[]
+  subscriptions     Subscription[]
+}
+
+model PlanFeature {
+  planId  String  @db.Uuid
+  key     String  @db.VarChar(100)
+  enabled Boolean @default(false)
+  config  Json?
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([planId, key])
+}
+
+model Subscription {
+  id                  String                @id @default(uuid()) @db.Uuid
+  tenantId            String                @db.Uuid
+  planId              String                @db.Uuid
+  status              SubscriptionStatus
+  interval            BillingInterval
+  startsAt            DateTime
+  currentPeriodEndsAt DateTime
+  graceEndsAt         DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plan                Plan                  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments            SubscriptionPayment[]
+  invoices            Invoice[]
+  events              SubscriptionEvent[]
+
+  @@index([tenantId, status, currentPeriodEndsAt])
+}
+
+model SubscriptionPayment {
+  id                String        @id @default(uuid()) @db.Uuid
+  tenantId          String        @db.Uuid
+  subscriptionId    String        @db.Uuid
+  amount            Decimal       @db.Decimal(19, 4)
+  currency          String        @db.Char(3)
+  status            PaymentStatus @default(PENDING)
+  provider          String        @db.VarChar(80)
+  providerReference String?       @db.VarChar(180)
+  notes             String?
+  verifiedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  invoices          Invoice[]
+
+  @@unique([provider, providerReference])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+}
+
+model SubscriptionEvent {
+  id             BigInt       @id @default(autoincrement())
+  tenantId       String       @db.Uuid
+  subscriptionId String       @db.Uuid
+  type           String       @db.VarChar(100)
+  actorUserId    String?      @db.Uuid
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId, createdAt(sort: Desc)])
+}
+
+model Invoice {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @db.Uuid
+  subscriptionId String               @db.Uuid
+  paymentId      String?              @db.Uuid
+  number         String               @unique @db.VarChar(50)
+  status         InvoiceStatus        @default(OPEN)
+  subtotal       Decimal              @db.Decimal(19, 4)
+  tax            Decimal              @default(0) @db.Decimal(19, 4)
+  total          Decimal              @db.Decimal(19, 4)
+  currency       String               @db.Char(3)
+  dueAt          DateTime
+  paidAt         DateTime?
+  createdAt      DateTime             @default(now())
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription   Subscription         @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  payment        SubscriptionPayment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, dueAt])
+}
+
+model TenantSetting {
+  tenantId   String @id @db.Uuid
+  currency   String @db.Char(3)
+  timezone   String @default("UTC")
+  locale     String @default("ht")
+  dateFormat String @default("yyyy-MM-dd")
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantBranding {
+  tenantId       String  @id @db.Uuid
+  businessName   String
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String  @default("#172554")
+  secondaryColor String  @default("#f59e0b")
+  tenant         Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantDomain {
+  id                 String             @id @default(uuid()) @db.Uuid
+  tenantId           String             @db.Uuid
+  domain             String             @unique @db.Citext
+  verificationStatus DomainVerification @default(PENDING)
+  sslStatus          SslStatus          @default(PENDING)
+  isPrimary          Boolean            @default(false)
+  verificationToken String              @unique @db.VarChar(100)
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isPrimary])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  deviceId  String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  tenantId   String?  @db.Uuid
+  userId     String?  @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?  @db.Inet
+  deviceId   String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
+
+model Branch {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @db.Uuid
+  code         String            @db.VarChar(40)
+  name         String            @db.VarChar(160)
+  address      String?
+  phone        String?           @db.VarChar(32)
+  managerId    String?           @db.Uuid
+  status       BranchStatus      @default(ACTIVE)
+  openingHours Json?
+  settings     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  archivedAt   DateTime?
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  manager      User?             @relation("BranchManager", fields: [managerId], references: [id], onDelete: SetNull)
+  merchants    MerchantAccount[]
+  tickets      Ticket[]
+  cashSessions CashSession[]
+  printers     Printer[]
+  devices      Device[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model MerchantAccount {
+  id             String                  @id @default(uuid()) @db.Uuid
+  tenantId       String                  @db.Uuid
+  userId         String                  @unique @db.Uuid
+  branchId       String                  @db.Uuid
+  displayName    String                  @db.VarChar(160)
+  merchantNumber String                  @db.VarChar(50)
+  status         MerchantStatus          @default(ACTIVE)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  archivedAt     DateTime?
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  branch         Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  tickets        Ticket[]
+  cashSessions   CashSession[]
+  commissions    CommissionTransaction[]
+  devices        Device[]
+
+  @@unique([tenantId, merchantNumber])
+  @@index([tenantId, branchId, status])
+}
+
+model Game {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @db.Uuid
+  code          String         @db.VarChar(40)
+  name          String         @db.VarChar(160)
+  description   String?
+  catalogCode   String?        @db.VarChar(80)
+  logoUrl       String?        @db.VarChar(500)
+  resultProvider String?       @db.VarChar(80)
+  sourceUrl      String?        @db.VarChar(500)
+  sourceVerifiedAt DateTime?
+  status        GameStatus     @default(ACTIVE)
+  cutoffSeconds Int            @default(300)
+  resultDigits  Int
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  archivedAt    DateTime?
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  schedules     GameSchedule[]
+  draws         Draw[]
+  betTypes      GameBetType[]
+  odds          OddsRule[]
+  limits        BettingLimit[]
+  tickets       Ticket[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, catalogCode])
+  @@index([tenantId, status])
+}
+
+model Market {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @db.Uuid
+  code      String         @db.VarChar(40)
+  name      String         @db.VarChar(120)
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  schedules GameSchedule[]
+
+  @@unique([tenantId, code])
+}
+
+model BetType {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
+  code           String         @db.VarChar(40)
+  name           String         @db.VarChar(120)
+  selectionCount Int
+  numberMin      Int
+  numberMax      Int
+  allowRepeats   Boolean        @default(false)
+  active         Boolean        @default(true)
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  games          GameBetType[]
+  odds           OddsRule[]
+  limits         BettingLimit[]
+  ticketLines    TicketLine[]
+
+  @@unique([tenantId, code])
+}
+
+model GameBetType {
+  gameId    String  @db.Uuid
+  betTypeId String  @db.Uuid
+  active    Boolean @default(true)
+  game      Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  betType   BetType @relation(fields: [betTypeId], references: [id], onDelete: Restrict)
+
+  @@id([gameId, betTypeId])
+}
+
+model GameSchedule {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @db.Uuid
+  gameId   String  @db.Uuid
+  marketId String? @db.Uuid
+  weekday  Int
+  opensAt  String  @db.VarChar(5)
+  closesAt String  @db.VarChar(5)
+  resultAt String  @db.VarChar(5)
+  timezone String
+  active   Boolean @default(true)
+  game     Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  market   Market? @relation(fields: [marketId], references: [id], onDelete: SetNull)
+
+  @@unique([gameId, marketId, weekday, resultAt])
+  @@index([tenantId, weekday, active])
+}
+
+model Draw {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  gameId      String         @db.Uuid
+  drawNumber  String         @db.VarChar(60)
+  drawDate    DateTime       @db.Date
+  opensAt     DateTime
+  closesAt    DateTime
+  resultAt    DateTime
+  status      DrawStatus     @default(SCHEDULED)
+  result      Json?
+  createdById String         @db.Uuid
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  game        Game           @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  limits      BettingLimit[]
+  tickets     Ticket[]
+
+  @@unique([tenantId, drawNumber])
+  @@index([tenantId, status, closesAt])
+  @@index([gameId, drawDate])
+}
+
+model OddsRule {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  gameId     String    @db.Uuid
+  betTypeId  String    @db.Uuid
+  multiplier Decimal   @db.Decimal(19, 6)
+  startsAt   DateTime
+  endsAt     DateTime?
+  active     Boolean   @default(true)
+  game       Game      @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  betType    BetType   @relation(fields: [betTypeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, gameId, betTypeId, active])
+}
+
+model LotteryRule {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  jurisdictionCode String    @db.VarChar(20)
+  key              String    @db.VarChar(100)
+  value            Json
+  effectiveFrom    DateTime
+  effectiveTo      DateTime?
+  active           Boolean   @default(true)
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, jurisdictionCode, key, effectiveFrom])
+  @@index([tenantId, active, effectiveFrom])
+}
+
+model BettingLimit {
+  id          String     @id @default(uuid()) @db.Uuid
+  tenantId    String     @db.Uuid
+  scope       LimitScope
+  scopeId     String?    @db.Uuid
+  gameId      String?    @db.Uuid
+  drawId      String?    @db.Uuid
+  betTypeId   String?    @db.Uuid
+  numberKey   String?    @db.VarChar(80)
+  minStake    Decimal?   @db.Decimal(19, 4)
+  maxStake    Decimal?   @db.Decimal(19, 4)
+  maxExposure Decimal?   @db.Decimal(19, 4)
+  active      Boolean    @default(true)
+  startsAt    DateTime
+  endsAt      DateTime?
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  game        Game?      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  draw        Draw?      @relation(fields: [drawId], references: [id], onDelete: Cascade)
+  betType     BetType?   @relation(fields: [betTypeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, scope, scopeId, active])
+  @@index([drawId, betTypeId, numberKey])
+}
+
+model Ticket {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  tenantId              String                 @db.Uuid
+  ticketNumber          String                 @db.VarChar(80)
+  idempotencyKey        String                 @db.VarChar(100)
+  branchId              String                 @db.Uuid
+  merchantId            String                 @db.Uuid
+  deviceId              String?                @db.Uuid
+  gameId                String                 @db.Uuid
+  drawId                String                 @db.Uuid
+  amount                Decimal                @db.Decimal(19, 4)
+  commission            Decimal                @default(0) @db.Decimal(19, 4)
+  potentialWin          Decimal                @db.Decimal(19, 4)
+  status                TicketStatus           @default(VALID)
+  barcode               String                 @unique @db.VarChar(180)
+  qrCode                String                 @unique @db.VarChar(500)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch                Branch                 @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  merchant              MerchantAccount        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  game                  Game                   @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  draw                  Draw                   @relation(fields: [drawId], references: [id], onDelete: Restrict)
+  lines                 TicketLine[]
+  events                TicketEvent[]
+  winning               WinningTicket?
+  payout                Payout?
+  commissionTransaction CommissionTransaction?
+  printJobs             PrintJob[]
+  device                Device?                @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, ticketNumber])
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([drawId, status])
+  @@index([merchantId, createdAt(sort: Desc)])
+}
+
+model TicketLine {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  ticketId     String   @db.Uuid
+  betTypeId    String   @db.Uuid
+  selection    Json
+  selectionKey String   @db.VarChar(120)
+  stake        Decimal  @db.Decimal(19, 4)
+  odds         Decimal  @db.Decimal(19, 6)
+  potentialWin Decimal  @db.Decimal(19, 4)
+  isWinner     Boolean?
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  betType      BetType  @relation(fields: [betTypeId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, ticketId])
+  @@index([tenantId, selectionKey])
+}
+
+model TicketEvent {
+  id        BigInt          @id @default(autoincrement())
+  tenantId  String          @db.Uuid
+  ticketId  String          @db.Uuid
+  type      TicketEventType
+  userId    String?         @db.Uuid
+  deviceId  String?         @db.Uuid
+  ipAddress String?         @db.Inet
+  metadata  Json?
+  createdAt DateTime        @default(now())
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, ticketId, createdAt])
+}
+
+model WinningTicket {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  ticketId      String   @unique @db.Uuid
+  winningAmount Decimal  @db.Decimal(19, 4)
+  detectedAt    DateTime @default(now())
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, detectedAt])
+}
+
+model Payout {
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @db.Uuid
+  ticketId            String            @unique @db.Uuid
+  amount              Decimal           @db.Decimal(19, 4)
+  authorizedById      String            @db.Uuid
+  idempotencyKey      String            @db.VarChar(100)
+  ledgerTransactionId String            @unique @db.Uuid
+  paidAt              DateTime          @default(now())
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticket              Ticket            @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  ledgerTransaction   LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, paidAt(sort: Desc)])
+}
+
+model LedgerAccount {
+  id       String        @id @default(uuid()) @db.Uuid
+  tenantId String        @db.Uuid
+  code     String        @db.VarChar(60)
+  name     String        @db.VarChar(160)
+  type     String        @db.VarChar(30)
+  active   Boolean       @default(true)
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  entries  LedgerEntry[]
+
+  @@unique([tenantId, code])
+}
+
+model LedgerTransaction {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  tenantId              String                 @db.Uuid
+  type                  LedgerTransactionType
+  referenceType         String                 @db.VarChar(60)
+  referenceId           String                 @db.VarChar(100)
+  idempotencyKey        String                 @db.VarChar(100)
+  status                LedgerStatus           @default(POSTED)
+  createdAt             DateTime               @default(now())
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  entries               LedgerEntry[]
+  payout                Payout?
+  commissionTransaction CommissionTransaction?
+  cashMovement          CashMovement?
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt(sort: Desc)])
+}
+
+model LedgerEntry {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @db.Uuid
+  transactionId String            @db.Uuid
+  accountId     String            @db.Uuid
+  debit         Decimal           @default(0) @db.Decimal(19, 4)
+  credit        Decimal           @default(0) @db.Decimal(19, 4)
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  account       LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, accountId])
+  @@index([transactionId])
+}
+
+model CommissionRule {
+  id           String                  @id @default(uuid()) @db.Uuid
+  tenantId     String                  @db.Uuid
+  scope        CommissionScope
+  scopeId      String?                 @db.Uuid
+  kind         CommissionKind
+  percentage   Decimal?                @db.Decimal(9, 6)
+  fixedAmount  Decimal?                @db.Decimal(19, 4)
+  tiers        Json?
+  priority     Int                     @default(0)
+  active       Boolean                 @default(true)
+  startsAt     DateTime
+  endsAt       DateTime?
+  tenant       Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transactions CommissionTransaction[]
+
+  @@index([tenantId, scope, scopeId, active, priority])
+}
+
+model CommissionTransaction {
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @db.Uuid
+  ticketId            String            @unique @db.Uuid
+  merchantId          String            @db.Uuid
+  ruleId              String?           @db.Uuid
+  baseAmount          Decimal           @db.Decimal(19, 4)
+  commissionAmount    Decimal           @db.Decimal(19, 4)
+  ledgerTransactionId String            @unique @db.Uuid
+  createdAt           DateTime          @default(now())
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticket              Ticket            @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  merchant            MerchantAccount   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  rule                CommissionRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  ledgerTransaction   LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, merchantId, createdAt(sort: Desc)])
+}
+
+model CashSession {
+  id               String             @id @default(uuid()) @db.Uuid
+  tenantId         String             @db.Uuid
+  branchId         String             @db.Uuid
+  merchantId       String             @db.Uuid
+  openedById       String             @db.Uuid
+  closedById       String?            @db.Uuid
+  status           CashSessionStatus  @default(OPEN)
+  openingCash      Decimal            @db.Decimal(19, 4)
+  expectedCash     Decimal?           @db.Decimal(19, 4)
+  actualCash       Decimal?           @db.Decimal(19, 4)
+  difference       Decimal?           @db.Decimal(19, 4)
+  differenceStatus BalanceDifference?
+  openedAt         DateTime           @default(now())
+  closedAt         DateTime?
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch           Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  merchant         MerchantAccount    @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  movements        CashMovement[]
+
+  @@index([tenantId, merchantId, status])
+  @@index([tenantId, openedAt(sort: Desc)])
+}
+
+model CashMovement {
+  id                  String            @id @default(uuid()) @db.Uuid
+  tenantId            String            @db.Uuid
+  sessionId           String            @db.Uuid
+  type                CashMovementType
+  amount              Decimal           @db.Decimal(19, 4)
+  reason              String            @db.VarChar(300)
+  createdById         String            @db.Uuid
+  idempotencyKey      String            @db.VarChar(100)
+  ledgerTransactionId String            @unique @db.Uuid
+  createdAt           DateTime          @default(now())
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  session             CashSession       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  ledgerTransaction   LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([sessionId, createdAt])
+}
+
+model Printer {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @db.Uuid
+  branchId       String                @db.Uuid
+  name           String                @db.VarChar(120)
+  connectionType PrinterConnectionType
+  protocol       String                @default("ESC_POS") @db.VarChar(80)
+  configuration  Json
+  status         PrinterStatus         @default(PENDING)
+  isDefault      Boolean               @default(false)
+  lastSeenAt     DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch         Branch                @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  jobs           PrintJob[]
+
+  @@index([tenantId, branchId, status])
+}
+
+model PrintTemplate {
+  id         String     @id @default(uuid()) @db.Uuid
+  tenantId   String     @db.Uuid
+  name       String     @db.VarChar(120)
+  kind       String     @db.VarChar(30)
+  version    Int        @default(1)
+  definition Json
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  jobs       PrintJob[]
+
+  @@unique([tenantId, name, version])
+  @@index([tenantId, kind, active])
+}
+
+model PrintJob {
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
+  ticketId       String         @db.Uuid
+  printerId      String         @db.Uuid
+  templateId     String         @db.Uuid
+  idempotencyKey String         @db.VarChar(120)
+  status         PrintJobStatus @default(QUEUED)
+  payload        Json
+  attempts       Int            @default(0)
+  maxAttempts    Int            @default(5)
+  availableAt    DateTime       @default(now())
+  lockedAt       DateTime?
+  lockedBy       String?        @db.VarChar(100)
+  printedAt      DateTime?
+  lastError      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticket         Ticket         @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  printer        Printer        @relation(fields: [printerId], references: [id], onDelete: Restrict)
+  template       PrintTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, availableAt])
+  @@index([printerId, status])
+}
+
+model Device {
+  id         String           @id @default(uuid()) @db.Uuid
+  tenantId   String           @db.Uuid
+  branchId   String           @db.Uuid
+  merchantId String?          @db.Uuid
+  name       String           @db.VarChar(120)
+  deviceType String           @db.VarChar(60)
+  platform   String           @db.VarChar(40)
+  osVersion  String?          @db.VarChar(60)
+  appVersion String?          @db.VarChar(40)
+  publicKey  String?          @db.Text
+  status     DeviceStatus     @default(PENDING)
+  lastSeenAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch     Branch           @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  merchant   MerchantAccount? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  tickets    Ticket[]
+  syncJobs   SyncJob[]
+
+  @@index([tenantId, status, lastSeenAt])
+}
+
+model SyncJob {
+  id               String        @id @default(uuid()) @db.Uuid
+  tenantId         String        @db.Uuid
+  deviceId         String        @db.Uuid
+  clientMutationId String        @db.VarChar(100)
+  operation        String        @db.VarChar(80)
+  requestHash      String        @db.Char(64)
+  status           SyncJobStatus @default(RECEIVED)
+  serverEntityId   String?       @db.Uuid
+  response         Json?
+  errorCode        String?       @db.VarChar(100)
+  receivedAt       DateTime      @default(now())
+  completedAt      DateTime?
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  device           Device        @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, deviceId, clientMutationId])
+  @@index([tenantId, status, receivedAt])
+}
+
+model Notification {
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String?            @db.Uuid
+  userId      String?            @db.Uuid
+  type        String             @db.VarChar(100)
+  channel     NotificationChannel @default(IN_APP)
+  title       String             @db.VarChar(200)
+  body        String
+  data        Json?
+  status      NotificationStatus @default(PENDING)
+  readAt      DateTime?
+  sentAt      DateTime?
+  failedAt    DateTime?
+  error       String?
+  dedupeKey   String?            @unique @db.VarChar(180)
+  attempts    Int                @default(0)
+  nextAttemptAt DateTime         @default(now())
+  createdAt   DateTime           @default(now())
+  tenant      Tenant?            @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  user        User?              @relation(fields:[userId],references:[id],onDelete:Cascade)
+
+  @@index([tenantId,userId,status,createdAt(sort:Desc)])
+  @@index([status,channel,createdAt])
+}
+
+model SchedulerLease {
+  name        String   @id @db.VarChar(100)
+  owner       String   @db.VarChar(100)
+  lockedUntil DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+model ProviderResultEvent {
+  id          String                    @id @default(uuid()) @db.Uuid
+  provider    String                    @db.VarChar(60)
+  dedupeKey   String                    @unique @db.VarChar(180)
+  payload     Json
+  status      ProviderResultEventStatus @default(PENDING)
+  attempts    Int                       @default(0)
+  error       String?
+  processedAt DateTime?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model NotificationPreference {
+  id        String              @id @default(uuid()) @db.Uuid
+  tenantId  String?             @db.Uuid
+  userId    String              @db.Uuid
+  eventType String              @db.VarChar(100)
+  channel   NotificationChannel
+  enabled   Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  tenant    Tenant?             @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  user      User                @relation(fields:[userId],references:[id],onDelete:Cascade)
+
+  @@unique([userId,eventType,channel])
+  @@index([tenantId,userId])
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  userId     String   @db.Uuid
+  tokenHash  String   @unique @db.Char(64)
+  token      String
+  platform   String   @db.VarChar(20)
+  deviceId   String?  @db.Uuid
+  active     Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  tenant     Tenant   @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  user       User     @relation(fields:[userId],references:[id],onDelete:Cascade)
+
+  @@index([tenantId,userId,active])
+}

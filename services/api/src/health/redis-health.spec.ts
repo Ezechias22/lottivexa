@@ -1,0 +1,1 @@
+import{describe,expect,it}from'vitest';import{redisCommand}from'./redis-health';describe('redis health protocol',()=>{it('encodes PING in RESP',()=>expect(redisCommand(['PING'])).toBe('*1\r\n$4\r\nPING\r\n'));it('encodes AUTH',()=>expect(redisCommand(['AUTH','secret'])).toBe('*2\r\n$4\r\nAUTH\r\n$6\r\nsecret\r\n'))})

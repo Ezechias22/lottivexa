@@ -1,0 +1,1 @@
+import type{Metadata}from'next';import type{ReactNode}from'react';export const metadata:Metadata={title:'Lottivexa Merchant POS',description:'Fast lottery and bolet point of sale'};export default function Layout({children}:{children:ReactNode}){return <html lang="ht"><body>{children}</body></html>}

@@ -1,0 +1,14 @@
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING','VERIFIED','FAILED','REFUNDED','VOIDED');
+CREATE TYPE "InvoiceStatus" AS ENUM ('DRAFT','OPEN','PAID','VOID','UNCOLLECTIBLE');
+CREATE TABLE "SubscriptionPayment" ("id" UUID PRIMARY KEY,"tenantId" UUID NOT NULL REFERENCES "Tenant"("id") ON DELETE RESTRICT,"subscriptionId" UUID NOT NULL REFERENCES "Subscription"("id") ON DELETE RESTRICT,"amount" NUMERIC(19,4) NOT NULL,"currency" CHAR(3) NOT NULL,"status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',"provider" VARCHAR(80) NOT NULL,"providerReference" VARCHAR(180),"notes" TEXT,"verifiedAt" TIMESTAMPTZ,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),UNIQUE("provider","providerReference"));
+CREATE TABLE "SubscriptionEvent" ("id" BIGSERIAL PRIMARY KEY,"tenantId" UUID NOT NULL REFERENCES "Tenant"("id") ON DELETE RESTRICT,"subscriptionId" UUID NOT NULL REFERENCES "Subscription"("id") ON DELETE RESTRICT,"type" VARCHAR(100) NOT NULL,"actorUserId" UUID,"metadata" JSONB,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE "Invoice" ("id" UUID PRIMARY KEY,"tenantId" UUID NOT NULL REFERENCES "Tenant"("id") ON DELETE RESTRICT,"subscriptionId" UUID NOT NULL REFERENCES "Subscription"("id") ON DELETE RESTRICT,"paymentId" UUID REFERENCES "SubscriptionPayment"("id") ON DELETE SET NULL,"number" VARCHAR(50) NOT NULL UNIQUE,"status" "InvoiceStatus" NOT NULL DEFAULT 'OPEN',"subtotal" NUMERIC(19,4) NOT NULL,"tax" NUMERIC(19,4) NOT NULL DEFAULT 0,"total" NUMERIC(19,4) NOT NULL,"currency" CHAR(3) NOT NULL,"dueAt" TIMESTAMPTZ NOT NULL,"paidAt" TIMESTAMPTZ,"createdAt" TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX "payment_tenant_status_time" ON "SubscriptionPayment"("tenantId","status","createdAt" DESC);
+CREATE INDEX "subscription_event_timeline" ON "SubscriptionEvent"("subscriptionId","createdAt" DESC);
+CREATE INDEX "invoice_tenant_status_due" ON "Invoice"("tenantId","status","dueAt");
+ALTER TABLE "SubscriptionPayment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SubscriptionEvent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Invoice" ENABLE ROW LEVEL SECURITY;
+CREATE POLICY tenant_payment_isolation ON "SubscriptionPayment" USING ("tenantId" = nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');
+CREATE POLICY tenant_subscription_event_isolation ON "SubscriptionEvent" USING ("tenantId" = nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');
+CREATE POLICY tenant_invoice_isolation ON "Invoice" USING ("tenantId" = nullif(current_setting('app.tenant_id',true),'')::uuid OR current_setting('app.is_platform_admin',true)='true');

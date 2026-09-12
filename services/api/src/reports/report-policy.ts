@@ -1,0 +1,1 @@
+export function reportRange(from?:string,to?:string,now=new Date()){const gte=from?new Date(from):new Date(now.valueOf()-30*86400000),lte=to?new Date(to):now;if(Number.isNaN(gte.valueOf())||Number.isNaN(lte.valueOf())||gte>lte)throw new Error('INVALID_DATE_RANGE');return{gte,lte}}

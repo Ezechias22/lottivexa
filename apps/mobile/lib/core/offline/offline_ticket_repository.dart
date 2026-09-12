@@ -1,0 +1,2 @@
+import 'package:uuid/uuid.dart';import'offline_store.dart';import'payload_cipher.dart';
+class OfflineTicketRepository{OfflineTicketRepository(this.store,this.cipher);final OfflineStore store;final PayloadCipher cipher;Future<String>queueTicket({required String drawId,required List<Map<String,dynamic>>lines})async{const uuid=Uuid();final id=uuid.v7();final now=DateTime.now().toUtc();final encrypted=await cipher.encrypt({'drawId':drawId,'lines':lines});store.enqueue(id:id,operation:'TICKET_CREATE',encryptedPayload:encrypted,createdAt:now);return id;}}

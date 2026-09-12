@@ -1,0 +1,2 @@
+import{describe,expect,it}from'vitest';import{deviceUpdate}from'./device-policy';
+describe('device update policy',()=>{it('normalizes a valid rename and reassignment',()=>expect(deviceUpdate({name:' POS 4 ',branchId:'branch',merchantId:null})).toEqual({name:'POS 4',branchId:'branch',merchantId:null}));it('rejects blank names',()=>expect(()=>deviceUpdate({name:'  '})).toThrow('INVALID_DEVICE_NAME'));it('requires a branch whenever merchant assignment changes',()=>expect(()=>deviceUpdate({merchantId:'merchant'})).toThrow('BRANCH_REQUIRED_FOR_REASSIGNMENT'))});
