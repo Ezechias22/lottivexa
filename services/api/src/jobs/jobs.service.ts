@@ -4,6 +4,7 @@ import{hostname}from'node:os';
 import{randomUUID}from'node:crypto';
 import{deliveryTarget,localDateParts,retryDelay,zonedTimeToUtc}from'./jobs-policy';
 import{ResultsService}from'../results/results.service';
+import{sendWithResend}from'../notifications/resend-email';
 
 @Injectable()
 export class JobsService implements OnModuleInit,OnModuleDestroy{
@@ -30,7 +31,7 @@ export class JobsService implements OnModuleInit,OnModuleDestroy{
     for(const job of jobs){
       if(job.channel==='IN_APP'){await prisma.notification.update({where:{id:job.id},data:{status:'SENT',sentAt:new Date()}});continue}
       const url=process.env[`${job.channel}_ADAPTER_URL`],key=process.env[`${job.channel}_ADAPTER_KEY`];
-      try{if(!url)throw new Error(`${job.channel}_ADAPTER_NOT_CONFIGURED`);const to=deliveryTarget(job.channel,job.user,job.user?.pushSubscriptions.map(x=>x.token)??[]);if(!to.length)throw new Error(`${job.channel}_RECIPIENT_NOT_CONFIGURED`);const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json','idempotency-key':job.id,...(key?{authorization:`Bearer ${key}`}:{})},body:JSON.stringify({id:job.id,channel:job.channel,to,title:job.title,body:job.body,data:job.data}),signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error(`PROVIDER_${response.status}`);await prisma.notification.update({where:{id:job.id},data:{status:'SENT',sentAt:new Date(),error:null,attempts:{increment:1}}})}
+      try{const to=deliveryTarget(job.channel,job.user,job.user?.pushSubscriptions.map(x=>x.token)??[]);if(!to.length)throw new Error(`${job.channel}_RECIPIENT_NOT_CONFIGURED`);if(job.channel==='EMAIL'&&process.env.RESEND_API_KEY)await sendWithResend({id:job.id,to,title:job.title,body:job.body});else{if(!url)throw new Error(`${job.channel}_ADAPTER_NOT_CONFIGURED`);const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json','idempotency-key':job.id,...(key?{authorization:`Bearer ${key}`}:{})},body:JSON.stringify({id:job.id,channel:job.channel,to,title:job.title,body:job.body,data:job.data}),signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error(`PROVIDER_${response.status}`)}await prisma.notification.update({where:{id:job.id},data:{status:'SENT',sentAt:new Date(),error:null,attempts:{increment:1}}})}
       catch(error){const attempts=job.attempts+1;await prisma.notification.update({where:{id:job.id},data:{status:'FAILED',failedAt:new Date(),error:String(error).slice(0,1000),attempts,nextAttemptAt:new Date(Date.now()+retryDelay(attempts)*1000)}})}
     }
   }
