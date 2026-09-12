@@ -4,3 +4,4 @@
 .serverWake{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10000;display:flex;align-items:center;gap:9px;background:#102e26;color:#fff;padding:10px 16px;border-radius:999px;box-shadow:0 8px 28px #102e2640;font:700 12px Arial,sans-serif}
 .wakeSpinner{width:13px;height:13px;border:2px solid #ffffff55;border-top-color:#c9f65a;border-radius:50%;animation:wakeSpin .8s linear infinite}
 @keyframes wakeSpin{to{transform:rotate(360deg)}}
+.languageSwitcher{top:18px!important;right:22px!important;bottom:auto!important;gap:3px;border-radius:12px;box-shadow:0 8px 24px rgba(15,31,58,.12);backdrop-filter:blur(10px)}.languageSwitcher:before{content:'🌐';display:grid;place-items:center;padding:0 7px;font-size:14px}.languageSwitcher button{border-radius:8px;font-size:12px}@media(max-width:700px){.languageSwitcher{top:10px!important;right:10px!important}.languageSwitcher:before{display:none}}

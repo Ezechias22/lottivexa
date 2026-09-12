@@ -27,6 +27,7 @@ const enHt:Record<string,string>={
  'Company name':'Non antrepriz','Owner email':'Imèl pwopriyetè','Owner username':'Non itilizatè pwopriyetè','Temporary password':'Modpas tanporè','Select plan':'Chwazi plan',
  'Activate':'Aktive','Suspend':'Sispann','Extend':'Pwolonje','Change plan':'Chanje plan','Reactivate':'Reyaktive','Invoice':'Fakti','Verify':'Verifye',
  'Username':'Non itilizatè','Password':'Modpas','Forgot password?':'Ou bliye modpas la?','Secure login':'Koneksyon sekirize'
+ ,'Merchant Login':'Koneksyon machann','Tenant Admin':'Administrasyon kliyan','Master Admin Console':'Administrasyon prensipal','Tenant':'Espas biznis','Tenant / subdomain':'Espas biznis / sou-domèn','Username / Phone':'Non itilizatè / Telefòn','Username / phone':'Non itilizatè / telefòn','Login':'Konekte','Admin biznis la dwe kreye kont ou. Pa gen Sign Up.':'Administratè biznis la dwe kreye kont ou. Pa gen enskripsyon.','Antre nan espas biznis ou. Pa gen enskripsyon merchant.':'Antre nan espas biznis ou. Se administratè a ki kreye kont machann yo.'
 };
 const enFr:Record<string,string>={
  'Dashboard':'Tableau de bord','Plans':'Forfaits','Tenants':'Clients','Subscriptions':'Abonnements','Billing':'Facturation','Reports':'Rapports','Health':'État du système',
@@ -36,6 +37,7 @@ const enFr:Record<string,string>={
  'Company name':'Nom de l’entreprise','Owner email':'E-mail du propriétaire','Owner username':'Nom d’utilisateur du propriétaire','Temporary password':'Mot de passe temporaire','Select plan':'Choisir un forfait',
  'Activate':'Activer','Suspend':'Suspendre','Extend':'Prolonger','Change plan':'Changer de forfait','Reactivate':'Réactiver','Invoice':'Facture','Verify':'Vérifier',
  'Username':'Nom d’utilisateur','Password':'Mot de passe','Forgot password?':'Mot de passe oublié ?','Secure login':'Connexion sécurisée'
+ ,'Merchant Login':'Connexion vendeur','Tenant Admin':'Administration client','Master Admin Console':'Administration principale','Tenant':'Espace professionnel','Tenant / subdomain':'Espace professionnel / sous-domaine','Username / Phone':'Nom d’utilisateur / Téléphone','Username / phone':'Nom d’utilisateur / téléphone','Login':'Connexion','Admin biznis la dwe kreye kont ou. Pa gen Sign Up.':'L’administrateur de l’entreprise doit créer votre compte. Aucune inscription publique.','Antre nan espas biznis ou. Pa gen enskripsyon merchant.':'Accédez à votre espace professionnel. Les comptes vendeurs sont créés par un administrateur.'
 };
 function translate(root:ParentNode,language:'ht'|'fr'){
  const dictionary=language==='fr'?{...enFr,...htFr}:{...enHt,...frHt};

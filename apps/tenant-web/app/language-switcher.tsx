@@ -16,10 +16,31 @@ const htFr:Record<string,string>={
 'Akèy':'Accueil','Vant':'Ventes','Tikè':'Tickets','Rapò':'Rapports','Aparèy':'Appareils','Itilizatè':'Utilisateurs','Branch':'Succursales','Paramèt':'Paramètres','Dekonekte':'Déconnexion','Logout':'Déconnexion','Settings':'Paramètres',
 'Username':'Nom d’utilisateur','Password':'Mot de passe','Forgot password?':'Mot de passe oublié ?','Secure login':'Connexion sécurisée','Dashboard':'Tableau de bord','Health':'État du système','Billing':'Facturation','Subscriptions':'Abonnements','Tenants':'Clients',
 'Afiche rezilta':'Afficher les résultats','Rezilta lotri':'Résultats de loterie','Pa gen rezilta pibliye.':'Aucun résultat publié.','AN TAN REYÈL':'EN TEMPS RÉEL'
+,'Apèsi platfòm':'Aperçu de la plateforme','Rapò operasyon yo':'Rapports opérationnels','Chif aktyèl sou kliyan, abonnman, plan ak vant sou platfòm nan.':'Données actuelles sur les clients, abonnements, forfaits et ventes de la plateforme.','Done aktyèl':'Données actuelles','Kliyan aktif':'Clients actifs','Abonnman aktif':'Abonnements actifs','Revni abonnman':'Revenus des abonnements','Tikè vann':'Tickets vendus','Volim vant':'Volume des ventes','Distribisyon':'Répartition','Estati kliyan':'Statut des clients','Estati abonnman':'Statut des abonnements','Abonnman pa plan':'Abonnements par forfait','Distribisyon plan':'Répartition des forfaits','Pa gen done disponib.':'Aucune donnée disponible.','Pa gen abonnman ki lye ak yon plan pou kounye a.':'Aucun abonnement associé à un forfait pour le moment.','abonnman':'abonnement','Aktif':'Actif','Esè':'Essai','Anreta':'En retard','Sispann':'Suspendu','Anile':'Annulé','Achive':'Archivé'
 };
 const frHt=Object.fromEntries(Object.entries(htFr).map(([a,b])=>[b,a]));
+const enHt:Record<string,string>={
+ 'Dashboard':'Tablo de bò','Plans':'Plan','Tenants':'Kliyan','Subscriptions':'Abonnman','Billing':'Faktirasyon','Reports':'Rapò','Health':'Eta sistèm nan',
+ 'MASTER ADMIN':'ADMINISTRATÈ PRENSIPAL','Logout':'Dekonekte','Create plan':'Kreye plan','Create Plan':'Kreye plan','Provision tenant':'Kreye kliyan','Provision Tenant':'Kreye kliyan',
+ 'Code':'Kòd','Name':'Non','Monthly price':'Pri pa mwa','Yearly price':'Pri pa ane','Currency':'Lajan','Active':'Aktif','Actions':'Aksyon','Archive':'Achive',
+ 'Professional':'Pwofesyonèl','Trial days':'Jou esè','Max merchants':'Kantite machann maksimòm','Max branches':'Kantite branch maksimòm','Max devices':'Kantite aparèy maksimòm',
+ 'Company name':'Non antrepriz','Owner email':'Imèl pwopriyetè','Owner username':'Non itilizatè pwopriyetè','Temporary password':'Modpas tanporè','Select plan':'Chwazi plan',
+ 'Activate':'Aktive','Suspend':'Sispann','Extend':'Pwolonje','Change plan':'Chanje plan','Reactivate':'Reyaktive','Invoice':'Fakti','Verify':'Verifye',
+ 'Username':'Non itilizatè','Password':'Modpas','Forgot password?':'Ou bliye modpas la?','Secure login':'Koneksyon sekirize'
+ ,'Merchant Login':'Koneksyon machann','Tenant Admin':'Administrasyon kliyan','Master Admin Console':'Administrasyon prensipal','Tenant':'Espas biznis','Tenant / subdomain':'Espas biznis / sou-domèn','Username / Phone':'Non itilizatè / Telefòn','Username / phone':'Non itilizatè / telefòn','Login':'Konekte','Admin biznis la dwe kreye kont ou. Pa gen Sign Up.':'Administratè biznis la dwe kreye kont ou. Pa gen enskripsyon.','Antre nan espas biznis ou. Pa gen enskripsyon merchant.':'Antre nan espas biznis ou. Se administratè a ki kreye kont machann yo.'
+};
+const enFr:Record<string,string>={
+ 'Dashboard':'Tableau de bord','Plans':'Forfaits','Tenants':'Clients','Subscriptions':'Abonnements','Billing':'Facturation','Reports':'Rapports','Health':'État du système',
+ 'MASTER ADMIN':'ADMINISTRATEUR PRINCIPAL','Logout':'Déconnexion','Create plan':'Créer un forfait','Create Plan':'Créer un forfait','Provision tenant':'Créer un client','Provision Tenant':'Créer un client',
+ 'Code':'Code','Name':'Nom','Monthly price':'Prix mensuel','Yearly price':'Prix annuel','Currency':'Devise','Active':'Actif','Actions':'Actions','Archive':'Archiver',
+ 'Professional':'Professionnel','Trial days':'Jours d’essai','Max merchants':'Nombre maximal de vendeurs','Max branches':'Nombre maximal de succursales','Max devices':'Nombre maximal d’appareils',
+ 'Company name':'Nom de l’entreprise','Owner email':'E-mail du propriétaire','Owner username':'Nom d’utilisateur du propriétaire','Temporary password':'Mot de passe temporaire','Select plan':'Choisir un forfait',
+ 'Activate':'Activer','Suspend':'Suspendre','Extend':'Prolonger','Change plan':'Changer de forfait','Reactivate':'Réactiver','Invoice':'Facture','Verify':'Vérifier',
+ 'Username':'Nom d’utilisateur','Password':'Mot de passe','Forgot password?':'Mot de passe oublié ?','Secure login':'Connexion sécurisée'
+ ,'Merchant Login':'Connexion vendeur','Tenant Admin':'Administration client','Master Admin Console':'Administration principale','Tenant':'Espace professionnel','Tenant / subdomain':'Espace professionnel / sous-domaine','Username / Phone':'Nom d’utilisateur / Téléphone','Username / phone':'Nom d’utilisateur / téléphone','Login':'Connexion','Admin biznis la dwe kreye kont ou. Pa gen Sign Up.':'L’administrateur de l’entreprise doit créer votre compte. Aucune inscription publique.','Antre nan espas biznis ou. Pa gen enskripsyon merchant.':'Accédez à votre espace professionnel. Les comptes vendeurs sont créés par un administrateur.'
+};
 function translate(root:ParentNode,language:'ht'|'fr'){
- const dictionary=language==='fr'?htFr:frHt;
+ const dictionary=language==='fr'?{...enFr,...htFr}:{...enHt,...frHt};
  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
  const nodes:Text[]=[];while(walker.nextNode())nodes.push(walker.currentNode as Text);
  for(const node of nodes){if(node.parentElement?.closest('[data-language-switcher]'))continue;const raw=node.nodeValue??'',trimmed=raw.trim(),translated=dictionary[trimmed];if(translated)node.nodeValue=raw.replace(trimmed,translated)}
