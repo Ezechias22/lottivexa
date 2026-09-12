@@ -35,3 +35,11 @@ build
 **/ephemeral/
 **/__pycache__/
 *.pyc
+
+# Tool caches
+.turbo/
+**/.turbo/
+.gradle/
+**/.gradle/
+.flutter-plugins-dependencies
+**/.flutter-plugins-dependencies
