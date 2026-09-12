@@ -1,6 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import '../../core/mobile_runtime.dart';
+import '../../core/localization/app_language.dart';
 import '../../core/printing/printer_transport.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _State extends State<SettingsScreen>{
   Future<void>connect(Map<String,dynamic>item)async{setState(()=>busy=true);try{await widget.runtime.printer.connectLocal(nearbyType,item);if(mounted)setState(()=>message='${item['name']??'Printer'} konekte, teste epi chwazi kòm printer default.');}catch(error){if(mounted)setState(()=>message='Koneksyon/enpresyon tès la echwe: $error');}finally{if(mounted)setState(()=>busy=false);}}
   Future<void>test(Map<String,dynamic>printer)async{setState(()=>busy=true);try{await widget.runtime.printer.test(printer);widget.runtime.printer.setDefaultPrinter(printer['id'].toString());if(mounted)setState(()=>message='Test page enprime; ${printer['name']} se printer default la.');}catch(error){if(mounted)setState(()=>message='Printer pa enprime: $error');}finally{if(mounted)setState(()=>busy=false);}}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(20),children:[
+    ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>Card(child:ListTile(leading:const Icon(Icons.language),title:Text(AppLanguage.tr('Lang aplikasyon an')),trailing:DropdownButton<String>(value:locale.languageCode,items:const[DropdownMenuItem(value:'ht',child:Text('Kreyòl')),DropdownMenuItem(value:'fr',child:Text('Français'))],onChanged:(value){if(value!=null)AppLanguage.set(value);})))),
     const Text('Sync & Printer',style:TextStyle(fontSize:26,fontWeight:FontWeight.bold)),
     StreamBuilder<List<ConnectivityResult>>(stream:Connectivity().onConnectivityChanged,builder:(_,snapshot){final online=snapshot.data?.any((x)=>x!=ConnectivityResult.none)??true;return ListTile(leading:Icon(online?Icons.cloud_done:Icons.cloud_off),title:Text(online?'Online':'Offline'),subtitle:Text('${widget.runtime.pendingCount} sync • ${widget.runtime.printer.pendingCount} print pending'));}),
     ExpansionTile(title:const Text('Aparèy POS sa a'),children:[TextField(controller:device,decoration:const InputDecoration(labelText:'Approved device ID',border:OutlineInputBorder())),const SizedBox(height:10),FilledButton.icon(onPressed:busy?null:sync,icon:const Icon(Icons.sync),label:const Text('Sove epi senkronize'))]),

@@ -1,1 +1,1 @@
-import './styles.css'; import type {ReactNode} from 'react'; export default function Layout({children}:{children:ReactNode}){return <html lang="ht"><body>{children}</body></html>}
+import './styles.css'; import './language.css'; import type {ReactNode} from 'react'; import{LanguageSwitcher}from'./language-switcher'; export default function Layout({children}:{children:ReactNode}){return <html lang="ht"><body><LanguageSwitcher/>{children}</body></html>}

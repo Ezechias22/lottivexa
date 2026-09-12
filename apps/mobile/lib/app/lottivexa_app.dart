@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import '../core/mobile_runtime.dart';
+import '../core/localization/app_language.dart';
 import '../features/admin/admin_dashboard_screen.dart';
 import '../features/admin/admin_hub_screen.dart';
 import '../features/admin/admin_resource_screen.dart';
@@ -45,7 +47,7 @@ class LottivexaApp extends StatelessWidget {
   }
   final MobileRuntime runtime;
   late final GoRouter router;
-  @override Widget build(BuildContext context) => MaterialApp.router(title: 'Lottivexa', debugShowCheckedModeBanner: false, theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff172554)), useMaterial3: true), routerConfig: router);
+  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Lottivexa',debugShowCheckedModeBanner:false,locale:locale,supportedLocales:AppLanguage.supported,localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
 }
 
 class AppShell extends StatelessWidget {
@@ -56,8 +58,8 @@ class AppShell extends StatelessWidget {
     final canSell = runtime.session.hasPermission('tickets.create');
     final paths = admin ? ['/', '/admin', if (canSell) '/new-ticket', '/tickets', '/results'] : ['/', '/new-ticket', '/tickets', '/results', '/cash'];
     final destinations = admin
-      ? [const NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard),label:'Akèy'),const NavigationDestination(icon:Icon(Icons.admin_panel_settings_outlined),selectedIcon:Icon(Icons.admin_panel_settings),label:'Admin'),if(canSell)const NavigationDestination(icon:Icon(Icons.add_box_outlined),selectedIcon:Icon(Icons.add_box),label:'Vann'),const NavigationDestination(icon:Icon(Icons.receipt_long_outlined),selectedIcon:Icon(Icons.receipt_long),label:'Tikè'),const NavigationDestination(icon:Icon(Icons.emoji_events_outlined),selectedIcon:Icon(Icons.emoji_events),label:'Rezilta')]
-      : const [NavigationDestination(icon:Icon(Icons.dashboard_outlined),selectedIcon:Icon(Icons.dashboard),label:'Akèy'),NavigationDestination(icon:Icon(Icons.add_box_outlined),selectedIcon:Icon(Icons.add_box),label:'Vann'),NavigationDestination(icon:Icon(Icons.receipt_long_outlined),selectedIcon:Icon(Icons.receipt_long),label:'Tikè'),NavigationDestination(icon:Icon(Icons.emoji_events_outlined),selectedIcon:Icon(Icons.emoji_events),label:'Rezilta'),NavigationDestination(icon:Icon(Icons.point_of_sale_outlined),selectedIcon:Icon(Icons.point_of_sale),label:'Kès')];
+      ? [NavigationDestination(icon:const Icon(Icons.dashboard_outlined),selectedIcon:const Icon(Icons.dashboard),label:AppLanguage.tr('Akèy')),NavigationDestination(icon:const Icon(Icons.admin_panel_settings_outlined),selectedIcon:const Icon(Icons.admin_panel_settings),label:AppLanguage.tr('Admin')),if(canSell)NavigationDestination(icon:const Icon(Icons.add_box_outlined),selectedIcon:const Icon(Icons.add_box),label:AppLanguage.tr('Vann')),NavigationDestination(icon:const Icon(Icons.receipt_long_outlined),selectedIcon:const Icon(Icons.receipt_long),label:AppLanguage.tr('Tikè')),NavigationDestination(icon:const Icon(Icons.emoji_events_outlined),selectedIcon:const Icon(Icons.emoji_events),label:AppLanguage.tr('Rezilta'))]
+      : [NavigationDestination(icon:const Icon(Icons.dashboard_outlined),selectedIcon:const Icon(Icons.dashboard),label:AppLanguage.tr('Akèy')),NavigationDestination(icon:const Icon(Icons.add_box_outlined),selectedIcon:const Icon(Icons.add_box),label:AppLanguage.tr('Vann')),NavigationDestination(icon:const Icon(Icons.receipt_long_outlined),selectedIcon:const Icon(Icons.receipt_long),label:AppLanguage.tr('Tikè')),NavigationDestination(icon:const Icon(Icons.emoji_events_outlined),selectedIcon:const Icon(Icons.emoji_events),label:AppLanguage.tr('Rezilta')),NavigationDestination(icon:const Icon(Icons.point_of_sale_outlined),selectedIcon:const Icon(Icons.point_of_sale),label:AppLanguage.tr('Kès'))];
     final selected=paths.indexOf(currentPath);
     return Scaffold(appBar: AppBar(title: const Text('LOTTIVEXA'), actions: [if (runtime.pendingCount > 0) Badge(label: Text('${runtime.pendingCount}'), child: const Icon(Icons.sync_problem)), if (runtime.session.hasPermission('reports.view')) IconButton(onPressed: () => context.push('/reports'), icon: const Icon(Icons.analytics)), IconButton(onPressed: () => context.push('/notifications'), icon: const Icon(Icons.notifications)),IconButton(onPressed:()=>context.go('/settings'),tooltip:'Settings',icon:const Icon(Icons.settings))]), body: child, bottomNavigationBar: NavigationBar(selectedIndex:selected<0?0:selected,onDestinationSelected: (i) => context.go(paths[i]), destinations: destinations));
   }

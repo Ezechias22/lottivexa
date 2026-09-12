@@ -21,7 +21,7 @@ class _LoginState extends State<LoginScreen>{
     final uri=Uri.tryParse(server.text.trim());
     if(uri==null||!uri.hasScheme||!uri.hasAuthority){setState(()=>error='Mete yon adrès sèvè valab, egzanp http://192.168.15.17:4100');return;}
     setState((){busy=true;error=null;});
-    try{await widget.api.setBaseUrl(server.text);final response=await widget.api.dio.post<Map<String,dynamic>>('/api/v1/auth/login',data:{'tenant':tenant.text.trim(),'username':username.text.trim(),'password':password.text});await widget.session.save(response.data!);}
+    try{await widget.api.setBaseUrl(server.text);await widget.api.warmUp();final response=await widget.api.dio.post<Map<String,dynamic>>('/api/v1/auth/login',data:{'tenant':tenant.text.trim(),'username':username.text.trim(),'password':password.text});await widget.session.save(response.data!);}
     on DioException catch(exception){if(!mounted)return;final status=exception.response?.statusCode;setState(()=>error=status==401?'Tenant, username oswa modpas la pa kòrèk.':'API pa reponn sou ${widget.api.baseUrl}. ${exception.message??exception.type.name}');}
     catch(exception){if(mounted)setState(()=>error='Login echwe: $exception');}
     finally{if(mounted)setState(()=>busy=false);}

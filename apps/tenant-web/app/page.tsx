@@ -4,7 +4,7 @@ import'./styles.css';
 import DeviceActions from'./device-actions';
 import MerchantActions from'./merchant-actions';
 import UserActions from'./user-actions';
-const API=process.env.NEXT_PUBLIC_API_URL??'http://localhost:4000/api/v1';
+const RAW_API=process.env.NEXT_PUBLIC_API_URL??'http://localhost:4000';const API=RAW_API.replace(/\/$/,'').endsWith('/api/v1')?RAW_API.replace(/\/$/,''):RAW_API.replace(/\/$/,'')+'/api/v1';
 const RESET_URL=process.env.NEXT_PUBLIC_PASSWORD_RESET_URL??'http://localhost:3003/reset-password';
 type Row=Record<string,any>;type Tab='dashboard'|'branches'|'merchants'|'users'|'lottery'|'tickets'|'finance'|'devices'|'printers'|'reports'|'branding'|'audit';
 const NAV:{id:Tab;label:string;permission?:string;feature?:string}[]=[{id:'dashboard',label:'Dashboard'},{id:'tickets',label:'Tickets',permission:'tickets.view'},{id:'lottery',label:'Games & Draws',permission:'tickets.view'},{id:'merchants',label:'Merchants',permission:'merchants.view'},{id:'branches',label:'Branches',permission:'branches.view'},{id:'users',label:'Users & Roles',permission:'users.view'},{id:'finance',label:'Finance',permission:'finance.view',feature:'finance'},{id:'devices',label:'Devices',permission:'devices.view',feature:'device_management'},{id:'printers',label:'Printers',permission:'printers.view'},{id:'reports',label:'Reports',permission:'reports.view'},{id:'branding',label:'Settings & Domains',permission:'settings.view'},{id:'audit',label:'Audit Logs',permission:'audit.view',feature:'audit_logs'}];
