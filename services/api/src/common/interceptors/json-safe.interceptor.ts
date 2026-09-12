@@ -7,6 +7,8 @@ export function jsonSafe<T>(value: T): T {
   if (typeof value === 'bigint') return value.toString() as T;
   if (Array.isArray(value)) return value.map(jsonSafe) as T;
   if (value instanceof Date || value === null || typeof value !== 'object') return value;
+  const serializable=value as {toJSON?:()=>unknown};
+  if(typeof serializable.toJSON==='function') return jsonSafe(serializable.toJSON()) as T;
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, jsonSafe(item)])) as T;
 }
 
@@ -16,3 +18,4 @@ export class JsonSafeInterceptor implements NestInterceptor {
     return next.handle().pipe(map(jsonSafe));
   }
 }
+
