@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/localization/app_language.dart';
 import '../../core/network/api_client.dart';
+import '../../core/mobile_runtime.dart';
 import '../../core/security/session_store.dart';
 import '../../core/update/app_update_service.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key,required this.api,required this.session});
-  final ApiClient api;final SessionStore session;
+  const LoginScreen({super.key,required this.api,required this.session,required this.runtime});
+  final ApiClient api;final SessionStore session;final MobileRuntime runtime;
   @override State<LoginScreen>createState()=>_LoginState();
 }
 class _LoginState extends State<LoginScreen>{
@@ -19,7 +20,7 @@ class _LoginState extends State<LoginScreen>{
   Future<void>login()async{
     if(tenant.text.trim().isEmpty||username.text.trim().isEmpty||password.text.isEmpty){setState(()=>error=AppLanguage.tr('Ranpli tout chan yo.'));return;}
     setState((){busy=true;error=null;});
-    try{await widget.api.warmUp();final response=await widget.api.dio.post<Map<String,dynamic>>('/api/v1/auth/login',data:{'tenant':tenant.text.trim(),'username':username.text.trim(),'password':password.text});await widget.session.save(response.data!);}
+    try{await widget.api.warmUp();final response=await widget.api.dio.post<Map<String,dynamic>>('/api/v1/auth/login',data:{'tenant':tenant.text.trim(),'username':username.text.trim(),'password':password.text});await widget.session.save(response.data!);try{await widget.runtime.prepareDevice();await widget.runtime.recover();}catch(_){/* Login remains valid while device approval or network is pending. */}}
     on DioException catch(exception){if(!mounted)return;setState(()=>error=exception.response?.statusCode==401?AppLanguage.tr('Tenant, username oswa modpas la pa kòrèk.'):AppLanguage.tr('Sèvè a pa reponn. Eseye ankò.'));}
     catch(_){if(mounted)setState(()=>error=AppLanguage.tr('Koneksyon an echwe. Eseye ankò.'));}
     finally{if(mounted)setState(()=>busy=false);}

@@ -21,6 +21,7 @@ export const messages = {
     'report.status': 'Estati', 'report.morning': 'Maten', 'report.evening': 'Swa',
     'report.invalidDates': 'Dat kòmansman an dwe anvan dat fen an.',
     'table.actions': 'Aksyon', 'table.empty': 'Pa gen done.', 'wake.loading': 'Sèvè a ap reveye…',
+    'result.title':'Antre rezilta manyèl','result.draw':'Tiraj','result.choose':'Chwazi yon tiraj ki fèmen','result.numbers':'Nimewo ki genyen (nan lòd)','result.publish':'Pibliye rezilta','result.wait':'Tanpri tann…','result.invalid':'Antre 1 a 20 nimewo ki gen 1 a 5 chif, separe ak vigil.','result.confirm':'Konfime rezilta pou','result.offline':'Asire tout tikè ki te vann san entènèt senkronize anvan ou pibliye. Piblikasyon an final.','result.success':'Rezilta pibliye; tikè yo mete ajou.','result.none':'Pa gen tiraj ki pare pou resevwa rezilta.','result.history':'Rezilta pibliye','result.lottery':'Lotri',
   },
   fr: {
     'nav.dashboard': 'Tableau de bord', 'nav.tickets': 'Tickets', 'nav.lottery': 'Loteries et tirages',
@@ -40,6 +41,7 @@ export const messages = {
     'report.status': 'Statut', 'report.morning': 'Matin', 'report.evening': 'Soir',
     'report.invalidDates': 'La date de début doit précéder la date de fin.',
     'table.actions': 'Actions', 'table.empty': 'Aucune donnée.', 'wake.loading': 'Démarrage du serveur…',
+    'result.title':'Saisir un résultat manuellement','result.draw':'Tirage','result.choose':'Sélectionnez un tirage clôturé','result.numbers':'Numéros gagnants (dans l’ordre)','result.publish':'Publier le résultat','result.wait':'Veuillez patienter…','result.invalid':'Saisissez de 1 à 20 numéros de 1 à 5 chiffres, séparés par des virgules.','result.confirm':'Confirmer le résultat pour','result.offline':'Vérifiez que tous les tickets vendus hors ligne sont synchronisés avant de publier. La publication est définitive.','result.success':'Résultat publié et tickets mis à jour.','result.none':'Aucun tirage prêt à recevoir un résultat.','result.history':'Résultats publiés','result.lottery':'Loterie',
   },
 } as const;
 

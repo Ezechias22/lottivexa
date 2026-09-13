@@ -27,6 +27,7 @@ class MobileRuntime {
   final PayloadCipher _cipher;
   final FlutterSecureStorage _secure;
   String? deviceId;
+  String? deviceStatus;
   StreamSubscription<List<ConnectivityResult>>? _connectivity;
 
   int get pendingCount => store.pendingCount;
@@ -64,15 +65,41 @@ class MobileRuntime {
     runtime._connectivity = Connectivity().onConnectivityChanged.listen((state) {
       final online = state.any((value) => value != ConnectivityResult.none);
       if (online && session.authenticated) {
-        unawaited(runtime.recover().onError((_, __) {}));
+        unawaited(runtime.prepareDevice().then((_) => runtime.recover()).onError((_, __) {}));
       }
     });
+    if(session.authenticated && !session.forcePasswordChange && session.hasPermission('tickets.create')) {
+      unawaited(runtime.prepareDevice().then((_) => runtime.recover()).onError((_, __) {}));
+    }
     return runtime;
   }
 
   Future<void> setDeviceId(String id) async {
     deviceId = id.trim();
     await _secure.write(key: 'device_id', value: deviceId);
+  }
+
+  Future<void> prepareDevice() async {
+    if (!session.authenticated || session.forcePasswordChange || !session.hasPermission('tickets.create')) return;
+    final tenant = session.tenantId;
+    if (tenant == null) return;
+    final installKey = 'pos_installation_id_$tenant';
+    var installationId = await _secure.read(key: installKey);
+    if (installationId == null) {
+      final random = Random.secure();
+      installationId = base64UrlEncode(List<int>.generate(32, (_) => random.nextInt(256))).replaceAll('=', '');
+      await _secure.write(key: installKey, value: installationId);
+    }
+    final response = await api.dio.post<Map<String, dynamic>>('/api/v1/mobile-devices/enroll', data: {'installationId': installationId});
+    final status = response.data?['status']?.toString();
+    deviceStatus = status;
+    if (status == 'ONLINE' || status == 'OFFLINE') {
+      await setDeviceId(response.data!['id'].toString());
+    } else {
+      // Never use a pending or blocked device for synchronization.
+      deviceId = null;
+      await _secure.delete(key: 'device_id');
+    }
   }
 
   Future<void> sync() async {

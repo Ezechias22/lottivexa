@@ -28,14 +28,14 @@ class LottivexaApp extends StatelessWidget {
       if (state.matchedLocation.startsWith('/admin') && !session.isTenantAdmin) return '/';
       return null;
     }, routes: [
-      GoRoute(path: '/login', builder: (_, __) => LoginScreen(api: api, session: session)),
+      GoRoute(path: '/login', builder: (_, __) => LoginScreen(api: api, session: session, runtime: runtime)),
       GoRoute(path: '/forgot-password', builder: (_, __) => ForgotPasswordScreen(api: api)),
       GoRoute(path: '/change-password', builder: (_, __) => ChangePasswordScreen(api: api, session: session)),
       GoRoute(path: '/notifications', builder: (_, __) => NotificationsScreen(api: api)),
       GoRoute(path: '/reports', builder: (_, __) => ReportsScreen(api: api)),
       GoRoute(path: '/admin/:resource', builder: (_, state) => AdminResourceScreen(api: api, session: session, resource: state.pathParameters['resource']!)),
       ShellRoute(builder: (_, state, child) => AppShell(runtime: runtime, currentPath: state.uri.path, child: child), routes: [
-        GoRoute(path: '/', builder: (_, __) => session.isTenantAdmin ? AdminDashboardScreen(api: api, session: session) : DashboardScreen(api: api)),
+        GoRoute(path: '/', builder: (_, __) => session.isTenantAdmin ? AdminDashboardScreen(api: api, session: session) : DashboardScreen(api: api, store: runtime.store)),
         GoRoute(path: '/admin', builder: (_, __) => AdminHubScreen(session: session)),
         GoRoute(path: '/new-ticket', builder: (_, state) => NewTicketScreen(runtime: runtime, replayTicket: state.extra as Map<String, dynamic>?)),
         GoRoute(path: '/tickets', builder: (_, __) => TicketSearchScreen(runtime: runtime)),
@@ -47,7 +47,7 @@ class LottivexaApp extends StatelessWidget {
   }
   final MobileRuntime runtime;
   late final GoRouter router;
-  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Bolet',debugShowCheckedModeBanner:false,locale:const Locale('fr'),supportedLocales:const[Locale('fr')],localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
+  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Bolet',debugShowCheckedModeBanner:false,locale:locale,supportedLocales:AppLanguage.supported,localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
 }
 
 class AppShell extends StatelessWidget {

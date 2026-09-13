@@ -1,1 +1,1 @@
-import{Module}from'@nestjs/common';import{DevicesController}from'./devices.controller';import{DevicesService}from'./devices.service';@Module({controllers:[DevicesController],providers:[DevicesService]})export class DevicesModule{}
+import{Module}from'@nestjs/common';import{DevicesController,MobileDevicesController}from'./devices.controller';import{DevicesService}from'./devices.service';@Module({controllers:[DevicesController,MobileDevicesController],providers:[DevicesService]})export class DevicesModule{}

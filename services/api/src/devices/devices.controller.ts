@@ -1,9 +1,11 @@
 import{Body,Controller,Get,Param,Patch,Post}from'@nestjs/common';
-import{IsOptional,IsString}from'class-validator';
+import{IsOptional,IsString,Matches}from'class-validator';
 import{CurrentUser}from'../common/decorators/current-user.decorator';
 import{RequireFeature,RequirePermissions}from'../common/decorators/access.decorators';
 import type{Principal}from'../common/guards/jwt-auth.guard';
 import{DevicesService}from'./devices.service';
 class DeviceDto{@IsString()branchId!:string;@IsOptional()@IsString()merchantId?:string;@IsString()name!:string;@IsString()deviceType!:string;@IsString()platform!:string;@IsOptional()@IsString()osVersion?:string;@IsOptional()@IsString()appVersion?:string;@IsOptional()@IsString()publicKey?:string}
 class UpdateDeviceDto{@IsOptional()@IsString()branchId?:string;@IsOptional()@IsString()merchantId?:string|null;@IsOptional()@IsString()name?:string}
+class EnrollDeviceDto{@Matches(/^[A-Za-z0-9_-]{43}$/)installationId!:string}
+@RequireFeature('offline_mode')@Controller('mobile-devices')export class MobileDevicesController{constructor(private service:DevicesService){}@Post('enroll')@RequirePermissions('tickets.create')enroll(@CurrentUser()u:Principal,@Body()dto:EnrollDeviceDto){return this.service.enroll(u,dto.installationId)}}
 @RequireFeature('device_management')@Controller('devices')export class DevicesController{constructor(private service:DevicesService){}@Get()@RequirePermissions('devices.view')list(@CurrentUser()u:Principal){return this.service.list(u)}@Post()@RequirePermissions('devices.register')register(@CurrentUser()u:Principal,@Body()dto:DeviceDto){return this.service.register(u,dto)}@Patch(':id')@RequirePermissions('devices.register')update(@CurrentUser()u:Principal,@Param('id')id:string,@Body()dto:UpdateDeviceDto){return this.service.update(u,id,dto)}@Post(':id/approve')@RequirePermissions('devices.register')approve(@CurrentUser()u:Principal,@Param('id')id:string){return this.service.status(u,id,'OFFLINE')}@Post(':id/block')@RequirePermissions('devices.disable')block(@CurrentUser()u:Principal,@Param('id')id:string){return this.service.status(u,id,'BLOCKED')}@Post(':id/unblock')@RequirePermissions('devices.disable')unblock(@CurrentUser()u:Principal,@Param('id')id:string){return this.service.unblock(u,id)}}
