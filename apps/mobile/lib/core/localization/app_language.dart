@@ -5,29 +5,6 @@ class AppLanguage {
   static const _storage=FlutterSecureStorage(),_key='lottivexa_language';
   static final current=ValueNotifier<Locale>(const Locale('ht'));
   static const supported=[Locale('ht'),Locale('fr')];
-  // Stable message IDs for newly migrated screens; no text matching or DOM mutations.
-  static const _messages=<String,({String ht,String fr})>{
-    'reports.title':(ht:'Rapò',fr:'Rapports'),
-    'reports.start':(ht:'Soti',fr:'Du'),
-    'reports.end':(ht:'Rive',fr:'Au'),
-    'reports.show':(ht:'Afiche rapò',fr:'Afficher le rapport'),
-    'reports.invalidDates':(ht:'Dat kòmansman an dwe anvan dat fen an.',fr:'La date de début doit précéder la date de fin.'),
-    'reports.unavailable':(ht:'Rapò a pa disponib',fr:'Rapport indisponible'),
-    'reports.sales':(ht:'Vant',fr:'Ventes'),
-    'reports.tickets':(ht:'Tikè',fr:'Tickets'),
-    'reports.payouts':(ht:'Peman gayan',fr:'Paiements des gagnants'),
-    'reports.commission':(ht:'Komisyon',fr:'Commissions'),
-    'reports.draws':(ht:'Lotri ak tiraj',fr:'Loteries et tirages'),
-    'reports.empty':(ht:'Pa gen lavant pou dat sa yo.',fr:'Aucune vente pour ces dates.'),
-    'reports.morning':(ht:'Maten',fr:'Matin'),
-    'reports.evening':(ht:'Swa',fr:'Soir'),
-    'reports.ticketCount':(ht:'tikè',fr:'tickets'),
-  };
-  static String text(String key){
-    final message=_messages[key];
-    if(message==null)throw ArgumentError.value(key,'key','Unknown translation key');
-    return current.value.languageCode=='fr'?message.fr:message.ht;
-  }
   static const _fr=<String,String>{
     'Akèy':'Accueil','Admin':'Administration','Vann':'Vendre','Tikè':'Tickets','Rezilta':'Résultats','Kès':'Caisse',
     'Paramèt':'Paramètres','Rapò':'Rapports','Notifikasyon':'Notifications','Dekonekte':'Déconnexion',
@@ -44,8 +21,10 @@ class AppLanguage {
     'Soti':'Du','Rive':'Au','Afiche rapò':'Afficher le rapport','Vant':'Ventes','Peman gayan':'Paiements gagnants',
     'Komisyon':'Commissions','Lotri ak tiraj':'Loteries et tirages','Pa gen lavant pou dat sa yo.':'Aucune vente pour ces dates.',
     'Maten':'Matin','Swa':'Soir','tikè':'tickets',
+    'Senkronizasyon ak enprimant':'Synchronisation et imprimantes','Sou entènèt':'En ligne','San entènèt':'Hors ligne','Ap tann senkronizasyon':'En attente de synchronisation','Enpresyon an atant':'Impressions en attente','Aparèy POS sa a':'Cet appareil de caisse','Aparèy apwouve':'Appareil autorisé','Tcheke epi senkronize':'Vérifier et synchroniser','Ap tann apwobasyon administratè a':'En attente de validation par l’administrateur','Enprimant biwo a':'Imprimantes de la succursale','Pa gen lòt enprimant nan biwo sa a.':'Aucune autre imprimante dans cette succursale.','Sòti':'Se déconnecter','Mizajou otomatik chak 15 segonn':'Actualisation toutes les 15 secondes','Rezilta yo':'Résultats','Pa gen rezilta pibliye pou kounye a.':'Aucun résultat publié pour le moment.','Premye':'Premier','Dezyèm':'Deuxième','Lòt':'Autre','Midi':'Midi','Lannuit':'Nuit','Rezilta a poko gen nimewo.':'Le résultat ne comporte aucun numéro.','Retounen':'Retour','Rezilta yo pa disponib kounye a.':'Les résultats ne sont pas disponibles actuellement.','Pa gen tiraj ki fèmen ap tann rezilta.':'Aucun tirage clôturé n’attend de résultat.','Admin biznis la kapab pibliye tiraj yo nan Lotri ak tiraj.':'L’administrateur peut publier les tirages dans Loteries et tirages.','tiraj fèmen ap tann rezilta.':'tirages clôturés en attente de résultat.',
   };
   static Future<void>restore()async{final value=await _storage.read(key:_key);current.value=Locale(value=='fr'?'fr':'ht');}
   static Future<void>set(String code)async{if(code!='ht'&&code!='fr')return;current.value=Locale(code);await _storage.write(key:_key,value:code);}
   static String tr(String value)=>current.value.languageCode=='fr'?(_fr[value]??value):value;
+  static String text(String value)=>tr(value);
 }

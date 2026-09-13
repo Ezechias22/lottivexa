@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
@@ -25,6 +26,7 @@ class _NewTicketState extends State<NewTicketScreen> {
   final List<PosLine> lines = [];
   String? drawId, message;
   bool busy = false;
+  bool usingOfflineCatalog = false;
   Timer? configurationTimer;
 
   @override void initState() { super.initState(); load(); configurationTimer = Timer.periodic(const Duration(seconds: 60), (_) => load(silent: true)); }
@@ -36,10 +38,62 @@ class _NewTicketState extends State<NewTicketScreen> {
       final values = await Future.wait([widget.runtime.api.dio.get<List<dynamic>>('/api/v1/lottery/games'), widget.runtime.api.dio.get<List<dynamic>>('/api/v1/lottery/draws')]);
       games = values[0].data ?? [];
       draws = (values[1].data ?? []).where((row) => row['status'] == 'OPEN').toList();
+      final tenantId = widget.runtime.session.tenantId;
+      if (tenantId != null && tenantId.isNotEmpty) {
+        widget.runtime.store.setSetting('lottery_catalog_$tenantId', jsonEncode({
+          'savedAt': DateTime.now().toUtc().toIso8601String(),
+          'games': games,
+          'draws': draws,
+        }));
+      }
+      usingOfflineCatalog = false;
+      message = null;
       drawId ??= draws.isEmpty ? null : '${draws.first['id']}';
       _restoreReplay();
-    } on DioException catch (error) { message = 'Done POS yo pa disponib: ${error.response?.data ?? error.message}'; }
+    } on DioException catch (error) {
+      // A server rejection (401/403/etc.) is not an offline signal.
+      if (error.response != null) {
+        games = [];draws = [];drawId = null;usingOfflineCatalog = false;
+        message = 'Sèvè a refize aksè a done POS yo: ${error.response?.statusCode}.';
+      } else {
+        _restoreOfflineCatalog();
+      }
+    }
     finally { if (mounted && !silent) setState(() => busy = false); }
+  }
+
+  void _restoreOfflineCatalog() {
+    final tenantId = widget.runtime.session.tenantId;
+    final raw = tenantId == null ? null : widget.runtime.store.setting('lottery_catalog_$tenantId');
+    if (raw == null || widget.runtime.deviceId == null || widget.runtime.deviceId!.isEmpty ||
+        !widget.runtime.session.hasPermission('tickets.create') || widget.runtime.session.forcePasswordChange) {
+      games = [];draws = [];drawId = null;usingOfflineCatalog = false;
+      message = 'Done offline yo pa disponib. Konekte sou entènèt, ouvri paj vant lan epi verifye aparèy la anvan ou koupe entènèt.';
+      return;
+    }
+    try {
+      final saved = jsonDecode(raw) as Map<String,dynamic>;
+      final fetchedAt = DateTime.parse(saved['savedAt'] as String).toUtc();
+      final now = DateTime.now().toUtc();
+      if (fetchedAt.isAfter(now.add(const Duration(minutes:5))) || now.difference(fetchedAt) > const Duration(hours:6)) throw const FormatException('STALE_CATALOG');
+      games = saved['games'] as List<dynamic>;
+      draws = (saved['draws'] as List<dynamic>).where((row) {
+        if (row is! Map || row['status'] != 'OPEN') return false;
+        final closes = DateTime.tryParse('${row['closesAt']}')?.toUtc();
+        final cutoff = (row['game'] is Map ? row['game']['cutoffSeconds'] : null);
+        final seconds = cutoff is num ? cutoff.toInt() : int.tryParse('$cutoff');
+        // Missing cutoff or closing time means we cannot safely accept the bet.
+        return closes != null && seconds != null && now.isBefore(closes.subtract(Duration(seconds:seconds)));
+      }).toList();
+      usingOfflineCatalog = true;
+      if (draws.isEmpty) drawId = null;
+      else if (!draws.any((row) => '${row['id']}' == drawId)) drawId = '${draws.first['id']}';
+      message = 'Mòd offline: tikè yo ap rete AN ATANT. Sèvè a ka refize yo lè koneksyon an retounen.';
+      _restoreReplay();
+    } catch (_) {
+      games = [];draws = [];drawId = null;usingOfflineCatalog = false;
+      message = 'Done lotri lokal yo ekspire oswa yo pa valab. Rekonekte sou entènèt pou mete yo ajou.';
+    }
   }
 
   dynamic get selectedDraw => draws.where((row) => '${row['id']}' == drawId).firstOrNull;
@@ -107,17 +161,33 @@ class _NewTicketState extends State<NewTicketScreen> {
 
   Future<void> sell() async {
     if (drawId == null || lines.isEmpty || lines.any((line) => (double.tryParse(line.stake) ?? 0) <= 0)) { setState(() => message = 'Chwazi tiraj, ajoute boul epi mete yon pri ki pi gran pase 0.'); return; }
+    if (usingOfflineCatalog) {
+      final draw = selectedDraw;
+      final closes = DateTime.tryParse('${draw?['closesAt']}')?.toUtc();
+      final cutoff = draw?['game']?['cutoffSeconds'];
+      final seconds = cutoff is num ? cutoff.toInt() : int.tryParse('$cutoff');
+      if (closes == null || seconds == null || !DateTime.now().toUtc().isBefore(closes.subtract(Duration(seconds:seconds)))) {
+        setState(() => message = 'Tiraj sa a fèmen oswa lè limit li rive. Rekonekte sou entènèt.');return;
+      }
+    }
+    final mutationId = const Uuid().v7();
     setState(() => busy = true);
     final payload = lines.map((line) => {'betTypeId': line.betTypeId, 'selection': line.number.split('-').map(int.parse).toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position}).toList();
     try {
-      final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: {'drawId': drawId, 'idempotencyKey': const Uuid().v7(), if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId, 'lines': payload});
+      final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: {'drawId': drawId, 'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId, 'lines': payload});
       final ticket=<String,dynamic>{...response.data!,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
       catch (_) { printWarning = 'Tikè a vann, men fich la pa enprime. Verifye non biznis la epi itilize Re-enprime; pa vann li ankò.'; }
       if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ${ticket['amount']}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
     } on DioException catch (error) {
-      if (error.response == null) { final id = await widget.runtime.offlineTickets.queueTicket(drawId: drawId!, lines: payload); if (mounted) setState(() => message = 'Offline ticket $id antre nan sync queue; li ap valide lè entènèt retounen.'); }
+      if (error.response == null && !usingOfflineCatalog) _restoreOfflineCatalog();
+      if (error.response == null && widget.runtime.deviceId?.isNotEmpty == true && widget.runtime.session.tenantId != null && widget.runtime.session.hasPermission('tickets.create') && usingOfflineCatalog) {
+        final id = await widget.runtime.offlineTickets.queueTicket(drawId: drawId!, lines: payload, idempotencyKey: mutationId);
+        if (mounted) setState(() { lines.clear(); message = 'Tikè $id sove AN ATANT. Pa peye gayan sou li; sèvè a dwe valide l. Pa rekreye lavant sa a.'; });
+      } else if (mounted && error.response == null) {
+        setState(() => message = 'Koneksyon koupe. Pa rekreye vant sa a; verifye lis tikè a sou sèvè a lè entènèt retounen. Vant offline mande yon katalòg ajou ak yon aparèy otorize.');
+      }
       else if (mounted) setState(() => message = 'Server refize tikè a: ${error.response?.data}.');
     } finally { if (mounted) setState(() => busy = false); }
   }

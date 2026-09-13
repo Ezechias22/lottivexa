@@ -47,7 +47,10 @@ class LottivexaApp extends StatelessWidget {
   }
   final MobileRuntime runtime;
   late final GoRouter router;
-  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Bolet',debugShowCheckedModeBanner:false,locale:locale,supportedLocales:AppLanguage.supported,localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
+  // Flutter does not provide MaterialLocalizations for Haitian Creole. Keep
+  // Flutter's widget locale on French; AppLanguage.current still drives all
+  // application copy in Haitian Creole or French via AppLanguage.tr.
+  @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Bolet',debugShowCheckedModeBanner:false,locale:const Locale('fr'),supportedLocales:const[Locale('fr')],localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
 }
 
 class AppShell extends StatelessWidget {
