@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
   private val usbPermission = "com.lottivexa.USB_PERMISSION"
   private val bluetoothRequest = 9471
   private var pendingBluetoothResult: MethodChannel.Result? = null
+  private var activePrintWebView: WebView? = null
 
   override fun configureFlutterEngine(engine: FlutterEngine) {
     super.configureFlutterEngine(engine)
@@ -30,7 +31,7 @@ class MainActivity : FlutterActivity() {
         "requestBluetoothPermission" -> requestBluetoothPermission(result)
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
-        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", result)
+        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
           val config = call.argument<Map<String, Any>>("configuration") ?: emptyMap()
@@ -61,9 +62,11 @@ class MainActivity : FlutterActivity() {
 
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
 
-  private fun systemPrint(text: String, result: MethodChannel.Result) {
+  private fun systemPrint(text: String, businessName: String, result: MethodChannel.Result) {
     val web = WebView(this)
-    web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { (getSystemService(Context.PRINT_SERVICE) as PrintManager).print("Tikè LOTTIVEXA", view.createPrintDocumentAdapter("Tikè LOTTIVEXA"), PrintAttributes.Builder().build()); result.success(null) } }
+    activePrintWebView = web
+    val documentName = businessName.take(80).ifBlank { "Bolet" }
+    web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { try { (getSystemService(Context.PRINT_SERVICE) as PrintManager).print(documentName, view.createPrintDocumentAdapter(documentName), PrintAttributes.Builder().build()); result.success(null) } catch (error: Exception) { result.error("SYSTEM_PRINT_FAILED", error.message, null) } } }
     web.loadDataWithBaseURL(null, "<html><body><pre style='font-size:18px'>${android.text.TextUtils.htmlEncode(text)}</pre></body></html>", "text/html", "UTF-8", null)
   }
 

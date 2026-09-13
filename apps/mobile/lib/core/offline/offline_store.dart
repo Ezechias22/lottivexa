@@ -20,6 +20,9 @@ class OfflineStore {
   void enqueue({required String id,required String operation,required String encryptedPayload,required DateTime createdAt}){final now=createdAt.toUtc().toIso8601String();db.execute('INSERT OR IGNORE INTO outbox(id,operation,encrypted_payload,created_at,next_attempt_at) VALUES(?,?,?,?,?)',[id,operation,encryptedPayload,now,now]);}
   List<Row>ready({int limit=50})=>db.select("SELECT * FROM outbox WHERE status IN ('PENDING','RETRY') AND next_attempt_at<=? ORDER BY created_at LIMIT ?",[DateTime.now().toUtc().toIso8601String(),limit]);
   int get pendingCount=>db.select("SELECT COUNT(*) n FROM outbox WHERE status IN ('PENDING','RETRY')").first['n']as int;
+  int get rejectedCount=>db.select("SELECT COUNT(*) n FROM outbox WHERE status='REJECTED'").first['n']as int;
+  List<Map<String,String>> get syncErrors=>db.select("SELECT status,last_error FROM outbox WHERE status IN ('RETRY','REJECTED') OR (status='APPLIED' AND last_error IS NOT NULL) ORDER BY created_at DESC LIMIT 5").map((row)=>{'status':row['status'].toString(),'error':row['last_error']?.toString()??''}).toList();
+  void printAttention(String id)=>db.execute("UPDATE outbox SET last_error='PRINT_FOLLOWUP_REQUIRED' WHERE id=? AND status='APPLIED'",[id]);
   void applied(String id)=>db.execute("UPDATE outbox SET status='APPLIED',last_error=NULL WHERE id=?",[id]);
   void rejected(String id,String error)=>db.execute("UPDATE outbox SET status='REJECTED',last_error=? WHERE id=?",[error,id]);
   void retry(String id,int attempts,String error)=>db.execute("UPDATE outbox SET status='RETRY',attempts=?,last_error=?,next_attempt_at=? WHERE id=?",[attempts,error,_retryAt(attempts),id]);

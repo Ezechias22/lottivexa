@@ -28,11 +28,38 @@ class MobilePrintService {
     setDefaultPrinter('LOCAL');
   }
   Future<void> useSystemPrinter() async { const printer=<String,dynamic>{'id':'SYSTEM','name':'Enprime nòmal Android','connectionType':'SYSTEM','configuration':<String,dynamic>{}};store.setSetting('local_printer',jsonEncode(printer));setDefaultPrinter('LOCAL'); }
-  Future<void> printWithSystem(Map<String,dynamic>ticket)=>NativePrinterTransport.systemPrint(encoder.plain(ticket));
+  Future<void> printWithSystem(Map<String,dynamic>ticket)=>NativePrinterTransport.systemPrint(encoder.plain(ticket),ticket['businessName']?.toString()??'Bolet');
+  Future<String> businessName() async {
+    final tenantId=api.session.tenantId;
+    if(tenantId==null)return 'Bolet';
+    final settingKey='receipt_business_name_$tenantId';
+    try {
+      final response=await api.dio.get<Map<String,dynamic>>('/api/v1/printing/receipt-branding');
+      final name=response.data?['businessName']?.toString().trim();
+      if(name!=null&&name.isNotEmpty&&name.toLowerCase()!='lottivexa')store.setSetting(settingKey,name);
+    }catch(_){/* Offline: retain last verified tenant-specific name. */}
+    return store.setting(settingKey)??'Bolet';
+  }
+  Future<Map<String,dynamic>> withReceiptBranding(Map<String,dynamic> ticket) async {
+    final token = api.session.accessToken;
+    if (token == null) throw StateError('RECEIPT_LOGIN_REQUIRED');
+    final claims = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(token.split('.')[1])))) as Map<String,dynamic>;
+    final tenantId = claims['tenantId']?.toString();
+    if (tenantId == null || tenantId.isEmpty) throw StateError('RECEIPT_TENANT_REQUIRED');
+    final settingKey = 'receipt_business_name_$tenantId';
+    try {
+      final response = await api.dio.get<Map<String,dynamic>>('/api/v1/printing/receipt-branding');
+      final name = response.data?['businessName']?.toString().trim();
+      if (name != null && name.isNotEmpty) store.setSetting(settingKey, name);
+    } catch (_) { /* Offline: use the last verified business name for this tenant. */ }
+    final name = store.setting(settingKey);
+    if (name == null || name.trim().isEmpty) throw StateError('RECEIPT_BUSINESS_NAME_REQUIRED');
+    return {...ticket, 'businessName': name};
+  }
   Future<void> queueConfirmedTicket(Map<String, dynamic> ticket) async {
     final printerId=defaultPrinterId,ticketId=ticket['id']?.toString();
     if(printerId==null||ticketId==null)return;
-    store.enqueuePrint(id:const Uuid().v7(),ticketId:ticketId,printerId:printerId,encryptedPayload:await cipher.encrypt(ticket));
+    store.enqueuePrint(id:const Uuid().v7(),ticketId:ticketId,printerId:printerId,encryptedPayload:await cipher.encrypt(await withReceiptBranding(ticket)));
     await drain();
   }
   Future<void> drain() async {
