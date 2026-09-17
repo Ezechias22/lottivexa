@@ -704,6 +704,7 @@ model OddsRule {
   tenantId   String    @db.Uuid
   gameId     String    @db.Uuid
   betTypeId  String    @db.Uuid
+  resultPosition Int?
   multiplier Decimal   @db.Decimal(19, 6)
   startsAt   DateTime
   endsAt     DateTime?
@@ -711,7 +712,7 @@ model OddsRule {
   game       Game      @relation(fields: [gameId], references: [id], onDelete: Restrict)
   betType    BetType   @relation(fields: [betTypeId], references: [id], onDelete: Restrict)
 
-  @@index([tenantId, gameId, betTypeId, active])
+  @@index([tenantId, gameId, betTypeId, resultPosition, active])
 }
 
 model LotteryRule {
