@@ -38,7 +38,7 @@ class EscPosEncoder {
       final kind = _betName(line);
       final stake = line['isPromotional'] == true
           ? tr('GRATIS', 'GRATUIT')
-          : '$currency ${line['stake'] ?? ''}';
+          : '$currency${line['stake'] ?? ''}';
       out.writeln('$kind $selection    $stake');
       if (parts.length > 1 && parts[1].isNotEmpty) out.writeln(_centerLine('OP ${parts[1]}'));
       final winCount = _winCount(line);
@@ -47,11 +47,11 @@ class EscPosEncoder {
     }
     out
       ..writeln('--------------------------------')
-      ..writeln('TOTAL: $currency ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}')
-      ..writeln('${tr('GANY POSIB', 'GAIN POTENTIEL')}: $currency ${ticket['potentialWin'] ?? ''}')
+      ..writeln('TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}')
+      ..writeln('${tr('GANY POSIB', 'GAIN POTENTIEL')}: $currency${ticket['potentialWin'] ?? ''}')
       ..writeln('${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      out.writeln('${tr('GANY KONFIME', 'GAIN CONFIRMÉ')}: $currency ${winning['winningAmount']}');
+      out.writeln('${tr('GANY KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
     }
     out
       ..writeln('--------------------------------')
@@ -97,16 +97,16 @@ class EscPosEncoder {
       if (winCount > 1) _line(out, '${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
       _line(out, line['isPromotional'] == true
           ? tr('  GRATIS', '  GRATUIT')
-          : '  $currency ${line['stake'] ?? ''}');
+          : '  $currency${line['stake'] ?? ''}');
       if (line['isPromotional'] == true) _line(out, tr('BONIS GRATIS', 'BONUS GRATUIT'));
     }
     _line(out, '--------------------------------');
-    _line(out, 'TOTAL: $currency ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
-    _line(out, '${tr('GANY POSIB', 'GAIN POTENTIEL')}: $currency ${ticket['potentialWin'] ?? ''}');
+    _line(out, 'TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
+    _line(out, '${tr('GANY POSIB', 'GAIN POTENTIEL')}: $currency${ticket['potentialWin'] ?? ''}');
     _line(out, '${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     final winning = _map(ticket['winning']);
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      _line(out, '${tr('GANY KONFIME', 'GAIN CONFIRMÉ')}: $currency ${winning['winningAmount']}');
+      _line(out, '${tr('GANY KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
     }
     _line(out, _date(ticket['createdAt']));
     final code = ticket['ticketNumber']?.toString();
@@ -143,7 +143,7 @@ class EscPosEncoder {
   }
 
   Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
-  String _currency(dynamic value) => '${value ?? 'USD'}' == 'USD' ? r'$' : '${value ?? 'USD'}';
+  String _currency(dynamic _) => r'$';
   String _betName(Map<String, dynamic> line) => line['betType'] is Map
       ? '${line['betType']?['name'] ?? 'Bolet'}'
       : '${line['betTypeName'] ?? line['betType'] ?? 'Bolet'}';

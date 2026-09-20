@@ -59,6 +59,7 @@ class _TicketState extends State<TicketSearchScreen> {
   }
 
   String statusLabel(dynamic value) => const {'PENDING':'ANNATANT','VALID':'VALID','WINNER':'GENYEN','LOSER':'PÈDI','CANCELLED':'ANILE','VOID':'ANILE NÈT','PAID':'PEYE','EXPIRED':'EKSPIRE'}['$value'] ?? '$value';
+  String _money(dynamic value) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
     'PAID' => Colors.blue.shade700,
@@ -75,7 +76,7 @@ class _TicketState extends State<TicketSearchScreen> {
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
       if (ticket != null) TicketDetails(ticket: ticket!, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: ticket!['status'] == 'WINNER' && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
       const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      ...rows.map((row) => Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, row['status'])), title: Text('${row['ticketNumber']}'), subtitle: Text('${row['status'] == 'WINNER' && ((double.tryParse('${row['winning']?['winningAmount']}') ?? 0) <= 0 || !(row['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true)) ? 'BEZWEN VERIFIKASYON' : statusLabel(row['status'])} · ${row['createdAt']}'), trailing: Text('${row['amount']}', style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}')))),
+      ...rows.map((row) => Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, row['status'])), title: Text('${row['ticketNumber']}'), subtitle: Text('${row['status'] == 'WINNER' && ((double.tryParse('${row['winning']?['winningAmount']}') ?? 0) <= 0 || !(row['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true)) ? 'BEZWEN VERIFIKASYON' : statusLabel(row['status'])} · ${row['createdAt']}'), trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}')))),
       if (rows.isEmpty && !busy) const Padding(padding: EdgeInsets.all(24), child: Text('Pa gen tikè.')),
     ]),
   );
@@ -90,6 +91,8 @@ class TicketDetails extends StatelessWidget {
   final VoidCallback onPrint;
   final VoidCallback? onPay;
 
+  String _money(dynamic value) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
+
   @override Widget build(BuildContext context) {
     final lines = ticket['lines'] as List<dynamic>? ?? [];
     final winning = ticket['winning'] as Map<String, dynamic>?;
@@ -103,9 +106,9 @@ class TicketDetails extends StatelessWidget {
         const Divider(height: 28),
         for (final raw in lines) _winningLine(raw as Map<String, dynamic>),
         const Divider(height: 28),
-        _total('Total jwe', '${ticket['amount']}'),
-        _total('Gayan potansyèl', '${ticket['potentialWin']}'),
-        if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', '${winning?['winningAmount'] ?? 0}', winner: true),
+        _total('Total jwe', _money(ticket['amount'])),
+        _total('Gayan potansyèl', _money(ticket['potentialWin'])),
+        if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', _money(winning?['winningAmount'] ?? 0), winner: true),
         if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
         const Text('Tikè sa a dwe verifye nan sistèm nan anvan peman. Kenbe tikè orijinal la. Yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
@@ -138,11 +141,11 @@ class TicketDetails extends StatelessWidget {
           if (key.length > 1) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text('OP ${key[1]}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff2451c7)))),
           if (winCount > 1) Text('DEKABÈS × $winCount', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
           if (line['isPromotional'] == true) const Text('GRATIS', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          Text('Pri: HTG ${line['stake']} · Kòt: ${line['odds']}'),
+          Text('Pri: ${_money(line['stake'])} · Kòt: ${line['odds']}'),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(won ? 'GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
-          if (won) Text('HTG ${winAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          if (won) Text('\$${winAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
         ]),
       ]),
     );

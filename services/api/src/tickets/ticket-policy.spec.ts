@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancellationDeadline, deriveFreeMaryajSelections, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
+import { cancellationDeadline, deriveFreeMaryajSelections, isTicketCancellationAllowed, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
 
 const line = { betTypeId: 'bet-1', selection: ['12'], stake: '1.25', odds: '20.5', selectionCount: 1, numberMin: 0, numberMax: 99, allowRepeats: true };
 
@@ -44,6 +44,11 @@ describe('selection formatting and cancellation', () => {
   it('keeps the leading zero in Boul Pè', () => expect(normalizeSelection('BOUL_PE', [0])).toEqual(['00']));
   it('limits cancellation to the earlier deadline', () => {
     expect(cancellationDeadline(new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:10:00Z'), 60).toISOString()).toBe('2026-01-01T00:01:00.000Z');
+  });
+  it('blocks cancellation at the exact deadline', () => {
+    const deadline=new Date('2026-01-01T00:01:00Z');
+    expect(isTicketCancellationAllowed(new Date('2026-01-01T00:00:59.999Z'),deadline)).toBe(true);
+    expect(isTicketCancellationAllowed(deadline,deadline)).toBe(false);
   });
 });
 

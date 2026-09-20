@@ -27,7 +27,7 @@ class _NewTicketState extends State<NewTicketScreen> {
   final List<PosLine> lines = [];
   String? drawId, message;
   String currency = 'USD';
-  String get currencyMark => currency == 'USD' ? r'$' : '$currency ';
+  String get currencyMark => r'$';
   bool busy = false;
   final Set<int> selectedPositions = {1};
   bool usingOfflineCatalog = false;
@@ -144,7 +144,7 @@ class _NewTicketState extends State<NewTicketScreen> {
       final stake = controller.text.trim().replaceAll(',', '.');
       final valid = (double.tryParse(stake) ?? 0) > 0;
       final values = previewNumbers ?? _boletNumbers;
-      return AlertDialog(title: Text(title), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(help), const SizedBox(height: 12), if (values.isNotEmpty) Wrap(spacing: 6, children: values.map((value) => Chip(label: Text(value))).toList()), const SizedBox(height: 8), TextField(controller: controller, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, stake) : null, child: const Text('KONTINYE'))]);
+      return AlertDialog(scrollable: true, title: Text(title), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(help), const SizedBox(height: 12), if (values.isNotEmpty) Wrap(spacing: 6, children: values.map((value) => Chip(label: Text(value))).toList()), const SizedBox(height: 8), TextField(controller: controller, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, stake) : null, child: const Text('KONTINYE'))]);
     }));
   }
 
@@ -171,7 +171,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     return showDialog<Map<String,dynamic>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
       final stake = lotoStake.text.trim().replaceAll(',', '.');
       final valid = chosen.isNotEmpty && (double.tryParse(stake) ?? 0) > 0;
-      return AlertDialog(title: const Text('LOTO 4 OTOMATIK'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Boul Bolet ak Boul Pè sou fich la: ${_boletNumbers.join(', ')}'), const SizedBox(height: 10), const Text('Chwazi pozisyon rezilta yo:'), Wrap(spacing: 4, children: [for (final position in const [1,2,3]) FilterChip(label: Text('Opsyon $position'), selected: chosen.contains(position), onSelected: (value) => refreshDialog(() { if (value) chosen.add(position); else if (chosen.length > 1) chosen.remove(position); })), ActionChip(label: const Text('Tout opsyon'), onPressed: () => refreshDialog(() => chosen.addAll([1,2,3])))]), const SizedBox(height: 10), TextField(controller: lotoStake, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, {'positions': Set<int>.of(chosen), 'stake': stake}) : null, child: const Text('KONTINYE'))]);
+      return AlertDialog(scrollable: true, title: const Text('LOTO 4 OTOMATIK'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Boul Bolet ak Boul Pè sou fich la: ${_boletNumbers.join(', ')}'), const SizedBox(height: 10), const Text('Chwazi pozisyon rezilta yo:'), Wrap(spacing: 4, children: [for (final position in const [1,2,3]) FilterChip(label: Text('Opsyon $position'), selected: chosen.contains(position), onSelected: (value) => refreshDialog(() { if (value) chosen.add(position); else if (chosen.length > 1) chosen.remove(position); })), ActionChip(label: const Text('Tout opsyon'), onPressed: () => refreshDialog(() => chosen.addAll([1,2,3])))]), const SizedBox(height: 10), TextField(controller: lotoStake, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, {'positions': Set<int>.of(chosen), 'stake': stake}) : null, child: const Text('KONTINYE'))]);
     }));
   }
 
@@ -192,7 +192,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     final result = await showDialog<List<String>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
       final a = first.text.trim(), b = second.text.trim(), price = double.tryParse(stake.text.replaceAll(',', '.')) ?? 0;
       final valid = RegExp(r'^\d{2}$').hasMatch(a) && RegExp(r'^\d{2}$').hasMatch(b) && a != b && price > 0;
-      return AlertDialog(title: const Text('MARYAJ PEYE MANYÈL'), content: Column(mainAxisSize: MainAxisSize.min, children: [
+      return AlertDialog(scrollable: true, title: const Text('MARYAJ PEYE MANYÈL'), content: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('Antre de nimewo Maryaj la ak pri pou tikè a.'),
         TextField(controller: first, autofocus: true, maxLength: 2, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Premye nimewo'), onChanged: (_) => refreshDialog(() {})),
         TextField(controller: second, maxLength: 2, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Dezyèm nimewo'), onChanged: (_) => refreshDialog(() {})),
@@ -232,7 +232,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     return showDialog<List<List<String>>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
       final values = fields.map((field) => field.text.trim()).toList();
       final valid = values.every((value) => RegExp(r'^\d{2}$').hasMatch(value)) && values[0] != values[1] && values[2] != values[3];
-      return AlertDialog(title: const Text('2 MARYAJ GRATIS'), content: Column(mainAxisSize: MainAxisSize.min, children: [
+      return AlertDialog(scrollable: true, title: const Text('2 MARYAJ GRATIS'), content: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('Vant sa a rive 100 goud. Chwazi nimewo pou de liy Maryaj gratis yo.'),
         for (var i = 0; i < fields.length; i++) TextField(controller: fields[i], maxLength: 2, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.isEven ? 'Nimewo Maryaj 1' : 'Nimewo Maryaj 2'), onChanged: (_) => refreshDialog(() {})),
       ]), actions: [
@@ -280,7 +280,7 @@ class _NewTicketState extends State<NewTicketScreen> {
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
       catch (_) { printWarning = 'Tikè a vann, men fich la pa enprime. Verifye non biznis la epi itilize Re-enprime; pa vann li ankò.'; }
-      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ${ticket['amount']}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
+      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ' + r'$' + '${ticket['amount']}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
     } on DioException catch (error) {
       if (error.response == null && !usingOfflineCatalog) _restoreOfflineCatalog();
       if (error.response == null && freeMaryaj.isEmpty && widget.runtime.deviceId?.isNotEmpty == true && widget.runtime.session.tenantId != null && widget.runtime.session.hasPermission('tickets.create') && usingOfflineCatalog) {
@@ -295,16 +295,39 @@ class _NewTicketState extends State<NewTicketScreen> {
 
   double get total => lines.fold(0, (sum, line) => sum + (double.tryParse(line.stake) ?? 0));
 
-  @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
+  @override Widget build(BuildContext context) => Scaffold(
+    body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 20), children: [
     const Text('Vann bolet', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
     const Text('Antre boul la; sistèm nan detekte Bolet 2, Loto 3, Loto 4 oswa Loto 5 otomatikman.'), const SizedBox(height: 16),
-    DropdownButtonFormField<String>(value: drawId, decoration: const InputDecoration(labelText: 'Tiraj ki ouvè', border: OutlineInputBorder()), items: draws.map<DropdownMenuItem<String>>((row) => DropdownMenuItem(value: '${row['id']}', child: Text(drawLabel(row)))).toList(), onChanged: (value) => setState(() { drawId = value; lines.clear(); })),
+    DropdownButtonFormField<String>(isExpanded: true, value: drawId, decoration: const InputDecoration(labelText: 'Tiraj ki ouvè', border: OutlineInputBorder()), items: draws.map<DropdownMenuItem<String>>((row) => DropdownMenuItem(value: '${row['id']}', child: Text(drawLabel(row), maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() { drawId = value; lines.clear(); })),
     const SizedBox(height: 14),
-    Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Expanded(flex:2,child:TextField(controller:number,autofocus:true,keyboardType:TextInputType.number,maxLength:5,decoration:const InputDecoration(labelText:'Boul',hintText:'12, 123, 1234 oswa 12345',border:OutlineInputBorder()))),const SizedBox(width:8),Expanded(child:TextField(controller:lineStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),onSubmitted:(_)=>addNumber(),decoration:const InputDecoration(labelText:'Pri',hintText:'25',border:OutlineInputBorder()))),const SizedBox(width:8),Padding(padding:const EdgeInsets.only(top:4),child:FilledButton(onPressed:addNumber,child:const Text('AJOUTE')))]),
+    LayoutBuilder(builder: (context, constraints) {
+      final numberField = TextField(controller:number,autofocus:true,keyboardType:TextInputType.number,maxLength:5,decoration:const InputDecoration(labelText:'Boul',hintText:'12, 123, 1234 oswa 12345',border:OutlineInputBorder()));
+      final priceField = TextField(controller:lineStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),onSubmitted:(_)=>addNumber(),decoration:const InputDecoration(labelText:'Pri',hintText:'25',border:OutlineInputBorder()));
+      final addButton = FilledButton(onPressed:addNumber,child:const Text('AJOUTE'));
+      if (constraints.maxWidth < 430) return Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[numberField,priceField,addButton]);
+      return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Expanded(flex:2,child:numberField),const SizedBox(width:8),Expanded(child:priceField),const SizedBox(width:8),Padding(padding:const EdgeInsets.only(top:4),child:addButton)]);
+    }),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('Zouti otomatik · ${_boletNumbers.length} boul Bolet ak Boul Pè sou fich la',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addManualMaryaj,child:const Text('MARYAJ PEYE MANYÈL')),FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Pri ak opsyon Loto yo ap parèt nan ti fenèt yo. Ou ka ajiste pri chak liy apre sa.')]))),
     const SizedBox(height: 16),
     ...lines.asMap().entries.map((entry){final index=entry.key,line=entry.value;return Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[SizedBox(width:88,child:Text(line.number,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900))),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${line.betName}${line.position==null?'':' · Opsyon ${line.position}'}'),TextFormField(key:ValueKey('${line.number}-${line.position}-${line.stake}'),initialValue:line.stake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri liy sa a',isDense:true),onChanged:(value){line.stake=value;setState((){});})])),IconButton(onPressed:()=>setState(()=>lines.removeAt(index)),icon:const Icon(Icons.delete,color:Colors.red))])));}),
     if (message != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(message!, style: const TextStyle(fontWeight: FontWeight.w600))),
-    Wrap(alignment:WrapAlignment.spaceBetween,crossAxisAlignment:WrapCrossAlignment.center,spacing:10,runSpacing:8,children:[Text('Total: $currencyMark${total.toStringAsFixed(2)}',style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),FilledButton.icon(onPressed:busy?null:sell,icon:const Icon(Icons.print),label:Text(busy?'Validasyon…':'VANN & ENPRIME'))]),
-  ]);
+    ]),
+    bottomNavigationBar: SafeArea(top: false, child: Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+        boxShadow: const [BoxShadow(color: Color(0x16000000), blurRadius: 12, offset: Offset(0, -3))],
+      ),
+      child: Row(children: [
+        Expanded(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('TOTAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          Text('$currencyMark${total.toStringAsFixed(2)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+        ])),
+        const SizedBox(width: 12),
+        FilledButton.icon(onPressed: busy ? null : sell, icon: const Icon(Icons.print), label: Text(busy ? 'Validasyon…' : 'VANN & ENPRIME')),
+      ]),
+    )),
+  );
 }

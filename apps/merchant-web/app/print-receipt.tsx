@@ -5,7 +5,7 @@ import { drawLabel } from './draw-label';
 
 type Ticket = Record<string, any>;
 const amount = (value: unknown) => new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
-const currencyMark = (currency: string) => currency === 'USD' ? '$' : `${currency} `;
+const currencyMark = (_currency: string) => '$';
 const safeDate = (value: unknown, language: 'ht' | 'fr') => {
   const date = value ? new Date(String(value)) : null;
   return date && !Number.isNaN(date.getTime())

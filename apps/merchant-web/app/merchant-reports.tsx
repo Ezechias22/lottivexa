@@ -18,7 +18,7 @@ function shiftDay(value: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 function money(value: unknown, currency: string) {
-  return (currency === 'USD' ? '$' : currency + ' ') + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
+  return '$' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
 }
 function displayDay(value: string, language: 'ht' | 'fr') {
   const date = new Date(value + 'T12:00:00Z');
@@ -85,7 +85,7 @@ export default function MerchantReports({ request }: { request: Request }) {
         <label>{t('from')}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
         <label>{t('to')}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
         <button onClick={() => void load()} disabled={loading}>{t('showReport')}</button>
-        <button className="secondary" onClick={() => void exportPdf()}>{t('export')}</button>
+        <button className="secondary" onClick={() => void exportPdf()}>{t('downloadPdf')}</button>
       </div>
       <div className="period-buttons">
         <button className={from === today && to === today ? 'active' : 'secondary'} onClick={() => choosePeriod(1)}>{t('today')}</button>

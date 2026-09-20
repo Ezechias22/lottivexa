@@ -12,6 +12,7 @@ import android.print.PrintManager
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -35,6 +36,7 @@ class MainActivity : FlutterActivity() {
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
         "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), result)
+        "sharePdf" -> sharePdf(call.argument<ByteArray>("bytes") ?: throw IllegalArgumentException("PDF_BYTES_REQUIRED"), call.argument<String>("filename") ?: "lottivexa-report.pdf", result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
           val config = call.argument<Map<String, Any>>("configuration") ?: emptyMap()
@@ -50,6 +52,22 @@ class MainActivity : FlutterActivity() {
     if (Build.VERSION.SDK_INT < 31 || (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED)) { result.success(true); return }
     pendingBluetoothResult = result
     ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), bluetoothRequest)
+  }
+
+  private fun sharePdf(bytes: ByteArray, filename: String, result: MethodChannel.Result) {
+    require(bytes.isNotEmpty()) { "PDF_BYTES_REQUIRED" }
+    val safeName = filename.replace(Regex("[^A-Za-z0-9._-]"), "_").let { if (it.endsWith(".pdf", true)) it else "$it.pdf" }
+    val directory = java.io.File(cacheDir, "reports").apply { mkdirs() }
+    val file = java.io.File(directory, safeName).apply { writeBytes(bytes) }
+    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+      type = "application/pdf"
+      putExtra(Intent.EXTRA_STREAM, uri)
+      clipData = android.content.ClipData.newUri(contentResolver, safeName, uri)
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    startActivity(Intent.createChooser(intent, "Telechaje oswa pataje rapò PDF"))
+    result.success(null)
   }
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

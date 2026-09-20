@@ -112,3 +112,7 @@ export function cancellationDeadline(createdAt: Date, drawClosesAt: Date, second
   if (!Number.isFinite(seconds) || seconds < 0) throw new BadRequestException('INVALID_CANCELLATION_WINDOW');
   return new Date(Math.min(drawClosesAt.getTime(), createdAt.getTime() + seconds * 1000));
 }
+
+export function isTicketCancellationAllowed(now: Date, deadline: Date) {
+  return now.getTime() < deadline.getTime();
+}

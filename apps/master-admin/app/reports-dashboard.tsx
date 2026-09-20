@@ -31,11 +31,7 @@ const integer = (value: unknown) =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(numberValue(value));
 
 const money = (value: unknown) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(numberValue(value));
+  '$' + new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numberValue(value));
 
 const statusLabel = (status = '') => {
   const labels: Record<string, string> = {

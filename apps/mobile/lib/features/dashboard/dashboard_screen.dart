@@ -42,7 +42,7 @@ class _State extends State<DashboardScreen> {
     }
   }
 
-  String _money(dynamic value, [String currency = 'USD']) => (currency == 'USD' ? r'$' : '$currency ') + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
+  String _money(dynamic value, [String _currency = 'USD']) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
   String _status(dynamic status) => const {
     'VALID': 'Valab', 'WINNER': 'Gayan', 'PAID': 'Peye',
     'LOSER': 'Pèdan', 'CANCELLED': 'Anile', 'PENDING': 'An atant',

@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/draw_label.dart';
 import '../../core/localization/app_language.dart';
 import '../../core/network/api_client.dart';
@@ -11,18 +13,20 @@ class ReportsScreen extends StatefulWidget {
   @override State<ReportsScreen> createState() => _ReportsState();
 }
 class _ReportsState extends State<ReportsScreen> {
+  static const _shareChannel = MethodChannel('com.lottivexa/printer');
   late DateTime from, to;
   Map<String, dynamic>? summary;
   List<dynamic> draws = [];
   String? error;
   bool loading = false;
+  bool exportingPdf = false;
   @override void initState() {
     super.initState();
     final now = _haitiNow(); to = DateTime(now.year, now.month, now.day);
     from = to.subtract(const Duration(days: 6)); load();
   }
   String _date(DateTime d) => d.year.toString().padLeft(4, '0') + '-' + d.month.toString().padLeft(2, '0') + '-' + d.day.toString().padLeft(2, '0');
-  String _money(dynamic v, String currency) => (currency == 'USD' ? r'$' : '$currency ') + (double.tryParse('$v') ?? 0).toStringAsFixed(2);
+  String _money(dynamic v, String _currency) => r'$' + (double.tryParse('$v') ?? 0).toStringAsFixed(2);
   Future<void> _period(int days) async {
     final now = _haitiNow(); final end = DateTime(now.year, now.month, now.day);
     setState(() { to = end; from = end.subtract(Duration(days: days - 1)); }); await load();
@@ -45,6 +49,23 @@ class _ReportsState extends State<ReportsScreen> {
     } catch (exception) {
       if (mounted) setState(() => error = AppLanguage.tr('Rapò a pa disponib') + ': $exception');
     } finally { if (mounted) setState(() => loading = false); }
+  }
+  Future<void> exportPdf() async {
+    if (exportingPdf) return;
+    setState(() => exportingPdf = true);
+    try {
+      final response = await widget.api.dio.get<List<int>>('/api/v1/reports/sales.pdf',
+        queryParameters: {'from': _date(from), 'to': _date(to)},
+        options: Options(responseType: ResponseType.bytes));
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) throw StateError('PDF vid la pa disponib.');
+      await _shareChannel.invokeMethod<void>('sharePdf', {
+        'bytes': Uint8List.fromList(bytes),
+        'filename': 'lottivexa-rapo-${_date(from)}-${_date(to)}.pdf',
+      });
+    } catch (exception) {
+      if (mounted) setState(() => error = AppLanguage.tr('Rapò PDF la pa disponib') + ': $exception');
+    } finally { if (mounted) setState(() => exportingPdf = false); }
   }
   @override Widget build(BuildContext context) {
     final report = summary ?? {};
@@ -81,6 +102,12 @@ class _ReportsState extends State<ReportsScreen> {
             TextButton(onPressed: () => _period(30), child: Text(AppLanguage.tr('30 jou'))),
           ]),
           SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: loading ? null : load, icon: const Icon(Icons.bar_chart), label: Text(AppLanguage.tr('Afiche rapò')))),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: exportingPdf ? null : exportPdf,
+            icon: exportingPdf ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.picture_as_pdf_outlined),
+            label: Text(AppLanguage.tr('Telechaje rapò an PDF')),
+          )),
         ]))),
         if (loading) const LinearProgressIndicator(),
         if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text(error!))),
@@ -150,7 +177,7 @@ class _ReportsState extends State<ReportsScreen> {
     return SizedBox(height: 210, child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       for (final row in rows.take(14))
         Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text((double.tryParse('${row['amount'] ?? 0}') ?? 0).toStringAsFixed(0), style: const TextStyle(fontSize: 9), maxLines: 1, overflow: TextOverflow.clip),
+          Text(r'$' + (double.tryParse('${row['amount'] ?? 0}') ?? 0).toStringAsFixed(0), style: const TextStyle(fontSize: 9), maxLines: 1, overflow: TextOverflow.clip),
           const SizedBox(height: 4),
           Expanded(child: Align(alignment: Alignment.bottomCenter, child: FractionallySizedBox(heightFactor: ((double.tryParse('${row['amount'] ?? 0}') ?? 0) / maximum).clamp(.04, 1), widthFactor: .72, child: Container(decoration: BoxDecoration(color: const Color(0xff5796ef), borderRadius: BorderRadius.circular(4)))))),
           const SizedBox(height: 5),

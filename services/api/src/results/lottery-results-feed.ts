@@ -22,6 +22,17 @@ export type FeedBinding={
   drawTimes:Record<string,string>;
 };
 
+export function mapLotteryResultsFeedRestRow(row:Record<string,unknown>,lotteryId:number):LotteryResultsFeedEvent{
+  const numbers=row.numbers??row.winning_numbers??row.balls;
+  return{
+    version:'1.0',event:'lottery.result.published',lottery_id:lotteryId,
+    lottery_name:String(row.lottery_name??(row.lottery as Record<string,unknown>|undefined)?.name??''),
+    draw_date:String(row.draw_date??row.date??''),draw_type:typeof row.draw_type==='string'?row.draw_type:null,
+    numbers:Array.isArray(numbers)?numbers as number[]:undefined,
+    published_at:String(row.published_at??row.result_published_at??row.updated_at??new Date().toISOString()),
+  };
+}
+
 export function verifyLotteryResultsFeedSignature(raw:Buffer,signature:string|undefined,secret:string){
   if(!signature||!secret)return false;
   const expected=Buffer.from(createHmac('sha256',secret).update(raw).digest('hex'));

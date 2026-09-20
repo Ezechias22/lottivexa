@@ -72,7 +72,7 @@ class _State extends State<CashScreen> {
                     : 'Shift ${session!['status']}'),
                 subtitle: session == null
                     ? null
-                    : Text('Opening cash: ${session!['openingCash']}'),
+                    : Text('Opening cash: ' + r'$' + '${session!['openingCash']}'),
               ),
             ),
             TextField(
@@ -82,6 +82,7 @@ class _State extends State<CashScreen> {
               decoration: InputDecoration(
                 labelText:
                     session == null ? 'Opening cash' : 'Actual closing cash',
+                prefixText: r'$ ',
                 border: const OutlineInputBorder(),
               ),
             ),

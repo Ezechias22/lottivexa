@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
 const language = readFileSync(new URL('./language-switcher.tsx', import.meta.url), 'utf8');
+const reports = readFileSync(new URL('./merchant-reports.tsx', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
   it('has login only and no public account creation', () => {
@@ -61,5 +62,14 @@ describe('Haitian selling desk', () => {
   it('refreshes remote configuration and live results', () => {
     expect(source).toContain('setInterval(()=>void load(),60000)');
     expect(source).toContain('setInterval(load,15000)');
+  });
+});
+
+describe('merchant reports PDF export', () => {
+  it('offers date-filtered PDF download only', () => {
+    expect(reports).toContain("request('/reports/sales.pdf?' + query)");
+    expect(reports).toContain("link.download = 'lottivexa-sales-' + from + '-' + to + '.pdf'");
+    expect(reports).toContain("t('downloadPdf')");
+    expect(language).toContain("downloadPdf:'Telechaje rapò an PDF'");
   });
 });

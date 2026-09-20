@@ -16,7 +16,7 @@ export default function FreeMaryajDialog({ language, onClose, onAdd }: {
       <button type="button" className="dialog-close secondary" onClick={onClose} aria-label={fr ? 'Fermer' : 'Fèmen'}>×</button>
       <span className="eyebrow">{fr ? 'BONUS DE VENTE' : 'BONIS SOU VANT LAN'}</span>
       <h3 id="free-maryaj-title">{fr ? '2 Mariages gratuits' : '2 Maryaj gratis'}</h3>
-      <p>{fr ? 'Cette vente atteint 100 HTG. Choisissez les numéros des deux lignes offertes.' : 'Vant sa a rive 100 goud. Chwazi nimewo pou de liy Maryaj gratis yo.'}</p>
+      <p>{fr ? 'Cette vente atteint 100 $. Choisissez les numéros des deux lignes offertes.' : 'Vant sa a rive 100 $. Chwazi nimewo pou de liy Maryaj gratis yo.'}</p>
       <div className="manual-maryaj-fields">
         {numbers.map((number, index) => <label key={index}>{(fr ? 'Mariage ' : 'Maryaj ') + (index < 2 ? '1' : '2') + ' · ' + (index % 2 === 0 ? (fr ? '1er numéro' : 'Premye nimewo') : (fr ? '2e numéro' : 'Dezyèm nimewo'))}
           <input autoFocus={index === 0} inputMode="numeric" maxLength={2} value={number} onChange={(event) => update(index, event.target.value)} />

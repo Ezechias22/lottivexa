@@ -42,7 +42,7 @@ APK la ap parèt nan `apps\mobile\build\app\outputs\flutter-apk\app-release.apk`
 
 ## Lajan
 
-USD se nouvo valè pa defo a lè tenant la poko gen lajan sove. Pou yon tenant ki deja gen HTG, yon administratè dwe chwazi **USD · $** nan Paramèt yo sou web oswa mobil epi sove chanjman an. Sa chanje etikèt lajan an pou lavant ak rapò; li pa konvèti ansyen montan yo.
+Tout montan ki parèt yo sèvi ak siy `$`. Lè administratè a sove paramèt lajan an sou web oswa mobil, aplikasyon an anrejistre dola pou lavant k ap vini yo. Chanjman sa a pa konvèti ansyen montan ki deja anrejistre yo.
 
 ## Rezilta
 

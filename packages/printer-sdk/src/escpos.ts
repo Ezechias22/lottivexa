@@ -8,13 +8,13 @@ const qr=(value:string)=>{const data=enc.encode(value),length=data.length+3;retu
 export function renderTicket(template:TicketTemplate,data:TicketPrintData):Uint8Array{
  const width=template.paperWidth===80?48:32,name=data.businessName?.trim();
  if(!name||/^lottivexa$/i.test(name))throw new Error('RECEIPT_BUSINESS_NAME_REQUIRED');
- const currency=data.currency||'HTG';
+ const currency='$';
  const safeHeader=template.header&&!/lottivexa/i.test(template.header)?template.header:'';
  const body:string[]=[`${name.slice(0,width)}\n`,'FICH BOLET\n',safeHeader?`${safeHeader.slice(0,width)}\n`:'',`TIKE ${data.ticketNumber}\n`,`LOTRI: ${data.game}\n`,`TIRAJ: ${data.draw}\n`,data.branch?`BIWO: ${data.branch}\n`:'',data.branchAddress?`${data.branchAddress}\n`:'',data.branchPhone?`TELEFÒN: ${data.branchPhone}\n`:'',data.merchant?`MACHANN: ${data.merchant}${data.merchantNumber?` · ${data.merchantNumber}`:''}\n`:'',`DAT / LÈ: ${data.createdAt}\n`,'-'.repeat(width)+'\n'];
  const parts=[cmd(0x1b,0x40,0x1b,0x61,1,0x1b,0x45,1),enc.encode(body[0]+body[1]),cmd(0x1b,0x45,0,0x1b,0x61,0),enc.encode(body.slice(2).join(''))];
- for(const item of data.lines){const[rawSelection,position]=item.selection.split('@');const selection=rawSelection.replaceAll('-',' × ');parts.push(enc.encode(`${(item.betType||'JWÈT').slice(0,width)}\n`),enc.encode(line(selection,item.isPromotional?'GRATIS':`${currency} ${item.stake}`,width)));if(position)parts.push(centered(`OP ${position}`));if((item.winCount??0)>1)parts.push(enc.encode(`DEKABÈS × ${item.winCount}\n`));if(item.isPromotional)parts.push(enc.encode('Liy bonus gratis\n'));if(item.isWinner)parts.push(enc.encode(`GANYEN: ${currency} ${item.potentialWin}\n`))}
- parts.push(enc.encode('-'.repeat(width)+'\n'),enc.encode(line('TOTAL',`${currency} ${data.amount}`,width)),enc.encode(line('GANY POSIB',`${currency} ${data.potentialWin}`,width)),enc.encode(`ESTATI: ${data.status||'VALID'}\n`));
- if(Number(data.winningAmount)>0)parts.push(enc.encode(line('GANY KONFIME',`${currency} ${data.winningAmount}`,width)));
+ for(const item of data.lines){const[rawSelection,position]=item.selection.split('@');const selection=rawSelection.replaceAll('-',' × ');parts.push(enc.encode(`${(item.betType||'JWÈT').slice(0,width)}\n`),enc.encode(line(selection,item.isPromotional?'GRATIS':`${currency}${item.stake}`,width)));if(position)parts.push(centered(`OP ${position}`));if((item.winCount??0)>1)parts.push(enc.encode(`DEKABÈS × ${item.winCount}\n`));if(item.isPromotional)parts.push(enc.encode('Liy bonus gratis\n'));if(item.isWinner)parts.push(enc.encode(`GANYEN: ${currency}${item.potentialWin}\n`))}
+ parts.push(enc.encode('-'.repeat(width)+'\n'),enc.encode(line('TOTAL',`${currency}${data.amount}`,width)),enc.encode(line('GANY POSIB',`${currency}${data.potentialWin}`,width)),enc.encode(`ESTATI: ${data.status||'VALID'}\n`));
+ if(Number(data.winningAmount)>0)parts.push(enc.encode(line('GANY KONFIME',`${currency}${data.winningAmount}`,width)));
  parts.push(enc.encode(`DAT: ${data.createdAt}\n`),enc.encode(template.footer&&!/lottivexa/i.test(template.footer)?`${template.footer.slice(0,width)}\n`:'Kenbe tikè orijinal la. Verifye avan peman.\n'));
  if(template.showBarcode)parts.push(barcode(data.barcode));if(template.showQr)parts.push(qr(data.qrCode));parts.push(cmd(10));return concat(parts)
 }

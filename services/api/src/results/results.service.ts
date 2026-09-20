@@ -2,7 +2,7 @@ import {ConflictException,ForbiddenException,Injectable} from '@nestjs/common';
 import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys,winningSelectionCount} from '../tickets/ticket-policy';
-import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,parseFeedBindings} from './lottery-results-feed';
+import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
 
 @Injectable()
 export class ResultsService{
@@ -61,7 +61,7 @@ export class ResultsService{
       const body=await response.json() as any;
       const rows=Array.isArray(body)?body:Array.isArray(body?.results)?body.results:Array.isArray(body?.data)?body.data:[];
       for(const row of rows){
-        const event:LotteryResultsFeedEvent={version:'1.0',event:'lottery.result.published',lottery_id:lotteryId,lottery_name:row.lottery_name??row.lottery?.name,draw_date:row.draw_date??row.date,draw_type:row.draw_type??null,numbers:row.numbers??row.winning_numbers,published_at:row.published_at??row.updated_at??new Date().toISOString()};
+        const event=mapLotteryResultsFeedRestRow(row,lotteryId);
         if(event.draw_date&&Array.isArray(event.numbers))await this.enqueueLotteryResultsFeed(event);
       }
     }

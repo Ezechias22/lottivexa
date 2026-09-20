@@ -3,13 +3,14 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../apps/mobile/lib/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
-const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter] = await Promise.all([
+const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter, reports] = await Promise.all([
   read('app/lottivexa_app.dart'), read('core/security/session_store.dart'),
   read('features/admin/admin_dashboard_screen.dart'), read('features/admin/admin_hub_screen.dart'),
   read('features/admin/admin_resource_screen.dart'), read('features/tickets/new_ticket_screen.dart'),
   read('features/tickets/ticket_search_screen.dart'), read('features/results/results_screen.dart'),
   read('core/printing/escpos_encoder.dart'), read('core/draw_label.dart'),
   readFile(new URL('../apps/mobile/android/app/src/main/kotlin/com/lottivexa/mobile/MainActivity.kt', import.meta.url), 'utf8'),
+  read('features/reports/reports_screen.dart'),
 ]);
 
 assert.match(session, /isTenantAdmin/);
@@ -29,6 +30,9 @@ assert.match(sell, /sourceIds\.contains\(line\.betTypeId\)/);
 assert.doesNotMatch(sell, /Boul Pè pa konte kòm Bolet|Chwazi pozisyon Bolet oswa Loto yo|Chanje pri tout liy yo|Maryaj nòmal/);
 for (const value of ['/api/v1/tickets', 'Kopye / Rejwe']) assert.ok(tickets.includes(value));
 assert.ok(results.includes('/api/v1/lottery/draws'));
+assert.ok(reports.includes('/api/v1/reports/sales.pdf'));
+assert.ok(reports.includes("'Telechaje rapò an PDF'"));
+assert.ok(nativePrinter.includes('sharePdf'));
 assert.match(app, /hasPermission\('tickets\.create'\)/);
 assert.match(encoder, /selectionKey/);
 assert.match(encoder, /RECEIPT_BUSINESS_NAME_REQUIRED/);

@@ -22,7 +22,7 @@ describe('ESC/POS', () => {
     expect(text).toContain('TIKE LV-1');
     expect(text).toContain('FICH BOLET');
     expect(text).toContain('TIRAJ: New York · Nòmal · Maten');
-    expect(text).toContain('HTG 10.00');
+    expect(text).toContain('$10.00');
     expect(text).toContain('Rue du Centre');
     expect(text).toContain('MACHANN: Jean Pierre');
     expect(text).not.toContain('LOTTIVEXA');
@@ -49,7 +49,7 @@ describe('ESC/POS', () => {
     }));
     expect(text).toContain('DEKABÈS × 2');
     expect(text).toContain('GRATIS');
-    expect(text).toContain('GANYEN: HTG 100.00');
+    expect(text).toContain('GANYEN: $100.00');
   });
 
   it('rejects missing or platform branding', () => {
