@@ -3,12 +3,13 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../apps/mobile/lib/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
-const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, nativePrinter] = await Promise.all([
+const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter] = await Promise.all([
   read('app/lottivexa_app.dart'), read('core/security/session_store.dart'),
   read('features/admin/admin_dashboard_screen.dart'), read('features/admin/admin_hub_screen.dart'),
   read('features/admin/admin_resource_screen.dart'), read('features/tickets/new_ticket_screen.dart'),
   read('features/tickets/ticket_search_screen.dart'), read('features/results/results_screen.dart'),
-  read('core/printing/escpos_encoder.dart'), readFile(new URL('../apps/mobile/android/app/src/main/kotlin/com/lottivexa/mobile/MainActivity.kt', import.meta.url), 'utf8'),
+  read('core/printing/escpos_encoder.dart'), read('core/draw_label.dart'),
+  readFile(new URL('../apps/mobile/android/app/src/main/kotlin/com/lottivexa/mobile/MainActivity.kt', import.meta.url), 'utf8'),
 ]);
 
 assert.match(session, /isTenantAdmin/);
@@ -22,7 +23,8 @@ assert.match(resource, /widget\.api\.dio\.patch\('\/api\/v1\/devices\/\$\{row\['
 assert.match(resource, /value:'unblock'/);
 assert.match(resource, /widget\.api\.dio\.patch\('\/api\/v1\/merchants\/\$\{row\['id'\]\}'/);
 assert.match(resource, /widget\.api\.dio\.patch\('\/api\/v1\/users\/\$\{row\['id'\]\}'/);
-for (const value of ["2 => 'BOLET'", "3 => 'LOTO3'", "4 => 'LOTO4'", "5 => 'LOTO5'", 'Tout opsyon', 'resultPosition', 'addMaryaj', 'addAutoLoto4', 'addBoulPe', "_betForCode('BOUL_PE')", 'Nòmal · $session']) assert.ok(sell.includes(value));
+for (const value of ["2 => 'BOLET'", "3 => 'LOTO3'", "4 => 'LOTO4'", "5 => 'LOTO5'", 'Tout opsyon', 'resultPosition', 'addMaryaj', 'addAutoLoto4', 'addBoulPe', "_betForCode('BOUL_PE')"]) assert.ok(sell.includes(value));
+assert.match(drawLabels, /Nòmal · /);
 assert.match(sell, /sourceIds\.contains\(line\.betTypeId\)/);
 assert.doesNotMatch(sell, /Boul Pè pa konte kòm Bolet|Chwazi pozisyon Bolet oswa Loto yo|Chanje pri tout liy yo|Maryaj nòmal/);
 for (const value of ['/api/v1/tickets', 'Kopye / Rejwe']) assert.ok(tickets.includes(value));

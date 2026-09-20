@@ -1,6 +1,67 @@
-import{describe,expect,it}from'vitest';import{cancellationDeadline,isWinningSelection,normalizeSelection,priceLines,resultWinningKeys}from'./ticket-policy';
-const line={betTypeId:'b',selection:[12,34],stake:'10.25',odds:'2.500000',selectionCount:2,numberMin:0,numberMax:99,allowRepeats:false};
-describe('ticket pricing',()=>{it('uses exact decimal math',()=>{const priced=priceLines([line]);expect(priced[0].potentialWin.toFixed(4)).toBe('25.6250');expect(priced[0].selectionKey).toBe('12-34')});it('rejects zero and negative stakes',()=>{expect(()=>priceLines([{...line,stake:'0'}])).toThrow('INVALID_AMOUNT')});it('normalizes result keys',()=>{expect(resultWinningKeys({winningKeys:['12-34']}).has('12-34')).toBe(true);expect(()=>resultWinningKeys({numbers:[12,34]})).toThrow('INVALID_RESULT_FORMAT')})});
-describe('ticket cancellation window',()=>{it('uses the earlier of configured window and draw close',()=>{const created=new Date('2026-01-01T10:00:00Z');expect(cancellationDeadline(created,new Date('2026-01-01T11:00:00Z'),300).toISOString()).toBe('2026-01-01T10:05:00.000Z');expect(cancellationDeadline(created,new Date('2026-01-01T10:02:00Z'),300).toISOString()).toBe('2026-01-01T10:02:00.000Z')});it('rejects unsafe configuration',()=>{expect(()=>cancellationDeadline(new Date(),new Date(),-1)).toThrow('INVALID_CANCELLATION_WINDOW')})});
-describe('Haitian result positions',()=>{it('prices and evaluates first, second and third choices',()=>{const keys=new Set(['12','34','56']),priced=priceLines([{...line,selection:[34],selectionCount:1,resultPosition:2}]);expect(priced[0].selectionKey).toBe('34@2');expect(isWinningSelection('BOLET','34@2',keys)).toBe(true);expect(isWinningSelection('BOLET','34@1',keys)).toBe(false)});it('rejects positions outside 1-3',()=>{expect(()=>priceLines([{...line,resultPosition:4}])).toThrow('INVALID_RESULT_POSITION')})});
-describe('leading-zero lottery selections',()=>{it('keeps Boul Pè double zero on modern and legacy clients',()=>{expect(normalizeSelection('BOUL_PE',['00'])).toEqual(['00']);expect(normalizeSelection('BOUL_PE',[0])).toEqual(['00']);expect(priceLines([{...line,selection:normalizeSelection('BOUL_PE',[0]),selectionCount:1}])[0].selectionKey).toBe('00')});it('keeps both Maryaj selections at two digits',()=>expect(normalizeSelection('MARYAJ',[0,5])).toEqual(['00','05']));it('keeps fixed-width Loto values as text',()=>{expect(normalizeSelection('LOTO4',[123])).toEqual(['0123']);expect(()=>normalizeSelection('BOUL_PE',['000'])).toThrow('INVALID_SELECTION_FORMAT')})});
+import { describe, expect, it } from 'vitest';
+import { cancellationDeadline, deriveFreeMaryajSelections, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
+
+const line = { betTypeId: 'bet-1', selection: ['12'], stake: '1.25', odds: '20.5', selectionCount: 1, numberMin: 0, numberMax: 99, allowRepeats: true };
+
+describe('ticket pricing', () => {
+  it('uses exact decimal math', () => {
+    const priced = priceLines([{ ...line, stake: '1.25' }]);
+    expect(priced[0].potentialWin.toFixed(4)).toBe('25.6250');
+    expect(priced[0].selectionKey).toBe('12');
+  });
+  it('rejects zero and negative stakes', () => {
+    expect(() => priceLines([{ ...line, stake: '0' }])).toThrow('INVALID_AMOUNT');
+  });
+  it('preserves ordered duplicate result balls for dekabès calculations', () => {
+    expect(resultWinningKeys({ winningKeys: ['12', '12', '34'] })).toEqual(['12', '12', '34']);
+  });
+  it('rejects malformed result keys', () => {
+    expect(() => resultWinningKeys({ numbers: [12, 34] })).toThrow('INVALID_RESULT_FORMAT');
+  });
+});
+
+describe('Haitian result positions and dekabès', () => {
+  it('matches maryaj regardless of order', () => expect(isWinningSelection('MARYAJ', '56-12', ['12', '34', '56'])).toBe(true));
+  it('rejects incomplete maryaj', () => expect(isWinningSelection('MARYAJ', '12-99', ['12', '34', '56'])).toBe(false));
+  it('keeps loto exact', () => expect(isWinningSelection('LOTO4', '1234', ['12', '34', '56', '1234'])).toBe(true));
+  it('prices and evaluates first, second and third choices', () => {
+    const priced = priceLines([{ ...line, selection: ['34'], resultPosition: 2 }]);
+    expect(priced[0].selectionKey).toBe('34@2');
+    expect(isWinningSelection('BOLET', '34@2', ['12', '34', '56'])).toBe(true);
+    expect(isWinningSelection('BOLET', '34@1', ['12', '34', '56'])).toBe(false);
+  });
+  it('counts repeated winning positions as dekabès for a Bolet line', () => {
+    expect(winningSelectionCount('BOLET', '12', ['12', '12', '34'])).toBe(2);
+    expect(winningSelectionCount('BOLET', '12@1', ['12', '12', '34'])).toBe(2);
+    expect(winningSelectionCount('BOLET', '12@3', ['12', '12', '34'])).toBe(0);
+  });
+  it('rejects positions outside 1 through 3', () => {
+    expect(() => priceLines([{ ...line, resultPosition: 4 }])).toThrow('INVALID_RESULT_POSITION');
+  });
+});
+
+describe('selection formatting and cancellation', () => {
+  it('keeps the leading zero in Boul Pè', () => expect(normalizeSelection('BOUL_PE', [0])).toEqual(['00']));
+  it('limits cancellation to the earlier deadline', () => {
+    expect(cancellationDeadline(new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:10:00Z'), 60).toISOString()).toBe('2026-01-01T00:01:00.000Z');
+  });
+});
+
+describe('100 HTG Maryaj bonus suggestions', () => {
+  it('derives two free Maryaj lines from Bolet and Boul Pè numbers while preserving zeroes', () => {
+    expect(deriveFreeMaryajSelections([
+      { code: 'BOLET', selection: ['00'] },
+      { code: 'BOUL_PE', selection: ['11'] },
+      { code: 'BOUL_PE', selection: ['22'] },
+    ])).toEqual([['00', '11'], ['00', '22']]);
+  });
+
+  it('derives two free Maryaj lines from Loto digits', () => {
+    expect(deriveFreeMaryajSelections([{ code: 'LOTO4', selection: ['0011'] }]))
+      .toEqual([['00', '11'], ['00', '11']]);
+  });
+
+  it('asks the seller for bonus numbers when a ticket has only one usable two-digit number', () => {
+    expect(deriveFreeMaryajSelections([{ code: 'BOLET', selection: ['00'] }])).toEqual([]);
+  });
+});

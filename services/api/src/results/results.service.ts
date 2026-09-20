@@ -1,7 +1,7 @@
 import {ConflictException,ForbiddenException,Injectable} from '@nestjs/common';
 import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
-import {isWinningSelection,resultWinningKeys} from '../tickets/ticket-policy';
+import {resultWinningKeys,winningSelectionCount} from '../tickets/ticket-policy';
 import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,parseFeedBindings} from './lottery-results-feed';
 
 @Injectable()
@@ -96,10 +96,10 @@ export class ResultsService{
       const tickets=await tx.ticket.findMany({where:{tenantId,drawId,status:'VALID'},include:{lines:{include:{betType:{select:{code:true}}}},merchant:{select:{userId:true}}}});
       let winners=0;
       for(const ticket of tickets){
-        let win=new Prisma.Decimal(0);
-        for(const line of ticket.lines){const isWinner=isWinningSelection(line.betType.code,line.selectionKey,keys);await tx.ticketLine.update({where:{id:line.id},data:{isWinner}});if(isWinner)win=win.add(line.potentialWin)}
+        let win=new Prisma.Decimal(0);const lineWinCounts:{lineId:string;winCount:number}[]=[];
+        for(const line of ticket.lines){const winCount=winningSelectionCount(line.betType.code,line.selectionKey,keys),isWinner=winCount>0;await tx.ticketLine.update({where:{id:line.id},data:{isWinner}});if(isWinner){lineWinCounts.push({lineId:line.id,winCount});win=win.add(line.potentialWin.mul(winCount))}}
         if(win.isPositive()){
-          winners++;await tx.ticket.update({where:{id:ticket.id},data:{status:'WINNER'}});await tx.winningTicket.create({data:{tenantId,ticketId:ticket.id,winningAmount:win}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:u.sub,metadata:{winningAmount:win.toString()}}});await tx.notification.create({data:{tenantId,userId:ticket.merchant.userId,type:'TICKET_WINNER',title:'Winning ticket',body:`Ticket ${ticket.ticketNumber} won ${win.toString()}`,data:{ticketId:ticket.id,ticketNumber:ticket.ticketNumber,amount:win.toString()},status:'SENT',sentAt:new Date()}});
+          winners++;await tx.ticket.update({where:{id:ticket.id},data:{status:'WINNER'}});await tx.winningTicket.create({data:{tenantId,ticketId:ticket.id,winningAmount:win}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:u.sub,metadata:{winningAmount:win.toString(),lineWinCounts}}});await tx.notification.create({data:{tenantId,userId:ticket.merchant.userId,type:'TICKET_WINNER',title:'Winning ticket',body:`Ticket ${ticket.ticketNumber} won ${win.toString()}`,data:{ticketId:ticket.id,ticketNumber:ticket.ticketNumber,amount:win.toString()},status:'SENT',sentAt:new Date()}});
         }else{await tx.ticket.update({where:{id:ticket.id},data:{status:'LOSER'}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_LOSER',userId:u.sub}})}
       }
       await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'DrawResult',entityId:drawId,newValues:{winningKeys:result.winningKeys,ticketsProcessed:tickets.length,winners}}});

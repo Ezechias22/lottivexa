@@ -33,7 +33,7 @@ describe('merchant POS', () => {
 
   it('shows live connectivity and disables online-only sale while offline', () => {
     expect(source).toContain("addEventListener('offline'");
-    expect(source).toContain('disabled={!online}');
+    expect(source).toMatch(/disabled=\{!online(?:\|\|[^}]*)?\}/);
   });
 });
 

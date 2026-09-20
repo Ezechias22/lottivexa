@@ -11,6 +11,10 @@ describe('draw session labels', () => {
     expect(drawSession({ resultAt: '2026-09-20T16:29:00.000Z' })).toBe('MIDDAY');
   });
 
+  it('uses the actual draw timestamp before a legacy schedule suffix', () => {
+    expect(drawSession({ drawNumber: 'GA-20260920-1859', resultAt: '2026-09-20T16:29:00.000Z' })).toBe('MIDDAY');
+  });
+
   it('prefers explicit session names when a draw provides them', () => {
     expect(drawSession({ sessionType: 'MATIN' })).toBe('MORNING');
     expect(drawSession({ drawNumber: 'GA-20260920-EVE' })).toBe('EVENING');

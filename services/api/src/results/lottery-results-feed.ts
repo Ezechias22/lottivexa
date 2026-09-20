@@ -51,7 +51,7 @@ export function parseFeedBindings(raw:string|undefined):FeedBinding[]{
 export function feedWinningKeys(numbers:number[]){
   const ordered=numbers.map(value=>String(value).padStart(2,'0'));
   const digitCombination=numbers.length>=3&&numbers.length<=5&&numbers.every(value=>value<=9)?numbers.join(''):undefined;
-  return[...new Set([...ordered,...(digitCombination?[digitCombination]:[])])];
+  return[...ordered,...(digitCombination&&!ordered.includes(digitCombination)?[digitCombination]:[])];
 }
 
 export function feedEventDedupeKey(event:LotteryResultsFeedEvent){return`lottery-results-feed:${event.lottery_id}:${event.draw_date}:${event.draw_type?.trim().toLowerCase()||'default'}`}

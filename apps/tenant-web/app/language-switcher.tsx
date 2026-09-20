@@ -49,6 +49,8 @@ const tenantFrench:Record<string,string>={
 Object.assign(enHt,tenantHaitian);Object.assign(enFr,tenantFrench);for(const[key,value]of Object.entries(tenantHaitian)){const french=tenantFrench[key]??value;htFr[value]=french;frHt[french]=value}
 const sourceText=new WeakMap<Text,string>();const renderedText=new WeakMap<Text,string>();
 const sourcePlaceholder=new WeakMap<HTMLElement,string>();const renderedPlaceholder=new WeakMap<HTMLElement,string>();
+const legacy1252:Record<number,number>={8364:128,8218:130,402:131,8222:132,8230:133,8224:134,8225:135,710:136,8240:137,352:138,8249:139,338:140,381:142,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,732:152,8482:153,353:154,8250:155,339:156,382:158,376:159};
+function repairMojibake(value:string){return value.replace(/\S+/g,token=>{if(!/[ÃÂâï]/.test(token))return token;const bytes:number[]=[];for(const character of token){const point=character.codePointAt(0)!;const byte=point<=255?point:legacy1252[point];if(byte===undefined)return token;bytes.push(byte)}try{const repaired=new TextDecoder('utf-8',{fatal:true}).decode(new Uint8Array(bytes));return /[ÃÂâï]/.test(repaired)?token:repaired}catch{return token}})}
 function translate(root:ParentNode,language:'ht'|'fr'){
  const dictionary=language==='fr'?{...enFr,...htFr}:{...enHt,...frHt};
  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);

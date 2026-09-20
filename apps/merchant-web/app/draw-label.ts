@@ -4,6 +4,7 @@ type DrawLabel = {
   resultAt?: string;
   opensAt?: string;
   closesAt?: string;
+  drawDate?: string;
   drawNumber?: string;
   session?: string;
   sessionType?: string;
@@ -32,24 +33,19 @@ export function drawSession(draw: DrawLabel): Session {
   const explicit = sessionFromText(`${draw.session ?? ''} ${draw.sessionType ?? ''} ${draw.name ?? ''} ${draw.drawNumber ?? ''}`);
   if (explicit) return explicit;
 
-  // Scheduled draw numbers end in the local result time (for example GA-20260920-1229).
-  const scheduledTime = draw.drawNumber?.match(/(?:^|[-_])(\d{4})$/)?.[1];
-  if (scheduledTime) {
-    const hour = Number(scheduledTime.slice(0, 2));
-    const minute = Number(scheduledTime.slice(2));
-    if (hour < 24 && minute < 60) return sessionFromHour(hour);
+  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt ?? draw.drawDate;
+  if (source) {
+    const date = new Date(source);
+    if (!Number.isNaN(date.getTime())) {
+      const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', hourCycle: 'h23' }).format(date));
+      return sessionFromHour(hour);
+    }
   }
-
-  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt;
-  if (!source) return 'UNKNOWN';
-  const date = new Date(source);
-  if (Number.isNaN(date.getTime())) return 'UNKNOWN';
-  const hour = Number(new Intl.DateTimeFormat('en-GB', {
-    timeZone: zone,
-    hour: '2-digit',
-    hourCycle: 'h23',
-  }).format(date));
-  return sessionFromHour(hour);
+  // Legacy schedule codes may end with a local HHMM value when no timestamps exist.
+  const scheduledTime = draw.drawNumber?.match(/(?:^|[-_])(\d{4})$/)?.[1];
+  if (!scheduledTime) return 'UNKNOWN';
+  const hour = Number(scheduledTime.slice(0, 2)), minute = Number(scheduledTime.slice(2));
+  return hour < 24 && minute < 60 ? sessionFromHour(hour) : 'UNKNOWN';
 }
 
 function sessionLabel(session: Session, language: 'ht' | 'fr') {
@@ -65,11 +61,11 @@ function sessionLabel(session: Session, language: 'ht' | 'fr') {
 
 export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   const session = drawSession(draw);
-  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt;
+  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt ?? draw.drawDate;
   const date = source ? new Date(source) : null;
   const game = draw.game?.name ?? (language === 'fr' ? 'Loterie' : 'Lotri');
   if (!date || Number.isNaN(date.getTime())) {
-    return `${game} · ${sessionLabel(session, language)} · #${draw.drawNumber ?? ''}`;
+    return `${game} · ${sessionLabel(session, language)}`;
   }
   const time = new Intl.DateTimeFormat('en-GB', {
     timeZone: zone,
@@ -83,7 +79,7 @@ export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
     month: '2-digit',
     year: 'numeric',
   }).format(date);
-  return `${game} · ${sessionLabel(session, language)} · ${formattedDate} ${time} · #${draw.drawNumber ?? ''}`;
+  return `${game} · ${sessionLabel(session, language)} · ${formattedDate} ${time}`;
 }
 
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {

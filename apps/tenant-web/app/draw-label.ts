@@ -1,17 +1,74 @@
-type DrawLabel={drawNumber?:string;resultAt?:string;drawDate?:string;opensAt?:string;closesAt?:string;session?:string;sessionType?:string;game?:{name?:string}};
-const zone='America/Port-au-Prince';
-export function drawSessionLabel(draw:DrawLabel,language:'ht'|'fr'){
-  const explicit=(draw.session??draw.sessionType??'').toUpperCase();
-  const source=draw.resultAt??draw.closesAt??draw.opensAt??draw.drawDate;
-  const date=source?new Date(source):null;
-  const session=['MORNING','MATIN','MORNING_DRAW'].includes(explicit)?'MORNING':['EVENING','SOIR','EVENING_DRAW'].includes(explicit)?'EVENING':date&&!Number.isNaN(date.getTime())?(Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(date))<12?'MORNING':'EVENING'):'UNKNOWN';
-  return session==='MORNING'?(language==='fr'?'Normal · Matin':'Nòmal · Maten'):session==='EVENING'?(language==='fr'?'Normal · Soir':'Nòmal · Swa'):(language==='fr'?'Séance à confirmer':'Sesyon pou verifye');
+type DrawLabel = {
+  drawNumber?: string;
+  name?: string;
+  resultAt?: string;
+  drawDate?: string;
+  opensAt?: string;
+  closesAt?: string;
+  session?: string;
+  sessionType?: string;
+  game?: { name?: string };
+};
+
+type Session = 'MORNING' | 'MIDDAY' | 'EVENING' | 'NIGHT' | 'UNKNOWN';
+const zone = 'America/Port-au-Prince';
+
+function fromHour(hour: number): Session {
+  if (hour < 12) return 'MORNING';
+  if (hour < 16) return 'MIDDAY';
+  if (hour < 21) return 'EVENING';
+  return 'NIGHT';
 }
-export function describeDraw(draw:DrawLabel,language:'ht'|'fr') {
-  const source=draw.resultAt??draw.closesAt??draw.opensAt??draw.drawDate;
-  const date=source?new Date(source):null;
-  if(!date||Number.isNaN(date.getTime()))return`${draw.game?.name??(language==='fr'?'Loterie':'Lotri')} · ${draw.drawNumber??''}`;
-  const clock=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date);
-  const formattedDate=new Intl.DateTimeFormat(language==='fr'?'fr-FR':'fr-HT',{timeZone:zone,day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
-  return`${draw.game?.name??(language==='fr'?'Loterie':'Lotri')} · ${drawSessionLabel(draw,language)} · ${formattedDate} ${clock} · #${draw.drawNumber??''}`;
+
+function getSession(draw: DrawLabel): Session {
+  const text = `${draw.session ?? ''} ${draw.sessionType ?? ''} ${draw.name ?? ''} ${draw.drawNumber ?? ''}`
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ');
+  if (/\b(MORNING|MATIN|MATEN)\b/.test(text)) return 'MORNING';
+  if (/\b(MID|MIDI|MIDDAY|NOON|DAY|JOUR|JOUNEN)\b/.test(text)) return 'MIDDAY';
+  if (/\b(EVENING|SOIR|SWA|EVE|ASWE)\b/.test(text)) return 'EVENING';
+  if (/\b(NIGHT|NUIT|LANNWIT)\b/.test(text)) return 'NIGHT';
+
+  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt;
+  if (source) {
+    const date = new Date(source);
+    if (!Number.isNaN(date.getTime())) return fromHour(Number(new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone,
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(date)));
+  }
+  const scheduledTime = draw.drawNumber?.match(/(?:^|[-_])(\d{4})$/)?.[1];
+  if (!scheduledTime) return 'UNKNOWN';
+  const hour = Number(scheduledTime.slice(0, 2)), minute = Number(scheduledTime.slice(2));
+  return hour < 24 && minute < 60 ? fromHour(hour) : 'UNKNOWN';
+}
+
+export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
+  const labels = {
+    MORNING: language === 'fr' ? 'Normal · Matin' : 'Nòmal · Maten',
+    MIDDAY: language === 'fr' ? 'Normal · Midi' : 'Nòmal · Midi',
+    EVENING: language === 'fr' ? 'Normal · Soir' : 'Nòmal · Swa',
+    NIGHT: language === 'fr' ? 'Normal · Nuit' : 'Nòmal · Lannuit',
+    UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
+  };
+  return labels[getSession(draw)];
+}
+
+export function describeDraw(draw: DrawLabel, language: 'ht' | 'fr') {
+  const game = draw.game?.name ?? (language === 'fr' ? 'Loterie' : 'Lotri');
+  const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt ?? draw.drawDate;
+  if (!source) return `${game} · ${drawSessionLabel(draw, language)}`;
+  const date = new Date(source);
+  if (Number.isNaN(date.getTime())) return `${game} · ${drawSessionLabel(draw, language)}`;
+  const formattedDate = new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'fr-HT', {
+    timeZone: zone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+  const time = draw.resultAt || draw.closesAt || draw.opensAt
+    ? new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)
+    : '';
+  return `${game} · ${drawSessionLabel(draw, language)} · ${formattedDate}${time ? ` ${time}` : ''}`;
 }

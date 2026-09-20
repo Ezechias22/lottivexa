@@ -39,12 +39,14 @@ const enFr:Record<string,string>={
  'Username':'Nom d’utilisateur','Password':'Mot de passe','Forgot password?':'Mot de passe oublié ?','Secure login':'Connexion sécurisée'
  ,'Merchant Login':'Connexion vendeur','Tenant Admin':'Administration client','Master Admin Console':'Administration principale','Tenant':'Espace professionnel','Tenant / subdomain':'Espace professionnel / sous-domaine','Username / Phone':'Nom d’utilisateur / Téléphone','Username / phone':'Nom d’utilisateur / téléphone','Login':'Connexion','Admin biznis la dwe kreye kont ou. Pa gen Sign Up.':'L’administrateur de l’entreprise doit créer votre compte. Aucune inscription publique.','Antre nan espas biznis ou. Pa gen enskripsyon merchant.':'Accédez à votre espace professionnel. Les comptes vendeurs sont créés par un administrateur.'
 };
+const legacy1252:Record<number,number>={8364:128,8218:130,402:131,8222:132,8230:133,8224:134,8225:135,710:136,8240:137,352:138,8249:139,338:140,381:142,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,732:152,8482:153,353:154,8250:155,339:156,382:158,376:159};
+function repairMojibake(value:string){return value.replace(/\S+/g,token=>{if(!/[ÃÂâï]/.test(token))return token;const bytes:number[]=[];for(const character of token){const point=character.codePointAt(0)!;const byte=point<=255?point:legacy1252[point];if(byte===undefined)return token;bytes.push(byte)}try{const repaired=new TextDecoder('utf-8',{fatal:true}).decode(new Uint8Array(bytes));return /[ÃÂâï]/.test(repaired)?token:repaired}catch{return token}})}
 function translate(root:ParentNode,language:'ht'|'fr'){
  const dictionary=language==='fr'?{...enFr,...htFr}:{...enHt,...frHt};
  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
  const nodes:Text[]=[];while(walker.nextNode())nodes.push(walker.currentNode as Text);
- for(const node of nodes){if(node.parentElement?.closest('[data-language-switcher]'))continue;const raw=node.nodeValue??'',trimmed=raw.trim(),translated=dictionary[trimmed];if(translated)node.nodeValue=raw.replace(trimmed,translated)}
- root.querySelectorAll<HTMLInputElement|HTMLTextAreaElement>('[placeholder]').forEach(input=>{const value=input.placeholder,translated=dictionary[value];if(translated)input.placeholder=translated});
+ for(const node of nodes){if(node.parentElement?.closest('[data-language-switcher]'))continue;const current=node.nodeValue??'',raw=repairMojibake(current);if(raw!==current)node.nodeValue=raw;const trimmed=raw.trim(),translated=dictionary[trimmed];if(translated)node.nodeValue=raw.replace(trimmed,translated)}
+ root.querySelectorAll<HTMLInputElement|HTMLTextAreaElement>('[placeholder]').forEach(input=>{const raw=repairMojibake(input.placeholder);if(raw!==input.placeholder)input.placeholder=raw;const translated=dictionary[raw];if(translated)input.placeholder=translated});
 }
 export function LanguageSwitcher(){
  const[language,setLanguage]=useState<'ht'|'fr'>('ht');
