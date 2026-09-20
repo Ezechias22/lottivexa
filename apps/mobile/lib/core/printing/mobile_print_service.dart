@@ -29,17 +29,6 @@ class MobilePrintService {
   }
   Future<void> useSystemPrinter() async { const printer=<String,dynamic>{'id':'SYSTEM','name':'Enprime nòmal Android','connectionType':'SYSTEM','configuration':<String,dynamic>{}};store.setSetting('local_printer',jsonEncode(printer));setDefaultPrinter('LOCAL'); }
   Future<void> printWithSystem(Map<String,dynamic>ticket)=>NativePrinterTransport.systemPrint(encoder.plain(ticket),ticket['businessName']?.toString()??'Bolet');
-  Future<String> businessName() async {
-    final tenantId=api.session.tenantId;
-    if(tenantId==null)return 'Bolet';
-    final settingKey='receipt_business_name_$tenantId';
-    try {
-      final response=await api.dio.get<Map<String,dynamic>>('/api/v1/printing/receipt-branding');
-      final name=response.data?['businessName']?.toString().trim();
-      if(name!=null&&name.isNotEmpty&&name.toLowerCase()!='lottivexa')store.setSetting(settingKey,name);
-    }catch(_){/* Offline: retain last verified tenant-specific name. */}
-    return store.setting(settingKey)??'Bolet';
-  }
   Future<Map<String,dynamic>> withReceiptBranding(Map<String,dynamic> ticket) async {
     final token = api.session.accessToken;
     if (token == null) throw StateError('RECEIPT_LOGIN_REQUIRED');

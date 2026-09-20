@@ -5,12 +5,12 @@ class EscPosEncoder {
   String plain(Map<String, dynamic> ticket) {
     final name = ticket['businessName']?.toString().trim();
     if (name == null || name.isEmpty || name.toLowerCase() == 'lottivexa') throw StateError('RECEIPT_BUSINESS_NAME_REQUIRED');
-    final out = StringBuffer('$name\nTIKÈ ${ticket['ticketNumber'] ?? ticket['id']}\n${ticket['gameName'] ?? ''} ${ticket['drawName'] ?? ''}\n');
+    final out = StringBuffer('$name\n------------------------------\nTIKÈ ${ticket['ticketNumber'] ?? ticket['id']}\n${ticket['gameName'] ?? ''} ${ticket['drawName'] ?? ''}\n------------------------------\nJWÈT / NIMEWO          PRI\n');
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = raw as Map<String, dynamic>;
-      out.writeln('${line['selection'] ?? line['selectionKey']}   ${line['stake']}');
+      out.writeln('${line['betType']?['name'] ?? ''} ${line['selection'] ?? line['selectionKey']}   \$ ${line['stake']}');
     }
-    out.writeln('TOTAL: ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
+    out.writeln('------------------------------\nTOTAL: \$ ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
     out.writeln('ESTATI: ${ticket['status'] ?? 'VALID'}');
     out.writeln(ticket['qrCode'] ?? '');
     return out.toString();
@@ -22,19 +22,23 @@ class EscPosEncoder {
     final name = ticket['businessName']?.toString().trim();
     if (name == null || name.isEmpty || name.toLowerCase() == 'lottivexa') throw StateError('RECEIPT_BUSINESS_NAME_REQUIRED');
     _line(out, name);
+    _line(out, '------------------------------');
     out.add([0x1b, 0x45, 0]);
     _line(out, 'TIKE ${ticket['ticketNumber'] ?? ticket['id']}');
     out.add([0x1b, 0x61, 0]);
     _line(out, '${ticket['gameName'] ?? ''}  ${ticket['drawName'] ?? ''}');
+    _line(out, '------------------------------');
+    _line(out, 'JWET / NIMEWO        PRI');
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = raw as Map<String, dynamic>;
-      final won = line['isWinner'] == true;
-      _line(out, '${won ? '*GAYAN* ' : ''}${line['selection'] ?? line['selectionKey']}   ${line['stake']}${won ? ' -> ${line['potentialWin']}' : ''}');
+      final won = line['isWinner'] == true && (double.tryParse('${ticket['winning']?['winningAmount']}') ?? 0) > 0;
+      _line(out, '${won ? '*GAYAN* ' : ''}${line['betType']?['name'] ?? ''} ${line['selection'] ?? line['selectionKey']}   \$ ${line['stake']}');
     }
-    _line(out, 'TOTAL: ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
+    _line(out, '------------------------------');
+    _line(out, 'TOTAL: \$ ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
     _line(out, 'ESTATI: ${ticket['status'] ?? 'VALID'}');
     final winning = ticket['winning'];
-    if (winning is Map) _line(out, 'TOTAL GENYEN: ${winning['winningAmount'] ?? 0}');
+    if (winning is Map && (double.tryParse('${winning['winningAmount']}') ?? 0) > 0) _line(out, 'TOTAL GENYEN: \$ ${winning['winningAmount']}');
     _line(out, ticket['createdAt']?.toString() ?? '');
     final code = ticket['ticketNumber']?.toString();
     if (code != null && code.isNotEmpty) _code128(out, code);
