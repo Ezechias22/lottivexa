@@ -1,9 +1,13 @@
-export function drawLabel(draw:{game?:{name?:string};resultAt?:string;drawNumber?:string},language:'ht'|'fr'){
- const source=draw.resultAt?new Date(draw.resultAt):null;
- if(!source||Number.isNaN(source.getTime()))return `${draw.game?.name??'Lotri'} · ${draw.drawNumber??''}`;
- const time=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Port-au-Prince',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(source);
- const hour=Number(time.slice(0,2));
- const period=hour<12?(language==='fr'?'Matin':'Maten'):hour<17?'Midi':hour<21?(language==='fr'?'Soir':'Swa'):(language==='fr'?'Nuit':'Lannuit');
- const date=new Intl.DateTimeFormat('fr-HT',{timeZone:'America/Port-au-Prince',day:'2-digit',month:'2-digit',year:'numeric'}).format(source);
- return `${draw.game?.name??'Lotri'} · ${period} · ${date} ${time} · ${draw.drawNumber??''}`;
+type DrawLabel={game?:{name?:string};resultAt?:string;opensAt?:string;closesAt?:string;drawNumber?:string;session?:string;sessionType?:string};
+const zone='America/Port-au-Prince';
+function sessionOf(draw:DrawLabel){const explicit=(draw.session??draw.sessionType??'').toUpperCase();if(['MORNING','MATIN','MORNING_DRAW'].includes(explicit))return'MORNING';if(['EVENING','SOIR','EVENING_DRAW'].includes(explicit))return'EVENING';const source=draw.resultAt??draw.closesAt??draw.opensAt;if(!source)return'UNKNOWN';const date=new Date(source);if(Number.isNaN(date.getTime()))return'UNKNOWN';const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(date));return hour<12?'MORNING':'EVENING'}
+export function drawLabel(draw:DrawLabel,language:'ht'|'fr'){
+ const source=draw.resultAt??draw.closesAt??draw.opensAt;
+ const date=source?new Date(source):null;
+ if(!date||Number.isNaN(date.getTime()))return`${draw.game?.name??(language==='fr'?'Loterie':'Lotri')} · ${draw.drawNumber??''}`;
+ const time=new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date);
+ const period=sessionOf(draw)==='MORNING'?(language==='fr'?'Normal · Matin':'Nòmal · Maten'):sessionOf(draw)==='EVENING'?(language==='fr'?'Normal · Soir':'Nòmal · Swa'):(language==='fr'?'Séance à confirmer':'Sesyon pou verifye');
+ const formattedDate=new Intl.DateTimeFormat(language==='fr'?'fr-FR':'fr-HT',{timeZone:zone,day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
+ return`${draw.game?.name??(language==='fr'?'Loterie':'Lotri')} · ${period} · ${formattedDate} ${time} · #${draw.drawNumber??''}`;
 }
+export function drawSessionLabel(draw:DrawLabel,language:'ht'|'fr'){const session=sessionOf(draw);return session==='MORNING'?(language==='fr'?'Normal · Matin':'Nòmal · Maten'):session==='EVENING'?(language==='fr'?'Normal · Soir':'Nòmal · Swa'):(language==='fr'?'Séance à confirmer':'Sesyon pou verifye')}

@@ -5,14 +5,36 @@ class EscPosEncoder {
   String plain(Map<String, dynamic> ticket) {
     final name = ticket['businessName']?.toString().trim();
     if (name == null || name.isEmpty || name.toLowerCase() == 'lottivexa') throw StateError('RECEIPT_BUSINESS_NAME_REQUIRED');
-    final out = StringBuffer('$name\n------------------------------\nTIKÈ ${ticket['ticketNumber'] ?? ticket['id']}\n${ticket['gameName'] ?? ''} ${ticket['drawName'] ?? ''}\n------------------------------\nJWÈT / NIMEWO          PRI\n');
+    final ticketNumber = ticket['ticketNumber'] ?? ticket['id'] ?? '';
+    final game = ticket['gameName'] ?? ticket['game']?['name'] ?? 'Lotri';
+    final draw = ticket['drawName'] ?? ticket['draw']?['drawNumber'] ?? '';
+    final createdAt = DateTime.tryParse('${ticket['createdAt'] ?? ''}');
+    final printedDate = createdAt == null ? '' : '${createdAt.toLocal().day.toString().padLeft(2, '0')}/${createdAt.toLocal().month.toString().padLeft(2, '0')}/${createdAt.toLocal().year} ${createdAt.toLocal().hour.toString().padLeft(2, '0')}:${createdAt.toLocal().minute.toString().padLeft(2, '0')}';
+    final out = StringBuffer()
+      ..writeln(name)
+      ..writeln('FICH BOLET')
+      ..writeln('--------------------------------')
+      ..writeln('TIKÈ: $ticketNumber')
+      ..writeln('Lotri: $game')
+      ..writeln('Tiraj: $draw')
+      ..writeln('Dat: $printedDate')
+      ..writeln('--------------------------------')
+      ..writeln('JWÈT / NIMEWO                 PRI');
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = raw as Map<String, dynamic>;
-      out.writeln('${line['betType']?['name'] ?? ''} ${line['selection'] ?? line['selectionKey']}   \$ ${line['stake']}');
+      final kind = line['betType']?['name'] ?? line['betTypeName'] ?? 'Bolet';
+      final selection = (line['selectionKey'] ?? line['selection'] ?? '').toString().split('@').first.replaceAll('-', ' × ');
+      out.writeln('$kind  $selection');
+      out.writeln('  \$ ${line['stake'] ?? ''}');
     }
-    out.writeln('------------------------------\nTOTAL: \$ ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
-    out.writeln('ESTATI: ${ticket['status'] ?? 'VALID'}');
-    out.writeln(ticket['qrCode'] ?? '');
+    out
+      ..writeln('--------------------------------')
+      ..writeln('TOTAL: \$ ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}')
+      ..writeln('GANY POSIB: \$ ${ticket['potentialWin'] ?? ''}')
+      ..writeln('ESTATI: ${ticket['status'] ?? 'VALID'}')
+      ..writeln(printedDate)
+      ..writeln('')
+      ..writeln('Kenbe tikè orijinal la. Verifye avan peman.');
     return out.toString();
   }
 
@@ -32,7 +54,7 @@ class EscPosEncoder {
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = raw as Map<String, dynamic>;
       final won = line['isWinner'] == true && (double.tryParse('${ticket['winning']?['winningAmount']}') ?? 0) > 0;
-      _line(out, '${won ? '*GAYAN* ' : ''}${line['betType']?['name'] ?? ''} ${line['selection'] ?? line['selectionKey']}   \$ ${line['stake']}');
+      _line(out, '${won ? '*GAYAN* ' : ''}${line['betType']?['name'] ?? ''} ${line['selectionKey'] ?? line['selection']}   \$ ${line['stake']}');
     }
     _line(out, '------------------------------');
     _line(out, 'TOTAL: \$ ${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');

@@ -4,7 +4,7 @@ import {useState, type FormEvent} from 'react';
 import {useI18n} from './i18n';
 import {describeDraw} from './draw-label';
 
-type Draw = {id:string;drawNumber:string;status:string;drawDate?:string;resultAt?:string;game?:{name?:string};result?:{winningKeys?:string[]}};
+type Draw = {id:string;drawNumber:string;status:string;drawDate?:string;resultAt?:string;opensAt?:string;closesAt?:string;session?:string;sessionType?:string;game?:{name?:string};result?:{winningKeys?:string[]}};
 
 export default function ManualResults({draws,request,reload}:{draws:Draw[];request:(path:string,init?:RequestInit)=>Promise<unknown>;reload:()=>Promise<void>}) {
   const {t,language} = useI18n();

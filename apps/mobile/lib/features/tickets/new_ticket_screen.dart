@@ -125,16 +125,21 @@ class _NewTicketState extends State<NewTicketScreen> {
   }
   String drawLabel(dynamic row){final game='${row['game']?['name']??'Lotri'}',draw='${row['drawNumber']}',code='${row['game']?['code']??''}';if(code=='TX'){final period={'1000':'Morning','1227':'Day','1800':'Evening','2212':'Night'}[draw.split('-').last]??'Tiraj';return 'Texas $period';}final closes=DateTime.tryParse('${row['closesAt']}')?.toLocal();return '$game ${closes!=null&&closes.hour<17?'Midi':'Aswè'}';}
 
-  void addMaryaj() {
-    final values=_boletNumbers;
-    final bet = _betForCode('MARYAJ'), stake = maryajAutoStake.text.trim().replaceAll(',', '.');
+  Future<String?> _askAutomaticStake({required TextEditingController controller, required String title, required String help}) {
+    return showDialog<String>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
+      final stake = controller.text.trim().replaceAll(',', '.');
+      final valid = (double.tryParse(stake) ?? 0) > 0;
+      return AlertDialog(title: Text(title), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(help), const SizedBox(height: 12), if (_boletNumbers.isNotEmpty) Wrap(spacing: 6, children: _boletNumbers.map((value) => Chip(label: Text(value))).toList()), const SizedBox(height: 8), TextField(controller: controller, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, stake) : null, child: const Text('KONTINYE'))]);
+    }));
+  }
+
+  Future<void> addMaryaj() async {
+    final values = _boletNumbers, bet = _betForCode('MARYAJ');
     if (bet == null) { setState(() => message = 'Maryaj pa aktive pou tiraj sa a.'); return; }
     if (values.length < 2) { setState(() => message = 'Ajoute omwen 2 liy Bolet de chif; Boul Pè pa konte kòm Bolet.'); return; }
-    if ((double.tryParse(stake) ?? 0) <= 0) { setState(() => message = 'Antre pri Maryaj otomatik la.'); return; }
-    setState(() {
-      for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake));
-      message = '${values.length} boul Bolet yo sèvi pou jenere Maryaj.';
-    });
+    final stake = await _askAutomaticStake(controller: maryajAutoStake, title: 'Maryaj otomatik', help: 'Mete pri pou chak pè. Pri chak liy rete modifyab sou tikè a.');
+    if (stake == null || !mounted) return;
+    setState(() { for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake)); message = '${values.length} boul Bolet yo sèvi pou jenere Maryaj.'; });
   }
 
   void addNormalMaryaj() {
@@ -148,21 +153,31 @@ class _NewTicketState extends State<NewTicketScreen> {
     setState(() { lines.add(PosLine(number: '${parts[0]}-${parts[1]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake)); maryajNumber.clear(); maryajStake.clear(); message = null; });
   }
 
-  void addBoulPe() {
-    final bet = _betForCode('BOUL_PE'), stake = allStake.text.trim().replaceAll(',', '.');
+  Future<void> addBoulPe() async {
+    final bet = _betForCode('BOUL_PE');
     if (bet == null) { setState(() => message = 'Boul Pè pa aktive pou tiraj sa a.'); return; }
-    setState(() { for (final value in const ['00','11','22','33','44','55','66','77','88','99']) { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',stake:stake.isEmpty?'0':stake)); } message = null; });
+    final stake = await _askAutomaticStake(controller: allStake, title: 'Boul Pè 00–99', help: 'Chwazi yon pri; chak boul pè ap parèt ak de chif sou tikè a.');
+    if (stake == null || !mounted) return;
+    setState(() { for (final value in const ['00','11','22','33','44','55','66','77','88','99']) { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',stake:stake)); } message = null; });
   }
 
-  Future<Set<int>?> chooseLotoOptions() => showDialog<Set<int>>(context: context, builder: (context) => SimpleDialog(title: const Text('Chwazi opsyon Loto'), children: [SimpleDialogOption(onPressed:()=>Navigator.pop(context,{1}),child:const Text('1ye boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{2}),child:const Text('2yèm boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{3}),child:const Text('3yèm boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{1,2,3}),child:const Text('Tout opsyon (1ye, 2yèm, 3yèm)'))]));
+  Future<Map<String,dynamic>?> chooseLotoOptions() {
+    final chosen = Set<int>.of(selectedPositions);
+    return showDialog<Map<String,dynamic>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
+      final stake = lotoStake.text.trim().replaceAll(',', '.');
+      final valid = chosen.isNotEmpty && (double.tryParse(stake) ?? 0) > 0;
+      return AlertDialog(title: const Text('LOTO 4 OTOMATIK'), content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Boul Bolet ki sou fich la: ${_boletNumbers.join(', ')}'), const SizedBox(height: 10), const Text('Chwazi pozisyon rezilta yo:'), Wrap(spacing: 4, children: [for (final position in const [1,2,3]) FilterChip(label: Text('Opsyon $position'), selected: chosen.contains(position), onSelected: (value) => refreshDialog(() { if (value) chosen.add(position); else if (chosen.length > 1) chosen.remove(position); })), ActionChip(label: const Text('Tout opsyon'), onPressed: () => refreshDialog(() => chosen.addAll([1,2,3])))]), const SizedBox(height: 10), TextField(controller: lotoStake, autofocus: true, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pri pou chak liy', border: OutlineInputBorder()), onChanged: (_) => refreshDialog(() {}))]), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')), FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, {'positions': Set<int>.of(chosen), 'stake': stake}) : null, child: const Text('KONTINYE'))]);
+    }));
+  }
 
   Future<void> addAutoLoto4() async {
-    final bet = _betForCode('LOTO4'), stake = lotoStake.text.trim().replaceAll(',', '.'), values=_boletNumbers;
+    final bet = _betForCode('LOTO4'), values = _boletNumbers;
     if (bet == null) { setState(() => message = 'Loto 4 pa aktive pou tiraj sa a.'); return; }
-    if (values.length<2) { setState(() => message = 'Ajoute omwen 2 liy Bolet de chif; Boul Pè pa konte kòm Bolet.'); return; }
-    if ((double.tryParse(stake) ?? 0) <= 0) { setState(() => message = 'Antre pri Loto otomatik la.'); return; }
-    final selected = Set<int>.of(selectedPositions);
-    setState(() { for(var i=0;i<values.length;i++)for(var j=i+1;j<values.length;j++){for(final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}'])for(final position in selected)lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake));}message='Loto otomatik fèt ak menm boul Bolet yo ak opsyon ou chwazi a.'; });
+    if (values.length < 2) { setState(() => message = 'Ajoute omwen 2 liy Bolet de chif; Boul Pè pa konte kòm Bolet.'); return; }
+    final options = await chooseLotoOptions();
+    if (options == null || !mounted) return;
+    final selected = options['positions'] as Set<int>, stake = options['stake'] as String;
+    setState(() { selectedPositions..clear()..addAll(selected); for (var i = 0; i < values.length; i++) for (var j = i + 1; j < values.length; j++) { for (final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}']) for (final position in selected) lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake)); } message = 'Loto otomatik fèt ak menm boul Bolet yo ak opsyon ou chwazi a.'; });
   }
 
   Future<void> addNumber() async {
@@ -192,7 +207,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     }
     final mutationId = const Uuid().v7();
     setState(() => busy = true);
-    final payload = lines.map((line) => {'betTypeId': line.betTypeId, 'selection': line.number.split('-').map(int.parse).toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position}).toList();
+    final payload = lines.map((line) => {'betTypeId': line.betTypeId, 'selection': line.number.split('-').toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position}).toList();
     try {
       final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: {'drawId': drawId, 'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId, 'lines': payload});
       final ticket=<String,dynamic>{...response.data!,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
@@ -227,7 +242,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     const SizedBox(height:14),
     Row(children:[Expanded(child:TextField(controller:allStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Chanje pri tout liy yo',border:OutlineInputBorder()))),const SizedBox(width:8),FilledButton.tonal(onPressed:applyStake,child:const Text('APLIKE TOUT'))]),
     const SizedBox(height: 12),
-    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('Otomatik ak ${_boletNumbers.length} boul Bolet de chif sou fich la',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),TextField(controller:maryajAutoStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri Maryaj otomatik \$',border:OutlineInputBorder())),const SizedBox(height:8),TextField(controller:lotoStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri Loto otomatik \$',border:OutlineInputBorder())),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Maryaj ak Loto otomatik itilize sèlman boul Bolet 2 chif ki deja sou fich la. Pri chak liy ka chanje apre.')]))),
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('Zouti otomatik · ${_boletNumbers.length} boul Bolet sou fich la',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Chak bouton ouvri yon fenèt pou mete pri ak opsyon. Ou ka modifye pri liy yo apa sou tikè a.')]))),
     const SizedBox(height: 16),
     ...lines.asMap().entries.map((entry){final index=entry.key,line=entry.value;return Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[SizedBox(width:88,child:Text(line.number,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900))),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${line.betName}${line.position==null?'':' · Opsyon ${line.position}'}'),TextFormField(key:ValueKey('${line.number}-${line.position}-${line.stake}'),initialValue:line.stake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri liy sa a',isDense:true),onChanged:(value){line.stake=value;setState((){});})])),IconButton(onPressed:()=>setState(()=>lines.removeAt(index)),icon:const Icon(Icons.delete,color:Colors.red))])));}),
     if (message != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(message!, style: const TextStyle(fontWeight: FontWeight.w600))),

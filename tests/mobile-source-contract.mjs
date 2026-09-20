@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../apps/mobile/lib/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
-const [app, session, dashboard, hub, resource, sell, tickets, results] = await Promise.all([
+const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, nativePrinter] = await Promise.all([
   read('app/lottivexa_app.dart'), read('core/security/session_store.dart'),
   read('features/admin/admin_dashboard_screen.dart'), read('features/admin/admin_hub_screen.dart'),
   read('features/admin/admin_resource_screen.dart'), read('features/tickets/new_ticket_screen.dart'),
   read('features/tickets/ticket_search_screen.dart'), read('features/results/results_screen.dart'),
+  read('core/printing/escpos_encoder.dart'), readFile(new URL('../apps/mobile/android/app/src/main/kotlin/com/lottivexa/mobile/MainActivity.kt', import.meta.url), 'utf8'),
 ]);
 
 assert.match(session, /isTenantAdmin/);
@@ -25,5 +26,10 @@ for (const value of ["2 => 'BOLET'", "3 => 'LOTO3'", "4 => 'LOTO4'", "5 => 'LOTO
 for (const value of ['/api/v1/tickets', 'Kopye / Rejwe']) assert.ok(tickets.includes(value));
 assert.ok(results.includes('/api/v1/lottery/draws'));
 assert.match(app, /hasPermission\('tickets\.create'\)/);
+assert.match(encoder, /selectionKey/);
+assert.match(encoder, /RECEIPT_BUSINESS_NAME_REQUIRED/);
+assert.doesNotMatch(encoder, /LV1:/);
+assert.match(nativePrinter, /setMediaSize\(receiptMedia\)/);
+assert.match(nativePrinter, /@page\{size:58mm 500mm/);
 assert.doesNotMatch(app + dashboard + hub + resource + sell + tickets + results, /fake|mock data|TODO/i);
 console.log('Mobile Admin source contract: passed');
