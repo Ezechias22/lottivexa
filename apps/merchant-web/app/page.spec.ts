@@ -51,6 +51,13 @@ describe('Haitian selling desk', () => {
     }
   });
 
+  it('keeps price and result-position choices inside the small automatic-game dialogs', () => {
+    expect(source).not.toContain('sell-options');
+    expect(source).not.toContain('stake-tools');
+    expect(source).toContain("autoDialog==='loto'&&");
+    expect(source).toContain("setAutoDialog('boulPe')");
+  });
+
   it('refreshes remote configuration and live results', () => {
     expect(source).toContain('setInterval(()=>void load(),60000)');
     expect(source).toContain('setInterval(load,15000)');

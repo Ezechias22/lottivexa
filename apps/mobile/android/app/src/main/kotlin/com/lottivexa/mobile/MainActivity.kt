@@ -16,6 +16,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.util.UUID
+import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
   private val channelName = "com.lottivexa/printer"
@@ -63,11 +66,16 @@ class MainActivity : FlutterActivity() {
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
 
   private fun systemPrint(text: String, businessName: String, result: MethodChannel.Result) {
+    val lines = text.lines().filter { it.isNotBlank() && !it.trim().matches(Regex("[-—_=]{5,}")) }
+    val bodyLines = lines.drop(2)
+    val renderedRows = bodyLines.sumOf { maxOf(1, ceil(it.length / 34.0).toInt()) }
+    val pageHeightMm = (38.0 + renderedRows * 4.8).coerceIn(85.0, 400.0)
+    val pageHeightMils = (pageHeightMm * 39.3701).roundToInt()
+    val pageHeightCss = String.format(Locale.US, "%.2f", pageHeightMm)
     val web = WebView(this)
     activePrintWebView = web
     val documentName = businessName.take(80).ifBlank { "Bolet" }
-    web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { try { val receiptMedia = PrintAttributes.MediaSize("LOTTIVEXA_RECEIPT_58MM", "Receipt 58 mm", 2283, 19685); val attributes = PrintAttributes.Builder().setMediaSize(receiptMedia).setMinMargins(PrintAttributes.Margins.NO_MARGINS).build(); (getSystemService(Context.PRINT_SERVICE) as PrintManager).print(documentName, view.createPrintDocumentAdapter(documentName), attributes); result.success(null) } catch (error: Exception) { result.error("SYSTEM_PRINT_FAILED", error.message, null) } } }
-    val lines = text.lines().filter { it.isNotBlank() && !it.trim().matches(Regex("[-—_=]{5,}")) }
+    web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { try { val receiptMedia = PrintAttributes.MediaSize("LOTTIVEXA_RECEIPT_58MM", "Bolet 58 mm", 2283, pageHeightMils); val attributes = PrintAttributes.Builder().setMediaSize(receiptMedia).setMinMargins(PrintAttributes.Margins.NO_MARGINS).build(); (getSystemService(Context.PRINT_SERVICE) as PrintManager).print(documentName, view.createPrintDocumentAdapter(documentName), attributes); result.success(null) } catch (error: Exception) { result.error("SYSTEM_PRINT_FAILED", error.message, null) } } }
     val brand = android.text.TextUtils.htmlEncode(lines.firstOrNull() ?: businessName)
     val body = lines.drop(2).joinToString("") { raw ->
       val safe = android.text.TextUtils.htmlEncode(raw)
@@ -84,10 +92,10 @@ class MainActivity : FlutterActivity() {
       "<div class=\"$cls\">$safe</div>"
     }
     val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-      @page{size:58mm 500mm;margin:0}*{box-sizing:border-box}html,body{width:58mm;margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,sans-serif}
+      @page{size:58mm ${pageHeightCss}mm;margin:0}*{box-sizing:border-box}html,body{width:58mm;margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,sans-serif}
       .receipt{width:58mm;padding:4mm 3mm 5mm}.brand{text-align:center;color:#132b4b;font-size:17pt;font-weight:900;line-height:1.1;overflow-wrap:anywhere}
-      .kind{text-align:center;color:#a46b09;font-size:8pt;letter-spacing:2px;font-weight:800;margin:2mm 0 3mm}.line,.draw,.ticket-number,.column-heading,.total,.potential,.status{font-size:9pt;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere}
-      .ticket-number{font-weight:800;padding:2mm 0}.draw{font-size:8.5pt}.column-heading{border-top:1px dashed #789;padding-top:2mm;margin-top:2mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:2mm;padding-top:2mm;font-size:12pt;font-weight:900}.potential{font-weight:700}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:1mm 2mm;border-radius:2mm;margin:2mm 0}.line{padding:.5mm 0}
+      .kind{text-align:center;color:#a46b09;font-size:8pt;letter-spacing:2px;font-weight:800;margin:2mm 0 3mm}.line,.draw,.ticket-number,.column-heading,.total,.potential,.status{font-size:10pt;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere}
+      .ticket-number{font-weight:800;padding:2mm 0}.draw{font-size:9pt}.column-heading{border-top:1px dashed #789;padding-top:2mm;margin-top:2mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:2mm;padding-top:2mm;font-size:12pt;font-weight:900}.potential{font-weight:700}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:1mm 2mm;border-radius:2mm;margin:2mm 0}.line{padding:.6mm 0}
       </style></head><body><main class="receipt"><header><div class="brand">$brand</div><div class="kind">FICH BOLET</div></header>$body</main></body></html>"""
     web.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
   }
