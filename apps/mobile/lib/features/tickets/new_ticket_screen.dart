@@ -21,16 +21,17 @@ class NewTicketScreen extends StatefulWidget {
 }
 
 class _NewTicketState extends State<NewTicketScreen> {
-  final number = TextEditingController(), lineStake = TextEditingController(), allStake = TextEditingController();
+  final number = TextEditingController(), lineStake = TextEditingController(), allStake = TextEditingController(), maryajNumber = TextEditingController(), maryajStake = TextEditingController(), maryajAutoStake = TextEditingController(), lotoStake = TextEditingController();
   List<dynamic> games = [], draws = [];
   final List<PosLine> lines = [];
   String? drawId, message;
   bool busy = false;
+  final Set<int> selectedPositions = {1};
   bool usingOfflineCatalog = false;
   Timer? configurationTimer;
 
   @override void initState() { super.initState(); load(); configurationTimer = Timer.periodic(const Duration(seconds: 60), (_) => load(silent: true)); }
-  @override void dispose() { configurationTimer?.cancel(); number.dispose(); lineStake.dispose(); allStake.dispose(); super.dispose(); }
+  @override void dispose() { configurationTimer?.cancel(); number.dispose(); lineStake.dispose(); allStake.dispose(); maryajNumber.dispose(); maryajStake.dispose(); maryajAutoStake.dispose(); lotoStake.dispose(); super.dispose(); }
 
   Future<void> load({bool silent = false}) async {
     if (!silent) setState(() => busy = true);
@@ -117,17 +118,34 @@ class _NewTicketState extends State<NewTicketScreen> {
 
   dynamic _betForCode(String code) => betTypes.where((bet) => bet['code'] == code).firstOrNull;
 
-  List<String> get _boletNumbers => lines.where((line)=>line.betName.toUpperCase().contains('BOLET')&&line.number.length==2).map((line)=>line.number).toSet().toList();
+  List<String> get _boletNumbers {
+    final boletId = '${_betForCode('BOLET')?['id'] ?? ''}';
+    if (boletId.isEmpty) return [];
+    return lines.where((line) => line.betTypeId == boletId && RegExp(r'^\d{2}$').hasMatch(line.number)).map((line) => line.number).toSet().toList();
+  }
   String drawLabel(dynamic row){final game='${row['game']?['name']??'Lotri'}',draw='${row['drawNumber']}',code='${row['game']?['code']??''}';if(code=='TX'){final period={'1000':'Morning','1227':'Day','1800':'Evening','2212':'Night'}[draw.split('-').last]??'Tiraj';return 'Texas $period';}final closes=DateTime.tryParse('${row['closesAt']}')?.toLocal();return '$game ${closes!=null&&closes.hour<17?'Midi':'Aswè'}';}
 
   void addMaryaj() {
     final values=_boletNumbers;
-    final bet = _betForCode('MARYAJ'), stake = allStake.text.trim().replaceAll(',', '.');
-    if (bet == null || values.length < 2) { setState(() => message = 'Ajoute omwen 2 boul Bolet anvan ou jenere Maryaj.'); return; }
+    final bet = _betForCode('MARYAJ'), stake = maryajAutoStake.text.trim().replaceAll(',', '.');
+    if (bet == null) { setState(() => message = 'Maryaj pa aktive pou tiraj sa a.'); return; }
+    if (values.length < 2) { setState(() => message = 'Ajoute omwen 2 liy Bolet de chif; Boul Pè pa konte kòm Bolet.'); return; }
+    if ((double.tryParse(stake) ?? 0) <= 0) { setState(() => message = 'Antre pri Maryaj otomatik la.'); return; }
     setState(() {
-      for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake.isEmpty ? '0' : stake));
+      for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake));
       message = '${values.length} boul Bolet yo sèvi pou jenere Maryaj.';
     });
+  }
+
+  void addNormalMaryaj() {
+    final parts = maryajNumber.text.trim().split(RegExp(r'\s*[xX×-]\s*'));
+    final bet = _betForCode('MARYAJ');
+    final stake = maryajStake.text.trim().replaceAll(',', '.');
+    if (bet == null || parts.length != 2 || parts.any((part) => !RegExp(r'^\d{2}$').hasMatch(part)) || (double.tryParse(stake) ?? 0) <= 0) {
+      setState(() => message = 'Antre Maryaj 15x25 ak yon pri valab; verifye Maryaj aktive pou tiraj la.');
+      return;
+    }
+    setState(() { lines.add(PosLine(number: '${parts[0]}-${parts[1]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake)); maryajNumber.clear(); maryajStake.clear(); message = null; });
   }
 
   void addBoulPe() {
@@ -139,17 +157,19 @@ class _NewTicketState extends State<NewTicketScreen> {
   Future<Set<int>?> chooseLotoOptions() => showDialog<Set<int>>(context: context, builder: (context) => SimpleDialog(title: const Text('Chwazi opsyon Loto'), children: [SimpleDialogOption(onPressed:()=>Navigator.pop(context,{1}),child:const Text('1ye boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{2}),child:const Text('2yèm boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{3}),child:const Text('3yèm boul')),SimpleDialogOption(onPressed:()=>Navigator.pop(context,{1,2,3}),child:const Text('Tout opsyon (1ye, 2yèm, 3yèm)'))]));
 
   Future<void> addAutoLoto4() async {
-    final bet = _betForCode('LOTO4'), stake = allStake.text.trim().replaceAll(',', '.'), values=_boletNumbers;
-    if (bet == null || values.length<2) { setState(() => message = 'Ajoute omwen 2 boul Bolet pou Loto otomatik.'); return; }
-    final selected=await chooseLotoOptions();if(selected==null||!mounted)return;
-    setState(() { for(var i=0;i<values.length;i++)for(var j=i+1;j<values.length;j++){for(final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}'])for(final position in selected)lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake.isEmpty?'0':stake));}message='Loto otomatik fèt ak menm boul Bolet yo ak opsyon ou chwazi a.'; });
+    final bet = _betForCode('LOTO4'), stake = lotoStake.text.trim().replaceAll(',', '.'), values=_boletNumbers;
+    if (bet == null) { setState(() => message = 'Loto 4 pa aktive pou tiraj sa a.'); return; }
+    if (values.length<2) { setState(() => message = 'Ajoute omwen 2 liy Bolet de chif; Boul Pè pa konte kòm Bolet.'); return; }
+    if ((double.tryParse(stake) ?? 0) <= 0) { setState(() => message = 'Antre pri Loto otomatik la.'); return; }
+    final selected = Set<int>.of(selectedPositions);
+    setState(() { for(var i=0;i<values.length;i++)for(var j=i+1;j<values.length;j++){for(final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}'])for(final position in selected)lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake));}message='Loto otomatik fèt ak menm boul Bolet yo ak opsyon ou chwazi a.'; });
   }
 
   Future<void> addNumber() async {
     final value = number.text.replaceAll(RegExp(r'\D'), ''), bet = _betForDigits(number.text.replaceAll(RegExp(r'\D'), '').length);
     if (bet == null) { setState(() => message = value.length < 2 || value.length > 5 ? 'Antre 2, 3, 4 oswa 5 chif.' : 'Jwèt sa a pa aktive pou tiraj la.'); return; }
     final stake = lineStake.text.trim().isEmpty ? '0' : lineStake.text.trim().replaceAll(',', '.');
-    final selected=value.length>=3?(await chooseLotoOptions()??<int>{}):<int>{};if(value.length>=3&&selected.isEmpty)return;
+    final selected=Set<int>.of(selectedPositions);
     setState(() { if(selected.isEmpty){lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',stake:stake));}else{for(final position in selected)lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake));}number.clear();lineStake.clear();message=null; });
   }
 
@@ -200,14 +220,17 @@ class _NewTicketState extends State<NewTicketScreen> {
     DropdownButtonFormField<String>(value: drawId, decoration: const InputDecoration(labelText: 'Tiraj ki ouvè', border: OutlineInputBorder()), items: draws.map<DropdownMenuItem<String>>((row) => DropdownMenuItem(value: '${row['id']}', child: Text(drawLabel(row)))).toList(), onChanged: (value) => setState(() { drawId = value; lines.clear(); })),
     const SizedBox(height: 14),
     Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Expanded(flex:2,child:TextField(controller:number,autofocus:true,keyboardType:TextInputType.number,maxLength:5,decoration:const InputDecoration(labelText:'Boul',hintText:'12, 123, 1234 oswa 12345',border:OutlineInputBorder()))),const SizedBox(width:8),Expanded(child:TextField(controller:lineStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),onSubmitted:(_)=>addNumber(),decoration:const InputDecoration(labelText:'Pri',hintText:'25',border:OutlineInputBorder()))),const SizedBox(width:8),Padding(padding:const EdgeInsets.only(top:4),child:FilledButton(onPressed:addNumber,child:const Text('AJOUTE')))]),
-    const Text('Lè ou ajoute yon Loto oswa peze LOTO OTOMATIK, sistèm nan ap mande opsyon an nan moman sa a.'),
+    const Text('Chwazi pozisyon Bolet oswa Loto yo; chwa sa yo ap rete la pou pwochen boul yo.'),
+    Wrap(spacing:8,children:[for(final position in const [1,2,3])FilterChip(label:Text('Opsyon $position'),selected:selectedPositions.contains(position),onSelected:(selected)=>setState((){if(selected)selectedPositions.add(position);else if(selectedPositions.length>1)selectedPositions.remove(position);}))]),
+    const SizedBox(height:12),
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const Text('Maryaj nòmal',style:TextStyle(fontSize:18,fontWeight:FontWeight.bold)),const SizedBox(height:8),TextField(controller:maryajNumber,decoration:const InputDecoration(labelText:'De boul',hintText:'15x25',border:OutlineInputBorder())),const SizedBox(height:8),TextField(controller:maryajStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri Maryaj \$',border:OutlineInputBorder())),const SizedBox(height:8),FilledButton.tonal(onPressed:addNormalMaryaj,child:const Text('AJOUTE MARYAJ'))]))),
     const SizedBox(height:14),
     Row(children:[Expanded(child:TextField(controller:allStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Chanje pri tout liy yo',border:OutlineInputBorder()))),const SizedBox(width:8),FilledButton.tonal(onPressed:applyStake,child:const Text('APLIKE TOUT'))]),
     const SizedBox(height: 12),
-    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[const Text('Otomatik ak boul Bolet ki deja sou fich la',style:TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Loto otomatik ak Maryaj itilize menm boul 2 chif ou deja antre yo. Loto 3 ak Loto 5 rete manyèl.')]))),
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('Otomatik ak ${_boletNumbers.length} boul Bolet de chif sou fich la',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),TextField(controller:maryajAutoStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri Maryaj otomatik \$',border:OutlineInputBorder())),const SizedBox(height:8),TextField(controller:lotoStake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri Loto otomatik \$',border:OutlineInputBorder())),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Maryaj ak Loto otomatik itilize sèlman boul Bolet 2 chif ki deja sou fich la. Pri chak liy ka chanje apre.')]))),
     const SizedBox(height: 16),
     ...lines.asMap().entries.map((entry){final index=entry.key,line=entry.value;return Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[SizedBox(width:88,child:Text(line.number,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900))),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${line.betName}${line.position==null?'':' · Opsyon ${line.position}'}'),TextFormField(key:ValueKey('${line.number}-${line.position}-${line.stake}'),initialValue:line.stake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri liy sa a',isDense:true),onChanged:(value){line.stake=value;setState((){});})])),IconButton(onPressed:()=>setState(()=>lines.removeAt(index)),icon:const Icon(Icons.delete,color:Colors.red))])));}),
     if (message != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(message!, style: const TextStyle(fontWeight: FontWeight.w600))),
-    Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text('Total: ${total.toStringAsFixed(2)}',style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),FilledButton.icon(onPressed:busy?null:sell,icon:const Icon(Icons.print),label:Text(busy?'Validation…':widget.runtime.printer.defaultPrinterId==null?'VANN':'VANN & ENPRIME'))]),
+    Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[Text('Total: \$ ${total.toStringAsFixed(2)}',style:const TextStyle(fontSize:21,fontWeight:FontWeight.w900)),FilledButton.icon(onPressed:busy?null:sell,icon:const Icon(Icons.print),label:Text(busy?'Validation…':widget.runtime.printer.defaultPrinterId==null?'VANN':'VANN & ENPRIME'))]),
   ]);
 }

@@ -1,0 +1,11 @@
+Koreksyon LOTTIVEXA: rezilta manyèl ak aparèy otomatik.
+
+ZIP sa a genyen SÈLMAN fichye ki chanje. Enstale sou kòd ki te deja resevwa koreksyon offline lan; pa efase oswa reenstale aplikasyon ki gen tikè ki poko senkronize.
+
+Nan tenant-web > Lotri ak tiraj, administratè ki gen dwa settings.edit ka chwazi yon tiraj ki FÈMEN, antre nimewo genyen yo nan lòd, verifye, epi pibliye. Pibliye rezilta sèlman apre TOUT lavant offline fin senkronize; piblikasyon an final.
+
+Sou mobil, yon kont machann anrejistre aparèy la otomatikman ak yon idantifyan prive ki rete sou telefòn lan. Admin biznis la apwouve aparèy ki PENDING lan nan seksyon Aparèy. Machann pa bezwen kopye ni tape ID. Pa efase done app la, sitou si gen tikè offline. Web POS pa mande ID aparèy Android.
+
+Non biznis ki nan TenantBranding.businessName afiche nan tèt web machann olye non platfòm nan. Mobil la respekte Kreyòl/Français ki chwazi a.
+
+Limit: kòd sa a poko deplwaye ni rebati nan APK ki deja enstale a. Koreksyon Flutter natif-natal bezwen yon nouvo build/OTA ki konpatib; pa pretann yon chanjman kòd sou Git modifye APK ki deja enstale a. Anviwònman sa a pa gen Flutter oswa depandans pnpm konplè, kidonk build/test konplè pa verifye isit la.

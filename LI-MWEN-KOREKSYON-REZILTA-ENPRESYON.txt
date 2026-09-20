@@ -1,0 +1,9 @@
+LOTTIVEXA: koreksyon ekran rezilta, lang ak enpresyon web.
+
+Sa ki nan ZIP la:
+- Admin tenant: tiraj ki fèmen yo montre lotri, maten/midi/swa/lannuit, dat/lè Ayiti ak nimewo tiraj anvan piblikasyon. Konfimasyon an repete detay yo. Pa pibliye toutotan gen lavant offline ki poko senkronize.
+- Machann web: bouton Enprime tikè a chèche tikè konplè a epi ouvri dyalòg enpresyon navigatè a ak yon resi 58 mm, non biznis tenant lan ak kantite tikè. Printer pa oblije anrejistre sou sèvè a pou ouvri dyalòg sa a; chwazi printer ki enstale nan sistèm aparèy ou a. Bluetooth ESC/POS san chofè navigatè pa ka enprime dirèk atravè browser: sèvi ak enpresyon natif mobil la pou sa.
+- Web machann: meni ak ekran kle yo sèvi ak tradiksyon React Kreyòl/Français; mekanis ki t ap chanje tèks HTML a ak MutationObserver retire.
+- Mobil: etikèt aparèy, senkronizasyon, rezilta ak peryòd tiraj yo pi klè. APK ki deja sou telefòn nan pa chanje sèlman ak yon deploy web/API; pa efase done app la si gen tikè offline.
+
+Limit tès: ZIP la verifye fizikman; Flutter ak pnpm depandans konplè pa disponib nan anviwònman kreyasyon an. Build tenant-web, merchant-web ak flutter analyze dwe pase sou Windows ou anvan nenpòt commit/deploy. Kèk ekran administrasyon ki pa nan ZIP sa a toujou gen etikèt anglè; pa prezante travay tradiksyon an kòm 100% fini.

@@ -74,9 +74,9 @@ class _TicketState extends State<TicketSearchScreen> {
       const SizedBox(height: 12),
       TextField(controller: reference, onSubmitted: search, decoration: InputDecoration(labelText: 'Nimewo tikè / barcode / QR', border: const OutlineInputBorder(), prefixIcon: IconButton(tooltip: 'Eskane QR', onPressed: busy ? null : scan, icon: const Icon(Icons.qr_code_scanner)), suffixIcon: IconButton(onPressed: busy ? null : search, icon: const Icon(Icons.search)))),
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
-      if (ticket != null) TicketDetails(ticket: ticket!, statusLabel: statusLabel, statusColor: statusColor, cleanKey: cleanKey, position: position, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: ticket!['status'] == 'WINNER' ? pay : null),
+      if (ticket != null) TicketDetails(ticket: ticket!, statusLabel: statusLabel, statusColor: statusColor, cleanKey: cleanKey, position: position, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: ticket!['status'] == 'WINNER' && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
       const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      ...rows.map((row) => Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, row['status'])), title: Text('${row['ticketNumber']}'), subtitle: Text('${statusLabel(row['status'])} · ${row['createdAt']}'), trailing: Text('${row['amount']}', style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}')))),
+      ...rows.map((row) => Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, row['status'])), title: Text('${row['ticketNumber']}'), subtitle: Text('${row['status'] == 'WINNER' && ((double.tryParse('${row['winning']?['winningAmount']}') ?? 0) <= 0 || !(row['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true)) ? 'BEZWEN VERIFIKASYON' : statusLabel(row['status'])} · ${row['createdAt']}'), trailing: Text('${row['amount']}', style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}')))),
       if (rows.isEmpty && !busy) const Padding(padding: EdgeInsets.all(24), child: Text('Pa gen tikè.')),
     ]),
   );
@@ -97,7 +97,7 @@ class TicketDetails extends StatelessWidget {
     final lines = ticket['lines'] as List<dynamic>? ?? [];
     final winning = ticket['winning'] as Map<String, dynamic>?;
     return Card(margin: const EdgeInsets.only(top: 16), clipBehavior: Clip.antiAlias, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Container(color: statusColor(context, ticket['status']), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(statusLabel(ticket['status'])))])),
+      Container(color: statusColor(context, ticket['status']), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(ticket['status'] == 'WINNER' && onPay == null ? 'BEZWEN VERIFIKASYON' : statusLabel(ticket['status'])))])),
       Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${ticket['draw']?['game']?['name'] ?? ticket['game']?['name'] ?? ''}', style: Theme.of(context).textTheme.titleLarge),
         Text('Tiraj: ${ticket['draw']?['drawNumber'] ?? ''}'),
@@ -108,7 +108,7 @@ class TicketDetails extends StatelessWidget {
         const Divider(height: 28),
         _total('Total jwe', '${ticket['amount']}'),
         _total('Gayan potansyèl', '${ticket['potentialWin']}'),
-        _total('TOTAL GENYEN', '${winning?['winningAmount'] ?? 0}', winner: true),
+        if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', '${winning?['winningAmount'] ?? 0}', winner: true),
         if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
         const Text('Tikè sa a dwe verifye nan sistèm nan anvan peman. Kenbe tikè orijinal la. Yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
