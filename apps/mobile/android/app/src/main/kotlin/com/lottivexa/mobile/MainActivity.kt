@@ -12,14 +12,10 @@ import android.print.PrintManager
 import android.webkit.WebView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.util.UUID
-import java.util.Locale
-import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
   private val channelName = "com.lottivexa/printer"
@@ -35,8 +31,7 @@ class MainActivity : FlutterActivity() {
         "requestBluetoothPermission" -> requestBluetoothPermission(result)
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
-        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), result)
-        "sharePdf" -> sharePdf(call.argument<ByteArray>("bytes") ?: throw IllegalArgumentException("PDF_BYTES_REQUIRED"), call.argument<String>("filename") ?: "lottivexa-report.pdf", result)
+        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
           val config = call.argument<Map<String, Any>>("configuration") ?: emptyMap()
@@ -54,22 +49,6 @@ class MainActivity : FlutterActivity() {
     ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), bluetoothRequest)
   }
 
-  private fun sharePdf(bytes: ByteArray, filename: String, result: MethodChannel.Result) {
-    require(bytes.isNotEmpty()) { "PDF_BYTES_REQUIRED" }
-    val safeName = filename.replace(Regex("[^A-Za-z0-9._-]"), "_").let { if (it.endsWith(".pdf", true)) it else "$it.pdf" }
-    val directory = java.io.File(cacheDir, "reports").apply { mkdirs() }
-    val file = java.io.File(directory, safeName).apply { writeBytes(bytes) }
-    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-    val intent = Intent(Intent.ACTION_SEND).apply {
-      type = "application/pdf"
-      putExtra(Intent.EXTRA_STREAM, uri)
-      clipData = android.content.ClipData.newUri(contentResolver, safeName, uri)
-      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    startActivity(Intent.createChooser(intent, "Telechaje oswa pataje rapò PDF"))
-    result.success(null)
-  }
-
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     if (requestCode == bluetoothRequest) { pendingBluetoothResult?.success(grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }); pendingBluetoothResult = null }
@@ -83,43 +62,40 @@ class MainActivity : FlutterActivity() {
 
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
 
-  private fun systemPrint(text: String, businessName: String, qrImageBase64: String?, result: MethodChannel.Result) {
-    val lines = text.lines().filter { it.isNotBlank() && !it.trim().matches(Regex("[-—_=]{5,}")) }
-    val bodyLines = lines.drop(2)
-    val renderedRows = bodyLines.sumOf { maxOf(1, ceil(it.length / 36.0).toInt()) }
-    val pageHeightMm = (40.0 + renderedRows * 4.0 + if (qrImageBase64.isNullOrBlank()) 0.0 else 34.0).coerceIn(85.0, 1200.0)
-    val pageHeightMils = (pageHeightMm * 39.3701).roundToInt()
-    val pageHeightCss = String.format(Locale.US, "%.2f", pageHeightMm)
+  private fun systemPrint(text: String, businessName: String, result: MethodChannel.Result) {
     val web = WebView(this)
     activePrintWebView = web
     val documentName = businessName.take(80).ifBlank { "Bolet" }
-    val kind = android.text.TextUtils.htmlEncode(lines.getOrNull(1) ?: "FICH BOLET")
-    web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { try { val receiptMedia = PrintAttributes.MediaSize("LOTTIVEXA_RECEIPT_58MM", "Bolet 58 mm", 2283, pageHeightMils); val attributes = PrintAttributes.Builder().setMediaSize(receiptMedia).setMinMargins(PrintAttributes.Margins.NO_MARGINS).build(); (getSystemService(Context.PRINT_SERVICE) as PrintManager).print(documentName, view.createPrintDocumentAdapter(documentName), attributes); result.success(null) } catch (error: Exception) { result.error("SYSTEM_PRINT_FAILED", error.message, null) } } }
-    val brand = android.text.TextUtils.htmlEncode(lines.firstOrNull() ?: businessName)
-    val body = lines.drop(2).joinToString("") { raw ->
-      val safe = android.text.TextUtils.htmlEncode(raw)
-      val cls = when {
-        raw.startsWith("TIKÈ:") -> "ticket-number"
-        raw.startsWith("BIWO:") || raw.startsWith("SUCCURSALE:") -> "branch"
-        raw.startsWith("MACHANN:") || raw.startsWith("VENDEUR:") -> "merchant"
-        raw.startsWith("TOTAL:") -> "total"
-        raw.startsWith("GANY POSIB:") -> "potential"
-        raw.startsWith("ESTATI:") -> "status"
-        raw.startsWith("OP ") -> "op"
-        raw.startsWith("GANYEN:") || raw.startsWith("GAGNANT:") -> "winning"
-        raw.startsWith("JWÈT") -> "column-heading"
-        raw.startsWith("TIRAJ:") || raw.startsWith("TIRAGE:") || raw.startsWith("LOTRI:") || raw.startsWith("LOTERIE:") || raw.startsWith("ADRESSE:") || raw.startsWith("ADRÈS:") || raw.startsWith("TELEFÒN:") || raw.startsWith("TÉLÉPHONE:") -> "draw"
-        else -> "line"
+    val lineCount = text.lineSequence().count().coerceAtLeast(1)
+    // Android otherwise chooses A4. That makes a 58 mm receipt look like a tiny
+    // centered strip on an A4 page. Request roll width and content-based length.
+    val heightMils = (lineCount * 140 + 1800).coerceIn(3000, 20000)
+    val mediaSize = PrintAttributes.MediaSize("LVX_RECEIPT_58MM", "LOTTIVEXA 58 mm", 2283, heightMils)
+    val html = """
+      <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        @page { size: 58mm ${heightMils / 1000.0 * 25.4}mm; margin: 0; }
+        html, body { width: 58mm; margin: 0; padding: 0; background: #fff; color: #000; }
+        body { box-sizing: border-box; padding: 2.5mm; }
+        pre { box-sizing: border-box; width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+          font: 9.5pt/1.35 monospace; color: #000; }
+      </style></head><body><pre>${android.text.TextUtils.htmlEncode(text)}</pre></body></html>
+    """.trimIndent()
+    web.webViewClient = object : android.webkit.WebViewClient() {
+      override fun onPageFinished(view: WebView, url: String?) {
+        try {
+          val attributes = PrintAttributes.Builder()
+            .setMediaSize(mediaSize)
+            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+            .build()
+          (getSystemService(Context.PRINT_SERVICE) as PrintManager)
+            .print(documentName, view.createPrintDocumentAdapter(documentName), attributes)
+          result.success(null)
+        } catch (error: Exception) {
+          result.error("SYSTEM_PRINT_FAILED", error.message, null)
+        }
       }
-      "<div class=\"$cls\">$safe</div>"
     }
-    val qr = qrImageBase64?.takeIf { it.isNotBlank() }?.let { "<div class=\"qr\"><img alt=\"QR\" src=\"data:image/png;base64,$it\"></div>" } ?: ""
-    val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-      @page{size:58mm ${pageHeightCss}mm;margin:0}*{box-sizing:border-box}html,body{width:58mm;margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,sans-serif}
-      .receipt{width:58mm;padding:3mm 2.5mm 3mm}.brand{text-align:center;color:#132b4b;font-size:15pt;font-weight:900;line-height:1.08;overflow-wrap:anywhere}
-      .kind{text-align:center;color:#a46b09;font-size:7.5pt;letter-spacing:1.5px;font-weight:800;margin:1.5mm 0 2mm}.line,.draw,.branch,.merchant,.ticket-number,.column-heading,.total,.potential,.status,.op,.winning{font-size:8.5pt;line-height:1.12;white-space:pre-wrap;overflow-wrap:anywhere}.op{text-align:center;color:#173b68;font-weight:900;letter-spacing:.1em}.winning{color:#168046;font-weight:900}
-      .ticket-number{font-weight:800;padding:1.4mm 0}.draw,.branch,.merchant{font-size:8pt}.column-heading{border-top:1px dashed #789;padding-top:1mm;margin-top:1mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:1mm;padding-top:1.5mm;font-size:10pt;font-weight:900}.potential{font-weight:700}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:.7mm 1.5mm;border-radius:2mm;margin:1mm 0}.line{padding:.25mm 0}.qr{text-align:center;padding:2mm 0}.qr img{width:27mm;height:27mm;image-rendering:pixelated}
-      </style></head><body><main class="receipt"><header><div class="brand">$brand</div><div class="kind">$kind</div></header>$body$qr</main></body></html>"""
     web.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
   }
 

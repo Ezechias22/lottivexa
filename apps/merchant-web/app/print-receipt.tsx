@@ -1,62 +1,119 @@
 'use client';
 
-import { statusLabel, useMerchantLanguage } from './language-switcher';
 import { drawLabel } from './draw-label';
 
 type Ticket = Record<string, any>;
-const amount = (value: unknown) => new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
-const currencyMark = (_currency: string) => '$';
-const safeDate = (value: unknown, language: 'ht' | 'fr') => {
-  const date = value ? new Date(String(value)) : null;
-  return date && !Number.isNaN(date.getTime())
-    ? date.toLocaleString(language === 'fr' ? 'fr-FR' : 'fr-HT', { timeZone: 'America/Port-au-Prince', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '—';
+
+const money = (value: unknown) => {
+  const number = Number(value ?? 0);
+  return '$' + new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(number) ? number : 0);
 };
 
-export default function PrintReceipt({ ticket, businessName, branchName, currency: defaultCurrency }: { ticket: Ticket | null; businessName: string; branchName?: string; currency?: string }) {
-  const { language } = useMerchantLanguage();
+const dateTime = (value: unknown) => {
+  const date = value ? new Date(String(value)) : null;
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('fr-HT', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Port-au-Prince',
+  }).format(date);
+};
+
+const statuses: Record<string, string> = {
+  PENDING: 'AN ATANT', VALID: 'VALAB', WINNER: 'GAYAN', LOSER: 'PEDI',
+  PAID: 'PEYE', CANCELLED: 'ANILE', VOID: 'ANILE', EXPIRED: 'EKSPIRE',
+};
+
+function selection(line: Ticket) {
+  const raw = String(line.selectionKey ?? line.selection ?? '—');
+  const [numbers, position] = raw.split('@');
+  const pos = position ?? line.resultPosition;
+  const suffix = pos ? ` · OPSYON ${pos}` : '';
+  return numbers.replaceAll('-', ' × ') + suffix;
+}
+
+export default function PrintReceipt({
+  ticket,
+  businessName,
+  branchName,
+}: {
+  ticket: Ticket | null;
+  businessName: string;
+  branchName?: string;
+  // Keep compatibility with the POS page; receipts use `$` by design.
+  currency?: string;
+}) {
   if (!ticket) return null;
-  const branch = ticket.merchant?.branch ?? {};
-  const merchant = ticket.merchant?.displayName ?? '';
-  const currency = ticket.currency ?? defaultCurrency ?? 'USD';
-  const mark = currencyMark(currency);
-  const winningAmount = Number(ticket.winning?.winningAmount ?? 0);
-  return <article className="print-receipt" aria-hidden="true" lang={language}>
-    <header>
-      <p className="receipt-eyebrow">{language === 'fr' ? 'TICKET DE LOTERIE' : 'TIKÈ BOLET'}</p>
-      <h1>{businessName || 'Bolet'}</h1>
-      <div className="receipt-branch">{language === 'fr' ? 'Succursale' : 'Biwo'} : {branch.name ?? branchName ?? '—'}</div>
-      {branch.address && <div className="receipt-branch">{branch.address}</div>}
-      {branch.phone && <div className="receipt-branch">{language === 'fr' ? 'Tél.' : 'Telefòn'} : {branch.phone}</div>}
-    </header>
-    <div className="receipt-ticket"><span>{language === 'fr' ? 'N° DU TICKET' : 'NIMEWO TIKÈ'}</span><strong>{ticket.ticketNumber ?? ticket.id}</strong><em>{statusLabel(String(ticket.status ?? 'VALID'), language)}</em></div>
-    <div className="receipt-draw"><span>{language === 'fr' ? 'LOTERIE / TIRAGE' : 'LOTRI / TIRAJ'}</span><strong>{ticket.draw ? drawLabel(ticket.draw, language) : ticket.game?.name ?? ticket.gameName ?? 'Lotri'}</strong></div>
-    {merchant && <div className="receipt-meta"><span>{language === 'fr' ? 'Vendeur' : 'Machann'}</span><strong>{merchant}{ticket.merchant?.merchantNumber ? ' · ' + ticket.merchant.merchantNumber : ''}</strong></div>}
-    <div className="receipt-meta"><span>{language === 'fr' ? 'Date / heure' : 'Dat / lè'}</span><strong>{safeDate(ticket.createdAt, language)}</strong></div>
-    <div className="receipt-table">
-      <div className="receipt-row receipt-heading"><span>{language === 'fr' ? 'JEU / NUMÉRO' : 'JWÈT / NIMEWO'}</span><span>{language === 'fr' ? 'MISE' : 'PRI'}</span></div>
-      {(ticket.lines ?? []).map((line: Ticket, index: number) => {
-        const parts = String(line.selectionKey ?? line.selection ?? '').split('@');
-        const selection = parts[0].replaceAll('-', ' × ');
-        const position = parts[1];
-        const dekabes = Number(line.winCount ?? 0) > 1;
-        return <div className="receipt-row receipt-bet" key={line.id ?? index}>
-          <div className="receipt-line-main">
-            <small>{line.betType?.name ?? (language === 'fr' ? 'Bolet' : 'Bolet')}{line.isPromotional ? ' · ' + (language === 'fr' ? 'GRATUIT' : 'GRATIS') : ''}</small>
-            <strong className="receipt-number">{selection}</strong>
-            {position && <b className="receipt-position">OP {position}</b>}
-            {dekabes && <small className="receipt-dekabes">{language === 'fr' ? 'DÉKABÈS' : 'DEKABÈS'} × {line.winCount}</small>}
-            {line.isWinner === true && <small className="receipt-line-win">{language === 'fr' ? 'GAGNANT' : 'GENYEN'}</small>}
-            {Number(line.potentialWin) > 0 && <small className="receipt-line-potential">{language === 'fr' ? 'Gain possible' : 'Gany posib'} : {mark}{amount(line.potentialWin)}</small>}
+
+  const branch = ticket.merchant?.branch ?? ticket.branch ?? {};
+  const merchant = ticket.merchant ?? {};
+  const draw = ticket.draw ?? {};
+  const lines: Ticket[] = Array.isArray(ticket.lines) ? ticket.lines : [];
+  const drawName = draw.game
+    ? drawLabel(draw, 'ht')
+    : String(ticket.drawName ?? ticket.game?.name ?? ticket.gameName ?? 'Lotri');
+  const number = ticket.ticketNumber ?? ticket.id ?? '—';
+  const potential = Number(ticket.potentialWin ?? lines.reduce(
+    (sum: number, line: Ticket) => sum + Number(line.potentialWin ?? 0), 0,
+  ));
+
+  return (
+    <article className="print-receipt" aria-hidden="true">
+      <header className="receipt-brand">
+        <p className="receipt-eyebrow">RESI BOLET</p>
+        <h1>{businessName || ticket.businessName || 'Biwo Bolet'}</h1>
+        {(branch.name || branchName) && <p className="receipt-strong">Biwo: {branch.name ?? branchName}</p>}
+        {branch.address && <p>{branch.address}</p>}
+        {branch.phone && <p>Telefòn: {branch.phone}</p>}
+      </header>
+
+      <section className="receipt-ticket-number">
+        <span>NIMEWO TIKÈ</span>
+        <strong>{number}</strong>
+      </section>
+
+      <section className="receipt-meta">
+        <div><span>Dat / lè</span><strong>{dateTime(ticket.createdAt)}</strong></div>
+        {merchant.displayName && <div><span>Machann</span><strong>{merchant.displayName}</strong></div>}
+        {merchant.merchantNumber && <div><span>Kòd machann</span><strong>{merchant.merchantNumber}</strong></div>}
+        {(ticket.device?.name || ticket.deviceId) && <div><span>Aparèy</span><strong>{ticket.device?.name ?? ticket.deviceId}</strong></div>}
+      </section>
+
+      <section className="receipt-draw">
+        <p className="receipt-section-label">DETAY TIRAJ</p>
+        <p className="receipt-draw-name">{drawName}</p>
+        {draw.drawDate && <div><span>Dat tiraj</span><strong>{dateTime(draw.drawDate).split(' ')[0]}</strong></div>}
+        {draw.closesAt && <div><span>Fèmti</span><strong>{dateTime(draw.closesAt)}</strong></div>}
+      </section>
+
+      <section className="receipt-bets">
+        <div className="receipt-table-heading"><span>JWÈT / NIMEWO</span><span>PRI</span></div>
+        {lines.map((line, index) => (
+          <div className="receipt-bet" key={line.id ?? index}>
+            <div className="receipt-bet-main">
+              <span className="receipt-selection">
+                <span>{line.betType?.name ?? line.betTypeName ?? 'Bolet'}</span>
+                <strong>{selection(line)}</strong>
+              </span>
+              <strong className="receipt-stake">{money(line.stake)}</strong>
+            </div>
+            {line.isWinner === true && <p className="receipt-line-win">GAYAN: {money(line.potentialWin)}</p>}
           </div>
-          <strong className="receipt-stake">{line.isPromotional ? (language === 'fr' ? 'GRATUIT' : 'GRATIS') : mark + amount(line.stake)}</strong>
-        </div>;
-      })}
-    </div>
-    <div className="receipt-total"><span>{language === 'fr' ? 'TOTAL' : 'TOTAL'}</span><strong>{mark}{amount(ticket.amount)}</strong></div>
-    <div className="receipt-potential"><span>{language === 'fr' ? 'GAIN POTENTIEL' : 'GANY POSIB'}</span><strong>{mark}{amount(ticket.potentialWin)}</strong></div>
-    {winningAmount > 0 && <div className="receipt-winning"><span>{language === 'fr' ? 'GAIN CONFIRMÉ' : 'GANY KONFIME'}</span><strong>{mark}{amount(winningAmount)}</strong></div>}
-    {ticket.barcode && <div className="receipt-code"><small>{language === 'fr' ? 'CODE-BARRES' : 'KÒD BAR'}</small><strong>{ticket.barcode}</strong></div>}
-    <footer>{language === 'fr' ? 'Conservez ce ticket original pour vérifier le résultat et réclamer un gain.' : 'Kenbe tikè orijinal sa a pou verifye rezilta a epi reklame gany ou.'}</footer>
-  </article>;
+        ))}
+      </section>
+
+      <section className="receipt-totals">
+        <div><span>Kantite liy</span><strong>{lines.length}</strong></div>
+        <div className="receipt-total"><span>TOTAL PARYAJ</span><strong>{money(ticket.amount)}</strong></div>
+        {potential > 0 && <div className="receipt-potential"><span>GANYAN POSIB</span><strong>{money(potential)}</strong></div>}
+      </section>
+
+      <div className="receipt-status">ESTATI: <strong>{statuses[String(ticket.status ?? 'VALID').toUpperCase()] ?? ticket.status ?? 'VALAB'}</strong></div>
+      {(ticket.barcode || number) && <section className="receipt-code"><span>KÒD VERIFIKASYON</span><strong>{ticket.barcode ?? number}</strong></section>}
+      <footer className="receipt-footer">Kenbe resi sa a pou verifye tikè a. Tcheke nimewo ak tiraj la. Jwe ak responsabilite.</footer>
+    </article>
+  );
 }
