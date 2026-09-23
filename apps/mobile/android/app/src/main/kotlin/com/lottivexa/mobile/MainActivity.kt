@@ -31,7 +31,7 @@ class MainActivity : FlutterActivity() {
         "requestBluetoothPermission" -> requestBluetoothPermission(result)
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
-        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", result)
+        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
           val config = call.argument<Map<String, Any>>("configuration") ?: emptyMap()
@@ -62,10 +62,13 @@ class MainActivity : FlutterActivity() {
 
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
 
-  private fun systemPrint(text: String, businessName: String, result: MethodChannel.Result) {
+  private fun systemPrint(text: String, businessName: String, qrImageBase64: String?, result: MethodChannel.Result) {
     val web = WebView(this)
     activePrintWebView = web
     val documentName = businessName.take(80).ifBlank { "Bolet" }
+    val qrHtml = qrImageBase64?.takeIf { it.isNotBlank() }?.let {
+      "<div class=\"qr\"><div>ESKANE POU VERIFYE</div><img src=\"data:image/png;base64,$it\" /></div>"
+    } ?: ""
     val html = """
       <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
@@ -74,7 +77,9 @@ class MainActivity : FlutterActivity() {
         body { box-sizing: border-box; padding: 2mm; }
         pre { box-sizing: border-box; width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
           font: 9.5pt/1.35 monospace; color: #000; }
-      </style></head><body><pre>${android.text.TextUtils.htmlEncode(text)}</pre></body></html>
+        .qr { text-align: center; font: 8pt Arial, sans-serif; margin-top: 8px; }
+        .qr img { display: block; width: 42mm; height: 42mm; margin: 4px auto 0; }
+      </style></head><body><pre>${android.text.TextUtils.htmlEncode(text)}</pre>$qrHtml</body></html>
     """.trimIndent()
     web.webViewClient = object : android.webkit.WebViewClient() {
       override fun onPageFinished(view: WebView, url: String?) {

@@ -55,6 +55,12 @@ export default function PrintReceipt({
     ? drawLabel(draw, 'ht')
     : String(ticket.drawName ?? ticket.game?.name ?? ticket.gameName ?? 'Lotri');
   const number = ticket.ticketNumber ?? ticket.id ?? '—';
+  const qrValue = String(ticket.qrCode ?? ticket.barcode ?? number ?? '').trim();
+  const qrSource = qrValue.startsWith('data:image/')
+    ? qrValue
+    : qrValue
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&data=${encodeURIComponent(qrValue)}`
+      : '';
   const potential = Number(ticket.potentialWin ?? lines.reduce(
     (sum: number, line: Ticket) => sum + Number(line.potentialWin ?? 0), 0,
   ));
@@ -112,6 +118,7 @@ export default function PrintReceipt({
 
       <div className="receipt-status">ESTATI: <strong>{statuses[String(ticket.status ?? 'VALID').toUpperCase()] ?? ticket.status ?? 'VALAB'}</strong></div>
       {(ticket.barcode || number) && <section className="receipt-code"><span>KÒD VERIFIKASYON</span><strong>{ticket.barcode ?? number}</strong></section>}
+      {qrSource && <section className="receipt-qr"><span>ESKANE POU VERIFYE</span><img src={qrSource} alt="QR code pou verifye tikè a" /></section>}
       <footer className="receipt-footer">Kenbe resi sa a pou verifye tikè a. Tcheke nimewo ak tiraj la. Jwe ak responsabilite.</footer>
     </article>
   );
