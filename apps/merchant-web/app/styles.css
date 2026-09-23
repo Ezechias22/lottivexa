@@ -5,7 +5,9 @@
 .ticket-head{border-bottom:1px dashed #b9c8d9;padding-bottom:15px}.ticket-head h2{font-size:23px;letter-spacing:.04em}
 .ticket-line{align-items:center;gap:14px}.ticket-line b{font-size:18px;letter-spacing:.04em}.ticket .total{border-top:1px dashed #b9c8d9;margin-top:12px}.ticket .buttons{border-top:1px solid #e3eaf2;padding-top:16px}
 @media print {
-  @page { size: 58mm auto; margin: 0; }
+  /* Keep the roll width fixed. A finite page height lets Chromium paginate
+     long tickets instead of falling back to A4 and shrinking the receipt. */
+  @page { size: 58mm 200mm; margin: 0; }
   html, body {
     width: 58mm !important;
     min-width: 58mm !important;
@@ -25,7 +27,7 @@
     min-width: 58mm !important;
     max-width: 58mm !important;
     margin: 0 !important;
-    padding: 2.5mm !important;
+    padding: 2mm !important;
     box-sizing: border-box !important;
     color: #000 !important;
     background: #fff !important;

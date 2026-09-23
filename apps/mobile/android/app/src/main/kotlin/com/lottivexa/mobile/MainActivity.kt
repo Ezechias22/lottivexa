@@ -66,33 +66,43 @@ class MainActivity : FlutterActivity() {
     val web = WebView(this)
     activePrintWebView = web
     val documentName = businessName.take(80).ifBlank { "Bolet" }
-    val lineCount = text.lineSequence().count().coerceAtLeast(1)
-    // Android otherwise chooses A4. That makes a 58 mm receipt look like a tiny
-    // centered strip on an A4 page. Request roll width and content-based length.
-    val heightMils = (lineCount * 140 + 1800).coerceIn(3000, 20000)
-    val mediaSize = PrintAttributes.MediaSize("LVX_RECEIPT_58MM", "LOTTIVEXA 58 mm", 2283, heightMils)
     val html = """
       <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
       <style>
-        @page { size: 58mm ${heightMils / 1000.0 * 25.4}mm; margin: 0; }
+        @page { size: 58mm 200mm; margin: 0; }
         html, body { width: 58mm; margin: 0; padding: 0; background: #fff; color: #000; }
-        body { box-sizing: border-box; padding: 2.5mm; }
+        body { box-sizing: border-box; padding: 2mm; }
         pre { box-sizing: border-box; width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
           font: 9.5pt/1.35 monospace; color: #000; }
       </style></head><body><pre>${android.text.TextUtils.htmlEncode(text)}</pre></body></html>
     """.trimIndent()
     web.webViewClient = object : android.webkit.WebViewClient() {
       override fun onPageFinished(view: WebView, url: String?) {
-        try {
-          val attributes = PrintAttributes.Builder()
-            .setMediaSize(mediaSize)
-            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-            .build()
-          (getSystemService(Context.PRINT_SERVICE) as PrintManager)
-            .print(documentName, view.createPrintDocumentAdapter(documentName), attributes)
-          result.success(null)
-        } catch (error: Exception) {
-          result.error("SYSTEM_PRINT_FAILED", error.message, null)
+        // Measure the rendered DOM, not an estimated line count. This keeps a
+        // 58 mm roll at full size regardless of how many games are on a ticket.
+        view.evaluateJavascript(
+          "Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)",
+        ) { rawHeight ->
+          try {
+            val measuredPx = rawHeight.trim().toFloatOrNull()
+              ?: text.lineSequence().count().coerceAtLeast(1) * 18f
+            val heightMils = kotlin.math.ceil(measuredPx * 1000.0 / 96.0).toInt().coerceAtLeast(3000)
+            val mediaSize = PrintAttributes.MediaSize(
+              "LVX_RECEIPT_58MM_${heightMils}",
+              "LOTTIVEXA 58 mm",
+              2283,
+              heightMils,
+            )
+            val attributes = PrintAttributes.Builder()
+              .setMediaSize(mediaSize)
+              .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+              .build()
+            (getSystemService(Context.PRINT_SERVICE) as PrintManager)
+              .print(documentName, view.createPrintDocumentAdapter(documentName), attributes)
+            result.success(null)
+          } catch (error: Exception) {
+            result.error("SYSTEM_PRINT_FAILED", error.message, null)
+          }
         }
       }
     }

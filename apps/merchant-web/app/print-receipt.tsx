@@ -18,7 +18,6 @@ const dateTime = (value: unknown) => {
   return new Intl.DateTimeFormat('fr-HT', {
     dateStyle: 'short',
     timeStyle: 'short',
-    timeZone: 'America/Port-au-Prince',
   }).format(date);
 };
 
