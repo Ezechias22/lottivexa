@@ -10,11 +10,14 @@ import android.os.Build
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
+import androidx.core.content.FileProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 
 class MainActivity : FlutterActivity() {
@@ -32,6 +35,7 @@ class MainActivity : FlutterActivity() {
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
         "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), result)
+        "sharePdf" -> sharePdf(call.argument<ByteArray>("bytes") ?: throw IllegalArgumentException("PDF_BYTES_REQUIRED"), call.argument<String>("filename") ?: "lottivexa-report.pdf", result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
           val config = call.argument<Map<String, Any>>("configuration") ?: emptyMap()
@@ -61,6 +65,21 @@ class MainActivity : FlutterActivity() {
   }
 
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
+
+  private fun sharePdf(bytes: ByteArray, filename: String, result: MethodChannel.Result) {
+    val directory = File(cacheDir, "reports").apply { mkdirs() }
+    val safeName = filename.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "lottivexa-report.pdf" }
+    val file = File(directory, safeName)
+    FileOutputStream(file).use { it.write(bytes) }
+    val uri = FileProvider.getUriForFile(this, "${applicationContext.packageName}.fileprovider", file)
+    val share = Intent(Intent.ACTION_SEND).apply {
+      type = "application/pdf"
+      putExtra(Intent.EXTRA_STREAM, uri)
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    startActivity(Intent.createChooser(share, "Pataje rapò PDF la"))
+    result.success(null)
+  }
 
   private fun systemPrint(text: String, businessName: String, qrImageBase64: String?, result: MethodChannel.Result) {
     val web = WebView(this)

@@ -43,14 +43,13 @@ class EscPosEncoder {
     if (results.isNotEmpty) pair('REZILTA', results.join(' / '));
 
     line(_repeat('-', width));
-    line('JWET / CHWA');
+    line(_fit('OP   JWÈT / NIMEWO                 PRI', width));
     for (final item in _ticketLines(ticket)) {
       final selection = _lineSelection(item);
       final betType = _betType(item);
-      wrapped('$betType: $selection');
       final position = _linePosition(item);
-      if (position.isNotEmpty) line('  OPSYON: $position');
-      pair('PRI', _money(item['stake'], ticket['currency']?.toString()));
+      final free = item['isPromotional'] == true || item['isFree'] == true;
+      for (final value in _betLines(position, betType, selection, free ? 'GRATIS' : _money(item['stake'], ticket['currency']?.toString()), width)) line(value);
       if (item['isWinner'] == true) pair('GAYAN', _money(item['potentialWin'], ticket['currency']?.toString()));
     }
 
@@ -113,12 +112,11 @@ class EscPosEncoder {
     if (results.isNotEmpty) _writePair(out, 'REZILTA', results.join(' / '), width);
 
     _separator(out, width);
-    _line(out, 'JWET / CHWA');
+    _line(out, _fit('OP   JWÈT / NIMEWO                 PRI', width));
     for (final item in _ticketLines(ticket)) {
-      _writeWrapped(out, '${_betType(item)}: ${_lineSelection(item)}', width);
       final position = _linePosition(item);
-      if (position.isNotEmpty) _line(out, '  OPSYON: $position');
-      _writePair(out, 'PRI', _money(item['stake'], ticket['currency']?.toString()), width);
+      final free = item['isPromotional'] == true || item['isFree'] == true;
+      for (final value in _betLines(position, _betType(item), _lineSelection(item), free ? 'GRATIS' : _money(item['stake'], ticket['currency']?.toString()), width)) _line(out, value);
       if (item['isWinner'] == true) {
         _writePair(out, 'GAYAN', _money(item['potentialWin'], ticket['currency']?.toString()), width);
       }
@@ -232,14 +230,11 @@ class EscPosEncoder {
     final value = fromField ?? (selectionKey.contains('@') ? selectionKey.split('@').last : '');
     if (value.isEmpty || value == 'null') return '';
     switch (value) {
-      case '1':
-        return '1YE';
-      case '2':
-        return '2YEM';
-      case '3':
-        return '3YEM';
+      case '1': return 'OP1';
+      case '2': return 'OP2';
+      case '3': return 'OP3';
       default:
-        return value;
+        return 'OP$value';
     }
   }
 
@@ -378,6 +373,20 @@ class EscPosEncoder {
       _line(out, line);
     }
   }
+
+  List<String> _betLines(String option, String betType, String selection, String price, int width) {
+    final prefix = option.isEmpty ? '   ' : option.padRight(4);
+    final right = price;
+    final available = width - prefix.length - right.length - 2;
+    final label = '$betType $selection';
+    if (available >= 8) {
+      final first = label.length <= available ? label : label.substring(0, available);
+      return ['$prefix${first.padRight(available)}  $right'];
+    }
+    return [..._wrap('$prefix$label', width), _center(right, width)];
+  }
+
+  String _fit(String value, int width) => value.length <= width ? value : value.substring(0, width);
 
   void _separator(BytesBuilder out, int width) => _line(out, _repeat('-', width));
 

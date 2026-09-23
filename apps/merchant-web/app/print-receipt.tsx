@@ -28,10 +28,13 @@ const statuses: Record<string, string> = {
 
 function selection(line: Ticket) {
   const raw = String(line.selectionKey ?? line.selection ?? '—');
-  const [numbers, position] = raw.split('@');
-  const pos = position ?? line.resultPosition;
-  const suffix = pos ? ` · OPSYON ${pos}` : '';
-  return numbers.replaceAll('-', ' × ') + suffix;
+  return raw.split('@')[0].replaceAll('-', ' × ');
+}
+
+function option(line: Ticket) {
+  const raw = String(line.selectionKey ?? line.selection ?? '');
+  const value = raw.split('@')[1] ?? line.resultPosition;
+  return value ? `OP${value}` : '';
 }
 
 export default function PrintReceipt({
@@ -99,11 +102,12 @@ export default function PrintReceipt({
         {lines.map((line, index) => (
           <div className="receipt-bet" key={line.id ?? index}>
             <div className="receipt-bet-main">
+              <strong className="receipt-option">{option(line)}</strong>
               <span className="receipt-selection">
                 <span>{line.betType?.name ?? line.betTypeName ?? 'Bolet'}</span>
                 <strong>{selection(line)}</strong>
               </span>
-              <strong className="receipt-stake">{money(line.stake)}</strong>
+              <strong className="receipt-stake">{line.isPromotional ? 'GRATIS' : money(line.stake)}</strong>
             </div>
             {line.isWinner === true && <p className="receipt-line-win">GAYAN: {money(line.potentialWin)}</p>}
           </div>

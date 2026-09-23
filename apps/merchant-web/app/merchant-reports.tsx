@@ -62,7 +62,9 @@ export default function MerchantReports({ request }: { request: Request }) {
       const response = await request('/reports/sales.pdf?' + query);
       if (response instanceof Blob) {
         const url = URL.createObjectURL(response), link = document.createElement('a');
-        link.href = url; link.download = 'lottivexa-sales-' + from + '-' + to + '.pdf'; link.click(); URL.revokeObjectURL(url);
+        link.href = url; link.download = 'lottivexa-sales-' + from + '-' + to + '.pdf'; link.style.display = 'none';
+        document.body.appendChild(link); link.click();
+        window.setTimeout(() => { link.remove(); URL.revokeObjectURL(url); }, 1500);
       } else setError(t('reportExportError'));
     } catch (value) { setError(value instanceof Error ? value.message : String(value)); }
   }
