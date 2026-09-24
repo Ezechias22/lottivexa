@@ -31,7 +31,7 @@
     box-sizing: border-box !important;
     color: #000 !important;
     background: #fff !important;
-    font: 10.5pt/1.3 Arial, sans-serif !important;
+    font: 11.5pt/1.32 Arial, sans-serif !important;
     overflow-wrap: anywhere;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -57,8 +57,8 @@
   .receipt-bet-main { display: grid; grid-template-columns: 9mm minmax(0,1fr) auto; align-items: start; gap: 1.5mm; }
   .receipt-option { font: 800 10pt/1.15 ui-monospace, Consolas, monospace; white-space: nowrap; }
   .receipt-selection { display: grid; gap: .5mm; min-width: 0; }
-  .receipt-selection strong { font: 800 12pt/1.15 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
-  .receipt-stake { white-space: nowrap; font-size: 10.5pt; }
+  .receipt-selection strong { font: 800 13pt/1.15 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+  .receipt-stake { white-space: nowrap; font-size: 11.5pt; }
   .receipt-line-win { margin: 1mm 0 0; font-weight: 800; }
   .receipt-totals { padding-top: 1mm; }
   .receipt-totals > div { display: flex; justify-content: space-between; gap: 2mm; padding: 1mm 0; }
