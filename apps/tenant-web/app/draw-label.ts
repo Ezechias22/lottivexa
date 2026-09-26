@@ -46,10 +46,10 @@ function getSession(draw: DrawLabel): Session {
 
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   const labels = {
-    MORNING: language === 'fr' ? 'Normal · Matin' : 'Nòmal · Maten',
-    MIDDAY: language === 'fr' ? 'Normal · Midi' : 'Nòmal · Midi',
-    EVENING: language === 'fr' ? 'Normal · Soir' : 'Nòmal · Swa',
-    NIGHT: language === 'fr' ? 'Normal · Nuit' : 'Nòmal · Lannuit',
+    MORNING: language === 'fr' ? 'Matin' : 'Maten',
+    MIDDAY: language === 'fr' ? 'Midi' : 'Midi',
+    EVENING: language === 'fr' ? 'Soir' : 'Swa',
+    NIGHT: language === 'fr' ? 'Nuit' : 'Lannuit',
     UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
   };
   return labels[getSession(draw)];

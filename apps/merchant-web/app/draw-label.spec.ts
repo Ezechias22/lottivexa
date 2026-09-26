@@ -20,9 +20,9 @@ describe('draw session labels', () => {
     expect(drawSession({ drawNumber: 'GA-20260920-EVE' })).toBe('EVENING');
   });
 
-  it('shows normal midday in Haitian Creole and French', () => {
+  it('shows the concise midday label in Haitian Creole and French', () => {
     const draw = { game: { name: 'Georgia' }, drawNumber: 'GA-20260920-1229' };
-    expect(drawSessionLabel(draw, 'ht')).toBe('Nòmal · Midi');
-    expect(drawLabel(draw, 'fr')).toContain('Normal · Midi');
+    expect(drawSessionLabel(draw, 'ht')).toBe('Midi');
+    expect(drawLabel(draw, 'fr')).toContain('Midi');
   });
 });

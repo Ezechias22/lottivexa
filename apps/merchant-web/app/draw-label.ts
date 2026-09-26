@@ -50,10 +50,10 @@ export function drawSession(draw: DrawLabel): Session {
 
 function sessionLabel(session: Session, language: 'ht' | 'fr') {
   const labels = {
-    MORNING: language === 'fr' ? 'Normal · Matin' : 'Nòmal · Maten',
-    MIDDAY: language === 'fr' ? 'Normal · Midi' : 'Nòmal · Midi',
-    EVENING: language === 'fr' ? 'Normal · Soir' : 'Nòmal · Swa',
-    NIGHT: language === 'fr' ? 'Normal · Nuit' : 'Nòmal · Lannuit',
+    MORNING: language === 'fr' ? 'Matin' : 'Maten',
+    MIDDAY: language === 'fr' ? 'Midi' : 'Midi',
+    EVENING: language === 'fr' ? 'Soir' : 'Swa',
+    NIGHT: language === 'fr' ? 'Nuit' : 'Lannuit',
     UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
   };
   return labels[session];
@@ -83,7 +83,7 @@ export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
 }
 
 export function compactDrawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
-  return drawLabel(draw, language).replace(/ · (Nòmal|Normal) · /, ' ').replace(/ · /g, ' ');
+  return drawLabel(draw, language).replace(/ · /g, ' ');
 }
 
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
