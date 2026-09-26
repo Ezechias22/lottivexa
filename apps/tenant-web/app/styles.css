@@ -504,6 +504,9 @@ th {
   .report-filter button {
     width: 100%;
   }
+  .content header > .logout-button { top: 8px; right: 8px; padding: 7px 8px; font-size: 11px; }
+  .content { padding-top: 58px; }
+  .table-wrap, .table-scroll { max-width: 100%; overflow-x: auto; }
   .draw-breakdown {
     grid-column: auto;
   }

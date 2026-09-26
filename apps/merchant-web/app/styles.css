@@ -1065,6 +1065,7 @@ button:disabled {
     padding: 8px 10px;
     font-size: 12px;
   }
+  .pos > header > .secondary { right: 8px; top: 8px; padding: 7px 8px; font-size: 11px; }
   .pos nav {
     position: fixed;
     top: auto;

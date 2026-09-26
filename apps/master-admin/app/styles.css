@@ -158,6 +158,7 @@ button.danger {
   .content {
     padding: 18px;
   }
+  .top > .secondary { top: 8px; right: 8px; padding: 7px 8px; font-size: 11px; }
   .form {
     grid-template-columns: 1fr;
   }
