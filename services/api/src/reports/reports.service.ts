@@ -32,14 +32,17 @@ export class ReportsService {
     });
     const merchantId = merchant?.id;
     const where = { tenantId, createdAt: range, ...(merchantId ? { merchantId } : {}) };
+    const saleWhere = { ...where, status: { notIn: ['CANCELLED', 'VOID'] as any } };
+    const cancelledWhere = { ...where, status: { in: ['CANCELLED', 'VOID'] as any } };
     const payoutWhere = { tenantId, paidAt: range, ...(merchantId ? { ticket: { merchantId } } : {}) };
     const commissionWhere = { tenantId, createdAt: range, ...(merchantId ? { merchantId } : {}) };
 
-    const [totals, statuses, branches, games, payouts, commissions, settings, dayRows, winnerRows] = await Promise.all([
-      prisma.ticket.aggregate({ where, _count: { _all: true }, _sum: { amount: true, potentialWin: true, commission: true } }),
+    const [totals, cancelledTotals, statuses, branches, games, payouts, commissions, settings, dayRows, winnerRows] = await Promise.all([
+      prisma.ticket.aggregate({ where: saleWhere, _count: { _all: true }, _sum: { amount: true, potentialWin: true, commission: true } }),
+      prisma.ticket.aggregate({ where: cancelledWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.ticket.groupBy({ by: ['status'], where, orderBy: { status: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
-      prisma.ticket.groupBy({ by: ['branchId'], where, orderBy: { branchId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
-      prisma.ticket.groupBy({ by: ['gameId'], where, orderBy: { gameId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
+      prisma.ticket.groupBy({ by: ['branchId'], where: saleWhere, orderBy: { branchId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
+      prisma.ticket.groupBy({ by: ['gameId'], where: saleWhere, orderBy: { gameId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
       prisma.payout.aggregate({ where: payoutWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.commissionTransaction.aggregate({ where: commissionWhere, _sum: { commissionAmount: true } }),
       prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
@@ -83,6 +86,12 @@ export class ReportsService {
       payouts: { count: payouts._count._all, amount: payouts._sum.amount?.toString() ?? '0' },
       commission: commissions._sum.commissionAmount?.toString() ?? '0',
       byDay: dayRows.map(row => ({ day: row.day, count: Number(row.tickets), amount: String(row.sales) })),
+      accounting: {
+        cancelledCount: cancelledTotals._count._all,
+        cancelledAmount: cancelledTotals._sum.amount?.toString() ?? '0',
+        netSales: ((totals._sum.amount ?? new Prisma.Decimal(0)) .sub(payouts._sum.amount ?? new Prisma.Decimal(0)).sub(commissions._sum.commissionAmount ?? new Prisma.Decimal(0))).toString(),
+        deficit: Math.max(0, Number(payouts._sum.amount ?? 0) + Number(commissions._sum.commissionAmount ?? 0) - Number(totals._sum.amount ?? 0)).toFixed(2),
+      },
       biggestWins: winnerRows.map(row => ({
         ticketNumber: row.ticket.ticketNumber,
         createdAt: row.ticket.createdAt,
@@ -154,6 +163,7 @@ export class ReportsService {
       WHERE "tenantId" = ${tenantId}::uuid
         AND "createdAt" >= ${range.gte}
         AND "createdAt" <= ${range.lte}
+        AND "status" NOT IN ('CANCELLED', 'VOID')
         ${merchantFilter}
       GROUP BY 1
       ORDER BY 1

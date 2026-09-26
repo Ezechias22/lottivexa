@@ -35,7 +35,7 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
     }
   }
   if (session == null) return french ? 'Séance à confirmer' : 'Sesyon pou verifye';
-  return (french ? 'Normal · ' : 'Nòmal · ') + session;
+  return session;
 }
 
 String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false}) {
@@ -53,7 +53,7 @@ String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false}) {
     parts.add(day + '/' + month + '/' + date.year.toString() +
         (draw['resultAt'] != null || draw['closesAt'] != null || draw['opensAt'] != null ? ' ' + time : ''));
   }
-  return parts.join(' · ');
+  return parts.join(' ');
 }
 
 DateTime _haitiTime(DateTime value) => value.toUtc().subtract(const Duration(hours: 4));

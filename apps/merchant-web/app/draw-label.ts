@@ -82,6 +82,10 @@ export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   return `${game} · ${sessionLabel(session, language)} · ${formattedDate} ${time}`;
 }
 
+export function compactDrawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
+  return drawLabel(draw, language).replace(/ · (Nòmal|Normal) · /, ' ').replace(/ · /g, ' ');
+}
+
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   return sessionLabel(drawSession(draw), language);
 }

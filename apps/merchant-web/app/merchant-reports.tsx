@@ -76,6 +76,7 @@ export default function MerchantReports({ request }: { request: Request }) {
   for (let day = chartStart; day <= to; day = shiftDay(day, 1)) chartDaily.push(dailyByDate.get(day) ?? { day, amount: 0, count: 0 });
   const maxSales = Math.max(1, ...chartDaily.map((row) => Number(row.amount ?? 0)));
   const net = Number(sales?.tickets?.sales ?? 0) - Number(sales?.payouts?.amount ?? 0);
+  const accounting = sales?.accounting ?? {};
   const biggestWins: Row[] = sales?.biggestWins ?? [];
 
   return <section className="merchant-reports">
@@ -101,6 +102,9 @@ export default function MerchantReports({ request }: { request: Request }) {
         <article><span>{t('tickets')}</span><strong>{sales.tickets?.count ?? 0}</strong><small>{t('ticketsInPeriod')}</small></article>
         <article><span>{t('payouts')}</span><strong>{money(sales.payouts?.amount, currency)}</strong><small>{sales.payouts?.count ?? 0} {t('winnersPaid')}</small></article>
         <article><span>{t('commission')}</span><strong>{money(sales.commission, currency)}</strong><small>{t('netSales')}: {money(net, currency)}</small></article>
+        <article><span>{language === 'fr' ? 'Net système' : 'Nèt sistèm'}</span><strong>{money(accounting.netSales ?? net, currency)}</strong><small>{language === 'fr' ? 'Après paiements et commissions' : 'Apre peman ak komisyon'}</small></article>
+        <article><span>{language === 'fr' ? 'Annulés / supprimés' : 'Anile / siprime'}</span><strong>{accounting.cancelledCount ?? 0}</strong><small>{money(accounting.cancelledAmount, currency)} retiré</small></article>
+        <article><span>{language === 'fr' ? 'Déficit' : 'Defisi'}</span><strong>{money(accounting.deficit, currency)}</strong><small>{language === 'fr' ? 'À couvrir par la caisse' : 'Pou kouvri nan kès la'}</small></article>
       </div>
       <div className="reports-grid">
         <section className="panel sales-chart"><h3>{t('salesPerDay')}</h3>

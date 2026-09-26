@@ -27,7 +27,6 @@ class EscPosEncoder {
     if (address != null && '$address'.trim().isNotEmpty) out.writeln('${tr('ADRÈS', 'ADRESSE')}: $address');
     if (phone != null && '$phone'.trim().isNotEmpty) out.writeln('${tr('TELEFÒN', 'TÉLÉPHONE')}: $phone');
     out
-      ..writeln('${tr('MACHANN', 'VENDEUR')}: ${ticket['merchant']?['displayName'] ?? ticket['merchantName'] ?? '—'}')
       ..writeln('${tr('DAT / LÈ', 'DATE / HEURE')}: $date')
       ..writeln('--------------------------------')
       ..writeln(tr('JWÈT / NIMEWO                 PRI', 'JEU / NUMÉRO                 MISE'));
@@ -35,12 +34,7 @@ class EscPosEncoder {
       final line = Map<String, dynamic>.from(raw as Map);
       final parts = '${line['selectionKey'] ?? line['selection'] ?? ''}'.split('@');
       final selection = parts.first.replaceAll('-', ' × ');
-      final kind = _betName(line);
-      final stake = line['isPromotional'] == true
-          ? tr('GRATIS', 'GRATUIT')
-          : '$currency${line['stake'] ?? ''}';
-      out.writeln('$kind $selection    $stake');
-      if (parts.length > 1 && parts[1].isNotEmpty) out.writeln(_centerLine('OP ${parts[1]}'));
+      out.writeln(_compactLine(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
       final winCount = _winCount(line);
       if (winCount > 1) out.writeln('${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
       if (line['isPromotional'] == true) out.writeln(tr('MARYAJ GRATIS', 'MARYAJ GRATUIT'));
@@ -77,8 +71,6 @@ class EscPosEncoder {
     _line(out, '${tr('LOTRI', 'LOTERIE')}: ${ticket['gameName'] ?? ticket['game']?['name'] ?? 'Lotri'}');
     _line(out, '${tr('TIRAJ', 'TIRAGE')}: ${_drawName(ticket)}');
     _line(out, '${tr('BIWO', 'SUCCURSALE')}: ${branch['name'] ?? ticket['branchName'] ?? '—'}');
-    final merchant = ticket['merchant']?['displayName'] ?? ticket['merchantName'];
-    if (merchant != null) _line(out, '${tr('MACHANN', 'VENDEUR')}: $merchant');
     _line(out, '${tr('DAT / LÈ', 'DATE / HEURE')}: ${_date(ticket['createdAt'])}');
     _line(out, '--------------------------------');
     _line(out, tr('JWÈT / NIMEWO                 PRI', 'JEU / NUMÉRO                 MISE'));
@@ -87,12 +79,7 @@ class EscPosEncoder {
       final parts = '${line['selectionKey'] ?? line['selection'] ?? ''}'.split('@');
       final selection = parts.first.replaceAll('-', ' × ');
       final won = line['isWinner'] == true;
-      _line(out, '${won ? (french ? '*GAGNANT* ' : '*GENYEN* ') : ''}${_betName(line)}  $selection');
-      if (parts.length > 1 && parts[1].isNotEmpty) {
-        out.add([0x1b, 0x61, 1]);
-        _line(out, 'OP ${parts[1]}');
-        out.add([0x1b, 0x61, 0]);
-      }
+      _line(out, '${won ? (french ? '*GAGNANT* ' : '*GENYEN* ') : ''}${_compactLine(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT'))}');
       final winCount = _winCount(line);
       if (winCount > 1) _line(out, '${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
       _line(out, line['isPromotional'] == true
@@ -110,10 +97,15 @@ class EscPosEncoder {
     }
     _line(out, _date(ticket['createdAt']));
     final code = ticket['ticketNumber']?.toString();
-    if (code != null && code.isNotEmpty) _code128(out, code);
+    if (code != null && code.isNotEmpty) {
+      _code128(out, code);
+    }
     final qr = ticket['qrCode']?.toString();
-    if (qr != null && qr.isNotEmpty) _qr(out, qr);
-    else if (ticketNumber.toString().isNotEmpty) _qr(out, ticketNumber.toString());
+    if (qr != null && qr.isNotEmpty) {
+      _qr(out, qr);
+    } else if (ticketNumber.toString().isNotEmpty) {
+      _qr(out, ticketNumber.toString());
+    }
     _line(out, ticket['footer']?.toString() ?? tr('Kenbe tikè orijinal la. Verifye avan peman. Tikè ki peye pa ka peye ankò.', 'Conservez le ticket original. Vérifiez le résultat avant paiement. Un ticket déjà payé ne peut pas l’être une seconde fois.'));
     out.add([0x1b, 0x64, 4, 0x1d, 0x56, 0]);
     return out.takeBytes();
@@ -144,14 +136,17 @@ class EscPosEncoder {
 
   Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
   String _currency(dynamic _) => r'$';
-  String _betName(Map<String, dynamic> line) => line['betType'] is Map
-      ? '${line['betType']?['name'] ?? 'Bolet'}'
-      : '${line['betTypeName'] ?? line['betType'] ?? 'Bolet'}';
+  String _compactLine(Map<String, dynamic> line, String selection, String option, String currency, String free) {
+    final betType = line['betType'];
+    final raw = (betType is Map ? betType['code'] : line['betTypeName'] ?? betType ?? '').toString().toUpperCase();
+    final code = raw.contains('LOTO3') ? 'LT3' : raw.contains('LOTO4') ? 'LT4' : raw.contains('LOTO5') ? 'LT5' : raw.contains('MARYAJ') ? 'MJ' : 'BL';
+    final price = line['isPromotional'] == true ? free : '$currency${line['stake'] ?? ''}';
+    return '${option.isEmpty ? '' : 'OP$option '}$code $selection $price';
+  }
   int _winCount(Map<String, dynamic> line) => int.tryParse('${line['winCount'] ?? 0}') ?? 0;
   String _status(dynamic raw, bool french) => (french
       ? const {'VALID':'Valide','WINNER':'Gagnant','LOSER':'Perdant','PAID':'Payé','CANCELLED':'Annulé','VOID':'Annulé','PENDING':'En attente'}
       : const {'VALID':'Valab','WINNER':'Gayan','LOSER':'Pèdan','PAID':'Peye','CANCELLED':'Anile','VOID':'Anile','PENDING':'An atant'})['${raw ?? 'VALID'}'] ?? '${raw ?? 'VALID'}';
-  String _centerLine(String value) { final count = (32 - value.length) ~/ 2; return '${' ' * (count > 0 ? count : 0)}$value'; }
   String _date(dynamic raw) {
     final value = raw == null ? null : DateTime.tryParse('$raw');
     if (value == null) return '';
