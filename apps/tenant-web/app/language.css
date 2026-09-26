@@ -1,2 +1,86 @@
-.serverWake{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10000;display:flex;align-items:center;gap:9px;background:#102e26;color:#fff;padding:10px 16px;border-radius:999px;box-shadow:0 8px 28px #102e2640;font:700 12px Arial,sans-serif}.wakeSpinner{width:13px;height:13px;border:2px solid #ffffff55;border-top-color:#c9f65a;border-radius:50%;animation:wakeSpin .8s linear infinite}@keyframes wakeSpin{to{transform:rotate(360deg)}}
-.languageSwitcher{position:fixed!important;top:12px!important;right:12px!important;z-index:9999}.languageToggle{border:1px solid #d9e2ec;background:#fff;color:#102e26;border-radius:10px;padding:9px 12px;font-weight:750;cursor:pointer;box-shadow:0 8px 24px #0f1f3a1f;white-space:nowrap}.languageMenu{position:absolute;right:0;top:calc(100% + 6px);min-width:130px;padding:5px;background:#fff;border:1px solid #d9e2ec;border-radius:10px;box-shadow:0 10px 30px #0f1f3a2b}.languageMenu button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:#52635e;font-weight:700;cursor:pointer}.languageMenu button.active,.languageMenu button:hover{background:#102e26;color:#fff}@media(max-width:700px){.languageSwitcher{top:8px!important;right:8px!important}.languageToggle{padding:7px 9px;font-size:12px}}
+.serverWake {
+  position: fixed;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #102e26;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  box-shadow: 0 8px 28px #102e2640;
+  font:
+    700 12px Arial,
+    sans-serif;
+}
+.wakeSpinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff55;
+  border-top-color: #c9f65a;
+  border-radius: 50%;
+  animation: wakeSpin 0.8s linear infinite;
+}
+@keyframes wakeSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.languageSwitcher {
+  position: fixed !important;
+  top: 12px !important;
+  right: 112px !important;
+  z-index: 9999;
+}
+.languageToggle {
+  border: 1px solid #d9e2ec;
+  background: #fff;
+  color: #102e26;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-weight: 750;
+  cursor: pointer;
+  box-shadow: 0 8px 24px #0f1f3a1f;
+  white-space: nowrap;
+}
+.languageMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 130px;
+  padding: 5px;
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px #0f1f3a2b;
+}
+.languageMenu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: #52635e;
+  font-weight: 700;
+  cursor: pointer;
+}
+.languageMenu button.active,
+.languageMenu button:hover {
+  background: #102e26;
+  color: #fff;
+}
+@media (max-width: 700px) {
+  .languageSwitcher {
+    top: 8px !important;
+    right: 104px !important;
+  }
+  .languageToggle {
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+}
