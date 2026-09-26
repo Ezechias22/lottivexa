@@ -16,7 +16,8 @@ export function statusLabel(value:string,language:Language){
 
 export function LanguageSwitcher({children}:{children:ReactNode}){
  const[language,setLanguage]=useState<Language>('ht');
+ const[open,setOpen]=useState(false);
  useEffect(()=>{try{if(localStorage.getItem('lottivexa-language')==='fr')setLanguage('fr')}catch{}},[]);
  useEffect(()=>{document.documentElement.lang=language;try{localStorage.setItem('lottivexa-language',language)}catch{}},[language]);
- return <LanguageContext.Provider value={{language,t:key=>copy[language][key]}}><div data-language-switcher className="languageSwitcher" role="group" aria-label="Lang / Langue"><button type="button" aria-pressed={language==='ht'} className={language==='ht'?'active':''} onClick={()=>setLanguage('ht')}>Kreyòl</button><button type="button" aria-pressed={language==='fr'} className={language==='fr'?'active':''} onClick={()=>setLanguage('fr')}>Français</button></div>{children}</LanguageContext.Provider>
+ return <LanguageContext.Provider value={{language,t:key=>copy[language][key]}}><div data-language-switcher className="languageSwitcher" role="group" aria-label="Lang / Langue"><button type="button" className="languageToggle" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>🌐 {language==='fr'?'Français':'Kreyòl'} <span aria-hidden="true">⌄</span></button>{open&&<div className="languageMenu"><button type="button" aria-pressed={language==='ht'} className={language==='ht'?'active':''} onClick={()=>{setLanguage('ht');setOpen(false)}}>Kreyòl</button><button type="button" aria-pressed={language==='fr'} className={language==='fr'?'active':''} onClick={()=>{setLanguage('fr');setOpen(false)}}>Français</button></div>}</div>{children}</LanguageContext.Provider>
 }
