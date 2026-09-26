@@ -108,7 +108,8 @@ class TicketDetails extends StatelessWidget {
         _total('Total jwe', _money(ticket['amount'])),
         _total('Gayan potansyèl', _money(ticket['potentialWin'])),
         if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', _money(winning?['winningAmount'] ?? 0), winner: true),
-        if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
+        if ('${ticket['qrCode'] ?? ticket['ticketNumber'] ?? ticket['id'] ?? ''}'.isNotEmpty)
+          Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode'] ?? ticket['ticketNumber'] ?? ticket['id']}', size: 170))),
         const Text('Tikè sa a dwe verifye nan sistèm nan anvan peman. Kenbe tikè orijinal la. Yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [FilledButton.tonalIcon(onPressed: onReplay, icon: const Icon(Icons.copy), label: const Text('Kopye / Rejwe')), OutlinedButton.icon(onPressed: onPrint, icon: const Icon(Icons.print), label: const Text('Enprime ankò')), FilledButton.icon(onPressed: onPay, icon: const Icon(Icons.payments), label: const Text('Peye gayan'))]),
