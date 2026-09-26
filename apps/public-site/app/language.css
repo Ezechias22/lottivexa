@@ -105,3 +105,15 @@
 .site-menu-panel button:hover,.site-menu-panel a:hover { background: #102e26; color: #fff; }
 @media (max-width: 700px) { .lottivexa-language-switcher { top: 10px !important; right: 10px !important; } }
 @media (max-width: 700px) { .site-menu { top: 10px; right: 10px; } }
+/* V6: hamburger menu, scrollable menu, fixed headers. */
+.languageSwitcher[data-language-switcher]{position:fixed!important;top:12px!important;right:12px!important;left:auto!important;bottom:auto!important;z-index:30000!important}
+.languageSwitcher .menuToggle{width:44px;height:40px;border:0;border-radius:9px;background:#172554;color:#fff;font-size:24px;line-height:1;cursor:pointer}
+.languageMenu{position:fixed;top:60px;right:12px;z-index:30001;width:min(280px,calc(100vw - 24px));max-height:calc(100dvh - 76px);overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #dbe2ea;border-radius:12px;background:#fff;box-shadow:0 16px 38px #17255433}
+.languageMenu button{min-height:42px;width:100%;padding:10px 12px;border:0;border-radius:8px;background:transparent;color:#172554;text-align:left;cursor:pointer}
+.languageMenu button:hover,.languageMenu button.active{background:#edf3ff}
+body.menu-open .pos>header>.secondary,body.menu-open .content header>.logout-button,body.menu-open .top>.secondary{display:none!important}
+.pos>header,.content>header,.shell .top,.siteHeader{position:sticky!important;top:0!important;z-index:20000!important}
+body.menu-open .pos nav{display:block!important;position:fixed!important;top:60px!important;right:12px!important;z-index:29999!important;width:min(280px,calc(100vw - 24px));max-height:calc(100dvh - 76px);overflow-y:auto}
+body.menu-open .shell>aside{display:flex!important;position:fixed!important;top:60px!important;right:12px!important;z-index:29999!important;width:min(280px,calc(100vw - 24px));max-height:calc(100dvh - 76px);overflow-y:auto}
+body.menu-open .shell>aside>button:last-child{display:none!important}
+@media(max-width:600px){.languageSwitcher[data-language-switcher]{right:8px!important}.languageMenu{right:8px;width:min(300px,calc(100vw - 16px))}}
