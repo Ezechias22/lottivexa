@@ -38,17 +38,14 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
   return (french ? 'Normal · ' : 'Nòmal · ') + session;
 }
 
-String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false, bool compact = false}) {
+String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false}) {
   final game = draw['game'] is Map
       ? '${draw['game']['name'] ?? ''}'
       : '${draw['gameName'] ?? ''}';
   final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'] ?? draw['drawDate'];
   final parsed = source == null ? null : DateTime.tryParse('$source');
   final date = parsed == null ? null : _haitiTime(parsed);
-  final rawSession = drawSession(draw, french: french);
-  final session = compact ? rawSession.replaceFirst(RegExp(r'^(Nòmal|Normal) · '), '') : rawSession;
-  final parts = <String>[if (game.trim().isNotEmpty) game, session];
-  if (compact) return parts.join(' ').trim();
+  final parts = <String>[if (game.trim().isNotEmpty) game, drawSession(draw, french: french)];
   if (date != null) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');

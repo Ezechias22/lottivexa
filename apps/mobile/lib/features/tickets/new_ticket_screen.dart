@@ -136,7 +136,7 @@ class _NewTicketState extends State<NewTicketScreen> {
   }
   String drawLabel(dynamic row) {
     if (row is! Map) return 'Lotri · Sesyon pou verifye';
-    return merchantDrawLabel(Map<String, dynamic>.from(row), compact: true);
+    return merchantDrawLabel(Map<String, dynamic>.from(row));
   }
 
   Future<String?> _askAutomaticStake({required TextEditingController controller, required String title, required String help, List<String>? previewNumbers}) {

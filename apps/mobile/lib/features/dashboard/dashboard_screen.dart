@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/draw_label.dart';
 import '../../core/localization/app_language.dart';
 import '../../core/network/api_client.dart';
 import '../../core/offline/offline_store.dart';
@@ -50,7 +49,42 @@ class _State extends State<DashboardScreen> {
   }['$status'] ?? '$status';
 
   String _drawLabel(Map<String, dynamic> draw, {required bool french}) {
-    return merchantDrawLabel(draw, french: french, compact: true);
+    final game = draw['game'] is Map
+        ? '${draw['game']['name'] ?? ''}'
+        : '${draw['gameName'] ?? ''}';
+    final sessionText = <Object?>[
+      draw['session'], draw['sessionType'], draw['name'], draw['drawNumber'],
+    ].whereType<Object>().join(' ').toUpperCase();
+    final session = RegExp(r'\b(MORNING|MATIN|MATEN)\b').hasMatch(sessionText)
+        ? (french ? 'Matin' : 'Maten')
+        : RegExp(r'\b(MID|MIDI|MIDDAY|NOON|DAY|JOUR)\b').hasMatch(sessionText)
+            ? 'Midi'
+            : RegExp(r'\b(EVENING|SOIR|SWA|EVE)\b').hasMatch(sessionText)
+                ? (french ? 'Soir' : 'Swa')
+                : null;
+    final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'];
+    final parsed = source == null ? null : DateTime.tryParse('$source');
+    final local = parsed?.toUtc().subtract(const Duration(hours: 4));
+    final resolvedSession = session ?? (local == null
+        ? (french ? 'Séance à confirmer' : 'Sesyon pou verifye')
+        : local.hour < 12
+            ? (french ? 'Matin' : 'Maten')
+            : local.hour < 16
+                ? 'Midi'
+                : local.hour < 21
+                    ? (french ? 'Soir' : 'Swa')
+                    : (french ? 'Nuit' : 'Lannuit'));
+    final labelParts = <String>[
+      if (game.trim().isNotEmpty) game,
+      '${french ? 'Normal' : 'Nòmal'} · $resolvedSession',
+    ];
+    if (local != null) {
+      final day = local.day.toString().padLeft(2, '0');
+      final month = local.month.toString().padLeft(2, '0');
+      final time = local.hour.toString().padLeft(2, '0') + ':' + local.minute.toString().padLeft(2, '0');
+      labelParts.add('$day/$month/${local.year} $time');
+    }
+    return labelParts.join(' · ');
   }
 
   @override Widget build(BuildContext context) {

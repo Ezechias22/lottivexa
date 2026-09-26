@@ -44,7 +44,7 @@ function getSession(draw: DrawLabel): Session {
   return hour < 24 && minute < 60 ? fromHour(hour) : 'UNKNOWN';
 }
 
-export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr', compact = false) {
+export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   const labels = {
     MORNING: language === 'fr' ? 'Normal · Matin' : 'Nòmal · Maten',
     MIDDAY: language === 'fr' ? 'Normal · Midi' : 'Nòmal · Midi',
@@ -52,13 +52,11 @@ export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr', compact
     NIGHT: language === 'fr' ? 'Normal · Nuit' : 'Nòmal · Lannuit',
     UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
   };
-  const value = labels[getSession(draw)];
-  return compact ? value.replace(/^(Normal|Nòmal) · /, '') : value;
+  return labels[getSession(draw)];
 }
 
-export function describeDraw(draw: DrawLabel, language: 'ht' | 'fr', compact = false) {
+export function describeDraw(draw: DrawLabel, language: 'ht' | 'fr') {
   const game = draw.game?.name ?? (language === 'fr' ? 'Loterie' : 'Lotri');
-  if (compact) return `${game} ${drawSessionLabel(draw, language, true)}`;
   const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt ?? draw.drawDate;
   if (!source) return `${game} · ${drawSessionLabel(draw, language)}`;
   const date = new Date(source);

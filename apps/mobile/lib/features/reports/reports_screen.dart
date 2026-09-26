@@ -58,10 +58,7 @@ class _ReportsState extends State<ReportsScreen> {
         queryParameters: {'from': _date(from), 'to': _date(to)},
         options: Options(responseType: ResponseType.bytes));
       final bytes = response.data;
-      if (response.statusCode != 200 || bytes == null || bytes.length < 8 ||
-          String.fromCharCodes(bytes.take(5)) != '%PDF-') {
-        throw StateError('Sèvè a pa retounen yon PDF valid (verifye deploy API a ak pèmisyon reports.view).');
-      }
+      if (bytes == null || bytes.isEmpty) throw StateError('PDF vid la pa disponib.');
       await _shareChannel.invokeMethod<void>('sharePdf', {
         'bytes': Uint8List.fromList(bytes),
         'filename': 'lottivexa-rapo-${_date(from)}-${_date(to)}.pdf',

@@ -48,26 +48,22 @@ export function drawSession(draw: DrawLabel): Session {
   return hour < 24 && minute < 60 ? sessionFromHour(hour) : 'UNKNOWN';
 }
 
-function sessionLabel(session: Session, language: 'ht' | 'fr', compact = false) {
+function sessionLabel(session: Session, language: 'ht' | 'fr') {
   const labels = {
-    MORNING: language === 'fr' ? 'Matin' : 'Maten',
-    MIDDAY: 'Midi',
-    EVENING: language === 'fr' ? 'Soir' : 'Swa',
-    NIGHT: language === 'fr' ? 'Nuit' : 'Lannuit',
+    MORNING: language === 'fr' ? 'Normal · Matin' : 'Nòmal · Maten',
+    MIDDAY: language === 'fr' ? 'Normal · Midi' : 'Nòmal · Midi',
+    EVENING: language === 'fr' ? 'Normal · Soir' : 'Nòmal · Swa',
+    NIGHT: language === 'fr' ? 'Normal · Nuit' : 'Nòmal · Lannuit',
     UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
   };
-  const value = labels[session];
-  return compact || session === 'UNKNOWN' ? value : `${language === 'fr' ? 'Normal' : 'Nòmal'} · ${value}`;
+  return labels[session];
 }
 
-export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr', compact = false) {
+export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   const session = drawSession(draw);
   const source = draw.resultAt ?? draw.closesAt ?? draw.opensAt ?? draw.drawDate;
   const date = source ? new Date(source) : null;
   const game = draw.game?.name ?? (language === 'fr' ? 'Loterie' : 'Lotri');
-  if (compact) {
-    return `${game} ${sessionLabel(session, language, true)}`.trim();
-  }
   if (!date || Number.isNaN(date.getTime())) {
     return `${game} · ${sessionLabel(session, language)}`;
   }

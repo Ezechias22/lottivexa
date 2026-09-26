@@ -23,7 +23,7 @@ export default function ManualResults({draws,request,reload}:{draws:Draw[];reque
     if (!winningKeys.length || winningKeys.length > 20 || winningKeys.some(x=> !/^\d{1,5}$/.test(x))) {
       setNotice(t('result.invalid'));return;
     }
-    if (!window.confirm(`${t('result.confirm')} ${describeDraw(chosen,language,true)}: ${winningKeys.join(', ')}? ${t('result.offline')}`)) return;
+    if (!window.confirm(`${t('result.confirm')} ${describeDraw(chosen,language)}: ${winningKeys.join(', ')}? ${t('result.offline')}`)) return;
     setBusy(true);setNotice('');
     try {
       await request(`/results/draws/${encodeURIComponent(chosen.id)}/publish`,{method:'POST',body:JSON.stringify({winningKeys})});
@@ -35,8 +35,8 @@ export default function ManualResults({draws,request,reload}:{draws:Draw[];reque
     <h2>{t('result.title')}</h2>
     <p className="muted">{t('result.offline')}</p>
     <form className="form one" onSubmit={publish}>
-      <label>{t('result.draw')}<select value={drawId} onChange={event=>setDrawId(event.target.value)} required><option value="">{t('result.choose')}</option>{eligible.map(draw=><option key={draw.id} value={draw.id}>{describeDraw(draw,language,true)}</option>)}</select></label>
-      {chosen&&<p className="muted" role="status">{describeDraw(chosen,language,true)}</p>}
+      <label>{t('result.draw')}<select value={drawId} onChange={event=>setDrawId(event.target.value)} required><option value="">{t('result.choose')}</option>{eligible.map(draw=><option key={draw.id} value={draw.id}>{describeDraw(draw,language)}</option>)}</select></label>
+      {chosen&&<p className="muted" role="status">{describeDraw(chosen,language)}</p>}
       <label>{t('result.numbers')}<input value={numbers} onChange={event=>setNumbers(event.target.value)} inputMode="numeric" placeholder="12, 34, 56" required /></label>
       <button type="submit" disabled={busy || !chosen}>{busy?t('result.wait'):t('result.publish')}</button>
     </form>

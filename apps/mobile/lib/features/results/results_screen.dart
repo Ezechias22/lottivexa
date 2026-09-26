@@ -16,7 +16,7 @@ class _ResultsState extends State<ResultsScreen> {
   @override void initState(){super.initState();load();timer=Timer.periodic(const Duration(seconds:15),(_)=>load());}
   @override void dispose(){timer?.cancel();super.dispose();}
   Future<void>load()async{try{final response=await widget.api.dio.get<List<dynamic>>('/api/v1/lottery/draws'),all=response.data??[];if(mounted)setState((){rows=all.where((row)=>row['status']=='RESULT_PUBLISHED').toList();pending=all.where((row)=>row['status']=='CLOSED'||row['status']=='RESULT_PENDING').toList();error=null;});}catch(_){if(mounted)setState(()=>error=AppLanguage.tr('Rezilta yo pa disponib kounye a.'));}}
-  String drawLabel(Map<String,dynamic>row)=>merchantDrawLabel(row,french:AppLanguage.current.value.languageCode=='fr',compact:true);
+  String drawLabel(Map<String,dynamic>row)=>merchantDrawLabel(row,french:AppLanguage.current.value.languageCode=='fr');
   List<String> keys(Map<String,dynamic>row)=>(row['result']?['winningKeys']as List<dynamic>? ??const[]).map((x)=>'$x'.split('@').first).toList();
   @override Widget build(BuildContext context)=>RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.all(16),children:[
     Row(children:[IconButton(onPressed:()=>context.go('/'),tooltip:AppLanguage.tr('Retounen'),icon:const Icon(Icons.arrow_back)),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(AppLanguage.tr('Rezilta yo'),style:TextStyle(fontSize:28,fontWeight:FontWeight.w900)),Text(AppLanguage.tr('Mizajou otomatik chak 15 segonn'))])),IconButton.filledTonal(onPressed:load,icon:const Icon(Icons.refresh))]),
