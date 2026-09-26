@@ -168,6 +168,21 @@ button.danger {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 720px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .shell, .content, .content > * { min-width: 0; max-width: 100%; }
+  .content { padding: 14px 10px 80px; }
+  .top { min-width: 0; gap: 8px; padding-right: 74px; }
+  .top h1 { overflow-wrap: anywhere; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .card, .panel { min-width: 0; overflow-wrap: anywhere; }
+  .table-wrap, .table-scroll, .panel:has(table) { max-width: 100%; overflow-x: auto; }
+}
+@media (max-width: 380px) {
+  .grid { grid-template-columns: 1fr; }
+  .content { padding-left: 8px; padding-right: 8px; }
+}
 .languageSwitcher {
   position: fixed;
   right: 14px;

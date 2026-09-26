@@ -8,6 +8,8 @@
 }
 body {
   margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 button,
 input,
@@ -109,7 +111,10 @@ button:disabled {
   max-width: 1200px;
   margin: auto;
   padding: 20px;
+  min-width: 0;
+  width: 100%;
 }
+.pos { width: 100%; max-width: 100vw; overflow-x: hidden; }
 .online {
   color: #4ade80;
   font-size: 13px;
@@ -275,6 +280,33 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+@media (max-width: 430px) {
+  .pos > header { padding: 0 76px 0 10px; gap: 6px; }
+  .pos > header b { font-size: 16px; letter-spacing: 1px; }
+  .pos main { padding-left: 8px; padding-right: 8px; }
+  .dashboard-welcome { align-items: flex-start; flex-wrap: wrap; padding: 12px; }
+  .dashboard-welcome > button { margin-left: 58px; }
+  .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dashboard-kpis article { padding: 11px; min-height: 100px; }
+  .dashboard-kpis article > strong { font-size: 17px; overflow-wrap: anywhere; }
+  .dashboard-actions { gap: 8px; }
+  .dashboard-actions > button { padding: 9px 7px; gap: 7px; font-size: 12px; }
+  .dashboard-actions > button > b { width: 30px; height: 30px; font-size: 19px; flex: 0 0 30px; }
+}
+
+@media (max-width: 380px) {
+  .dashboard-kpis { grid-template-columns: 1fr; }
+  .dashboard-actions { grid-template-columns: 1fr; }
+  .dashboard-actions > button.action-sell { grid-column: auto; }
+  .dashboard-welcome > button { margin-left: 0; width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .pos, .pos main, .merchant-dashboard, .dashboard-kpis, .dashboard-actions, .dashboard-lists { min-width: 0; }
+  .dashboard-welcome > button { max-width: 100%; }
+  .dashboard-lists > .panel { overflow: hidden; }
+}
+
 @media (max-width: 430px) {
   .login {
     margin: 3vh 10px;
@@ -715,6 +747,7 @@ button:disabled {
   border: 1px solid #e0e8f2;
   border-radius: 15px;
   box-shadow: 0 5px 18px #15315a0a;
+  min-width: 0;
 }
 .welcome-mark {
   display: grid;
@@ -730,6 +763,7 @@ button:disabled {
   display: grid;
   gap: 4px;
   flex: 1;
+  min-width: 0;
 }
 .dashboard-welcome > div:nth-child(2) > span {
   font-weight: 850;
@@ -755,6 +789,7 @@ button:disabled {
   border: 1px solid #e0e8f2;
   border-radius: 14px;
   box-shadow: 0 4px 14px #15315a08;
+  min-width: 0;
 }
 .dashboard-kpis article > span {
   font-size: 13px;
@@ -791,7 +826,9 @@ button:disabled {
   text-align: left;
   background: #2451c7;
   color: #fff;
+  min-width: 0;
 }
+.dashboard-actions > button span { min-width: 0; overflow-wrap: anywhere; }
 .dashboard-actions > button > b {
   display: grid;
   place-items: center;

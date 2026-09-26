@@ -303,6 +303,22 @@ th {
     padding: 22px;
   }
 }
+
+@media (max-width: 720px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .shell, .content, .content > * { min-width: 0; max-width: 100%; }
+  .content { padding-left: 10px; padding-right: 10px; padding-bottom: 80px; }
+  .content header { min-width: 0; gap: 8px; padding-right: 76px; }
+  .content header > div { min-width: 0; overflow-wrap: anywhere; }
+  .content h1 { overflow-wrap: anywhere; }
+  .cards, .stats, .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .card, .panel, .form, .settings-card { min-width: 0; overflow-wrap: anywhere; }
+  .table-wrap, .table-scroll { max-width: 100%; overflow-x: auto; }
+}
+@media (max-width: 380px) {
+  .cards, .stats, .form-grid { grid-template-columns: 1fr; }
+  .content { padding-left: 8px; padding-right: 8px; }
+}
 .languageSwitcher {
   position: fixed;
   right: 14px;

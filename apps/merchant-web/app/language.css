@@ -104,6 +104,7 @@
 .lottivexa-language-switcher .languageToggle { display: block; height: auto !important; min-height: 0 !important; }
 .lottivexa-language-switcher .languageToggle { font-size: 0 !important; width: 44px; height: 44px !important; padding: 0 !important; display: grid; place-items: center; }
 .lottivexa-language-switcher .languageToggle::before { content: '☰'; font-size: 24px; line-height: 1; }
+.lottivexa-language-switcher .languageMenu { left: 0; right: auto; }
 @media (max-width: 700px) {
   .lottivexa-language-switcher { top: 8px !important; left: 8px !important; right: auto !important; }
   .lottivexa-language-switcher .languageToggle { padding: 6px 7px; font-size: 11px; }
