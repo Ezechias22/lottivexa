@@ -21,7 +21,7 @@ class _LoginState extends State<LoginScreen>{
     if(tenant.text.trim().isEmpty||username.text.trim().isEmpty||password.text.isEmpty){setState(()=>error=AppLanguage.tr('Ranpli tout chan yo.'));return;}
     setState((){busy=true;error=null;});
     try{await widget.api.warmUp();final response=await widget.api.dio.post<Map<String,dynamic>>('/api/v1/auth/login',data:{'tenant':tenant.text.trim(),'username':username.text.trim(),'password':password.text});await widget.session.save(response.data!);try{await widget.runtime.prepareDevice();await widget.runtime.recover();}catch(_){/* Login remains valid while device approval or network is pending. */}}
-    on DioException catch(exception){if(!mounted)return;setState(()=>error=exception.response?.statusCode==401?AppLanguage.tr('Tenant, username oswa modpas la pa kòrèk.'):AppLanguage.tr('Sèvè a pa reponn. Eseye ankò.'));}
+    on DioException catch(exception){if(!mounted)return;final code=exception.response?.data is Map?((exception.response?.data as Map)['error'] is Map?((exception.response?.data as Map)['error'] as Map)['code']:null):null;setState(()=>error=code=='ACCOUNT_DISABLED_CONTACT_ADMIN'?AppLanguage.tr('Kont sa a dezaktive. Kontakte administratè ki sou tèt ou.'):exception.response?.statusCode==401?AppLanguage.tr('Tenant, username oswa modpas la pa kòrèk.'):AppLanguage.tr('Sèvè a pa reponn. Eseye ankò.'));}
     catch(_){if(mounted)setState(()=>error=AppLanguage.tr('Koneksyon an echwe. Eseye ankò.'));}
     finally{if(mounted)setState(()=>busy=false);}
   }

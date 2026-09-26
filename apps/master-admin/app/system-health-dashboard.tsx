@@ -47,7 +47,7 @@ export default function SystemHealthDashboard({ data }: { data: HealthData }) {
         <article><span>Depo fichye</span><State ready={data.storage?.writable === true}/><b>{bytes(data.storage?.freeBytes)} lib</b><small>Sou {bytes(data.storage?.totalBytes)}</small></article>
       </section>
 
-      {!data.redis?.ready && <section className={styles.warning}><strong>Redis pa konekte.</strong><span>API ak database la disponib, men sistèm nan rete DEGRADE jiskaske yon sèvis Redis konekte ak REDIS_URL.</span></section>}
+      {!data.redis?.ready && <section className={styles.warning}><strong>Redis pa konekte.</strong><span>API ak database la disponib. Redis rete opsyonèl pou enstalasyon Neon yo; mete REDIS_REQUIRED=true sèlman si w vle fè Redis obligatwa.</span></section>}
 
       <section className={styles.columns}>
         <article className={styles.panel}><header><div><p>Travay an fon</p><h2>Fil datant yo</h2></div><strong>{queueEntries.reduce((sum,[,value])=>sum+Number(value||0),0)}</strong></header>{queueEntries.length?<div className={styles.list}>{queueEntries.map(([name,value])=><div key={name}><span>{name.replace(/([A-Z])/g,' $1')}</span><b>{value}</b></div>)}</div>:<p className={styles.empty}>Pa gen travay an atant.</p>}</article>

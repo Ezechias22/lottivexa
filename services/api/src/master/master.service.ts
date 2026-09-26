@@ -1,2 +1,216 @@
-import{Injectable}from'@nestjs/common';import{access,statfs}from'node:fs/promises';import{constants}from'node:fs';import{redisReady}from'../health/redis-health';import{prisma}from'@lottivexa/database';
-@Injectable()export class MasterService{async systemHealth(){const started=Date.now();let database=false;try{await prisma.$queryRaw`SELECT 1`;database=true}catch{}const databaseLatencyMs=Date.now()-started,redisStarted=Date.now(),redis=await redisReady(),redisLatencyMs=Date.now()-redisStarted,storagePath=process.env.STORAGE_PATH??'/tmp';let storage:any={writable:false,path:storagePath};try{await access(storagePath,constants.W_OK);const info=await statfs(storagePath);storage={writable:true,path:storagePath,freeBytes:info.bavail*info.bsize,totalBytes:info.blocks*info.bsize}}catch{}const [failedPrintJobs,failedNotifications,syncConflicts,pendingNotifications,leases]=await Promise.all([prisma.printJob.count({where:{status:'FAILED'}}),prisma.notification.count({where:{status:'FAILED'}}),prisma.syncJob.count({where:{status:{in:['REJECTED','CONFLICT']}}}),prisma.notification.count({where:{status:'PENDING'}}),prisma.schedulerLease.findMany({orderBy:{name:'asc'}})]);return{status:database&&redis&&storage.writable?'HEALTHY':'DEGRADED',api:{uptimeSeconds:Math.floor(process.uptime()),rssBytes:process.memoryUsage().rss},database:{ready:database,latencyMs:databaseLatencyMs},redis:{ready:redis,latencyMs:redisLatencyMs},storage,queues:{failedPrintJobs,failedNotifications,syncConflicts,pendingNotifications},scheduler:leases.map(x=>({name:x.name,owner:x.owner,lockedUntil:x.lockedUntil}))}}async dashboard(){const[tenants,active,subscriptions,merchants,branches,tickets,sales,failedPayments]=await Promise.all([prisma.tenant.count(),prisma.tenant.count({where:{status:'ACTIVE'}}),prisma.subscription.count({where:{status:'ACTIVE'}}),prisma.merchantAccount.count({where:{status:'ACTIVE'}}),prisma.branch.count({where:{status:'ACTIVE'}}),prisma.ticket.count(),prisma.ticket.aggregate({_sum:{amount:true}}),prisma.subscriptionPayment.count({where:{status:'FAILED'}})]);return{tenants,activeTenants:active,activeSubscriptions:subscriptions,merchants,branches,tickets,totalSales:sales._sum.amount?.toString()??'0',failedPayments}}async reports(){const[tenantStatus,subscriptionStatus,planDistribution,revenue,platformSales]=await Promise.all([prisma.tenant.groupBy({by:['status'],orderBy:{status:'asc'},_count:{_all:true}}),prisma.subscription.groupBy({by:['status'],orderBy:{status:'asc'},_count:{_all:true}}),prisma.subscription.groupBy({by:['planId'],orderBy:{planId:'asc'},_count:{_all:true}}),prisma.subscriptionPayment.aggregate({where:{status:'VERIFIED'},_sum:{amount:true}}),prisma.ticket.aggregate({_count:{_all:true},_sum:{amount:true}})]);return{tenantStatus:tenantStatus.map(x=>({status:x.status,count:x._count._all})),subscriptionStatus:subscriptionStatus.map(x=>({status:x.status,count:x._count._all})),planDistribution:planDistribution.map(x=>({planId:x.planId,count:x._count._all})),subscriptionRevenue:revenue._sum.amount?.toString()??'0',platformSales:{tickets:platformSales._count._all,amount:platformSales._sum.amount?.toString()??'0'}}}async audit(){const rows=await prisma.auditLog.findMany({take:200,orderBy:{id:'desc'},include:{tenant:{select:{slug:true}},user:{select:{username:true}}}});return rows.map(x=>({...x,id:x.id.toString()}))}devices(){return prisma.device.findMany({take:200,orderBy:{updatedAt:'desc'},include:{tenant:{select:{slug:true}},branch:{select:{name:true}}}})}domains(){return prisma.tenantDomain.findMany({take:200,orderBy:{createdAt:'desc'},include:{tenant:{select:{slug:true}}}})}async failures(){const[sync,printing,notifications]=await Promise.all([prisma.syncJob.findMany({where:{status:{in:['REJECTED','CONFLICT']}},take:100,orderBy:{receivedAt:'desc'}}),prisma.printJob.findMany({where:{status:'FAILED'},take:100,orderBy:{updatedAt:'desc'}}),prisma.notification.findMany({where:{status:'FAILED'},take:100,orderBy:{createdAt:'desc'}})]);return{sync,printing,notifications}}createPlan(dto:{code:string;name:string;monthlyPrice:string;yearlyPrice:string;currency:string;trialDays?:number}){return prisma.plan.create({data:{...dto,currency:dto.currency.toUpperCase(),trialDays:dto.trialDays??0}})}}
+import { Injectable } from "@nestjs/common";
+import { access, statfs } from "node:fs/promises";
+import { constants } from "node:fs";
+import { redisReady } from "../health/redis-health";
+import { prisma } from "@lottivexa/database";
+@Injectable()
+export class MasterService {
+  async systemHealth() {
+    const started = Date.now();
+    let database = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      database = true;
+    } catch {}
+    const databaseLatencyMs = Date.now() - started,
+      redisRequired = process.env.REDIS_REQUIRED === "true",
+      redisStarted = Date.now(),
+      redis = redisRequired ? await redisReady() : true,
+      redisLatencyMs = redisRequired ? Date.now() - redisStarted : 0,
+      storagePath = process.env.STORAGE_PATH ?? "/tmp";
+    let storage: any = { writable: false, path: storagePath };
+    try {
+      await access(storagePath, constants.W_OK);
+      const info = await statfs(storagePath);
+      storage = {
+        writable: true,
+        path: storagePath,
+        freeBytes: info.bavail * info.bsize,
+        totalBytes: info.blocks * info.bsize,
+      };
+    } catch {}
+    const [
+      failedPrintJobs,
+      failedNotifications,
+      syncConflicts,
+      pendingNotifications,
+      leases,
+    ] = await Promise.all([
+      prisma.printJob.count({ where: { status: "FAILED" } }),
+      prisma.notification.count({ where: { status: "FAILED" } }),
+      prisma.syncJob.count({
+        where: { status: { in: ["REJECTED", "CONFLICT"] } },
+      }),
+      prisma.notification.count({ where: { status: "PENDING" } }),
+      prisma.schedulerLease.findMany({ orderBy: { name: "asc" } }),
+    ]);
+    return {
+      status: database && storage.writable && (!redisRequired || redis) ? "HEALTHY" : "DEGRADED",
+      api: {
+        uptimeSeconds: Math.floor(process.uptime()),
+        rssBytes: process.memoryUsage().rss,
+      },
+      database: { ready: database, latencyMs: databaseLatencyMs },
+      redis: { ready: redis, latencyMs: redisLatencyMs },
+      storage,
+      queues: {
+        failedPrintJobs,
+        failedNotifications,
+        syncConflicts,
+        pendingNotifications,
+      },
+      scheduler: leases.map((x) => ({
+        name: x.name,
+        owner: x.owner,
+        lockedUntil: x.lockedUntil,
+      })),
+    };
+  }
+  async dashboard() {
+    const [
+      tenants,
+      active,
+      subscriptions,
+      merchants,
+      branches,
+      tickets,
+      sales,
+      failedPayments,
+    ] = await Promise.all([
+      prisma.tenant.count(),
+      prisma.tenant.count({ where: { status: "ACTIVE" } }),
+      prisma.subscription.count({ where: { status: "ACTIVE" } }),
+      prisma.merchantAccount.count({ where: { status: "ACTIVE" } }),
+      prisma.branch.count({ where: { status: "ACTIVE" } }),
+      prisma.ticket.count(),
+      prisma.ticket.aggregate({ _sum: { amount: true } }),
+      prisma.subscriptionPayment.count({ where: { status: "FAILED" } }),
+    ]);
+    return {
+      tenants,
+      activeTenants: active,
+      activeSubscriptions: subscriptions,
+      merchants,
+      branches,
+      tickets,
+      totalSales: sales._sum.amount?.toString() ?? "0",
+      failedPayments,
+    };
+  }
+  async reports() {
+    const [
+      tenantStatus,
+      subscriptionStatus,
+      planDistribution,
+      revenue,
+      platformSales,
+    ] = await Promise.all([
+      prisma.tenant.groupBy({
+        by: ["status"],
+        orderBy: { status: "asc" },
+        _count: { _all: true },
+      }),
+      prisma.subscription.groupBy({
+        by: ["status"],
+        orderBy: { status: "asc" },
+        _count: { _all: true },
+      }),
+      prisma.subscription.groupBy({
+        by: ["planId"],
+        orderBy: { planId: "asc" },
+        _count: { _all: true },
+      }),
+      prisma.subscriptionPayment.aggregate({
+        where: { status: "VERIFIED" },
+        _sum: { amount: true },
+      }),
+      prisma.ticket.aggregate({
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+    ]);
+    return {
+      tenantStatus: tenantStatus.map((x) => ({
+        status: x.status,
+        count: x._count._all,
+      })),
+      subscriptionStatus: subscriptionStatus.map((x) => ({
+        status: x.status,
+        count: x._count._all,
+      })),
+      planDistribution: planDistribution.map((x) => ({
+        planId: x.planId,
+        count: x._count._all,
+      })),
+      subscriptionRevenue: revenue._sum.amount?.toString() ?? "0",
+      platformSales: {
+        tickets: platformSales._count._all,
+        amount: platformSales._sum.amount?.toString() ?? "0",
+      },
+    };
+  }
+  async audit() {
+    const rows = await prisma.auditLog.findMany({
+      take: 200,
+      orderBy: { id: "desc" },
+      include: {
+        tenant: { select: { slug: true } },
+        user: { select: { username: true } },
+      },
+    });
+    return rows.map((x) => ({ ...x, id: x.id.toString() }));
+  }
+  devices() {
+    return prisma.device.findMany({
+      take: 200,
+      orderBy: { updatedAt: "desc" },
+      include: {
+        tenant: { select: { slug: true } },
+        branch: { select: { name: true } },
+      },
+    });
+  }
+  domains() {
+    return prisma.tenantDomain.findMany({
+      take: 200,
+      orderBy: { createdAt: "desc" },
+      include: { tenant: { select: { slug: true } } },
+    });
+  }
+  async failures() {
+    const [sync, printing, notifications] = await Promise.all([
+      prisma.syncJob.findMany({
+        where: { status: { in: ["REJECTED", "CONFLICT"] } },
+        take: 100,
+        orderBy: { receivedAt: "desc" },
+      }),
+      prisma.printJob.findMany({
+        where: { status: "FAILED" },
+        take: 100,
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.notification.findMany({
+        where: { status: "FAILED" },
+        take: 100,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+    return { sync, printing, notifications };
+  }
+  createPlan(dto: {
+    code: string;
+    name: string;
+    monthlyPrice: string;
+    yearlyPrice: string;
+    currency: string;
+    trialDays?: number;
+  }) {
+    return prisma.plan.create({
+      data: {
+        ...dto,
+        currency: dto.currency.toUpperCase(),
+        trialDays: dto.trialDays ?? 0,
+      },
+    });
+  }
+}
