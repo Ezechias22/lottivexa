@@ -280,6 +280,26 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* The hamburger owns navigation on every viewport. */
+.pos nav { display: none !important; }
+.pos > header > .secondary { right: 70px; }
+body:has(.lottivexa-language-switcher .languageMenu) .pos nav {
+  display: block !important; position: fixed; top: 150px; right: 12px; z-index: 10000;
+  width: min(240px, calc(100vw - 24px)); max-height: calc(100dvh - 82px); overflow: auto;
+  padding: 8px; border: 1px solid #dbe2ea; border-radius: 12px; background: #fff;
+  box-shadow: 0 16px 38px #17255433;
+}
+body:has(.lottivexa-language-switcher .languageMenu) .nav-desktop,
+body:has(.lottivexa-language-switcher .languageMenu) .nav-mobile {
+  display: grid !important; grid-template-columns: 1fr; gap: 4px;
+}
+body:has(.lottivexa-language-switcher .languageMenu) .pos nav button {
+  width: 100%; text-align: left; white-space: normal; border-radius: 8px;
+}
+body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary {
+  position: fixed; top: 112px; right: 12px; z-index: 10001;
+}
 @media (max-width: 430px) {
   .pos > header { padding: 0 76px 0 10px; gap: 6px; }
   .pos > header b { font-size: 16px; letter-spacing: 1px; }

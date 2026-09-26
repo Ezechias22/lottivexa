@@ -315,6 +315,17 @@ th {
   .card, .panel, .form, .settings-card { min-width: 0; overflow-wrap: anywhere; }
   .table-wrap, .table-scroll { max-width: 100%; overflow-x: auto; }
 }
+
+/* The hamburger owns the tenant navigation. */
+.shell { grid-template-columns: 1fr; }
+.shell > aside { display: none !important; }
+body:has(.lottivexa-language-switcher .languageMenu) .shell > aside {
+  display: flex !important; position: fixed; top: 150px; right: 12px; z-index: 10000;
+  width: min(250px, calc(100vw - 24px)); max-height: calc(100dvh - 82px); overflow: auto;
+  padding: 8px; border-radius: 12px; box-shadow: 0 16px 38px #17255433;
+}
+body:has(.lottivexa-language-switcher .languageMenu) .shell > aside button { width: 100%; text-align: left; }
+body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-button { top: 112px; right: 12px; }
 @media (max-width: 380px) {
   .cards, .stats, .form-grid { grid-template-columns: 1fr; }
   .content { padding-left: 8px; padding-right: 8px; }
