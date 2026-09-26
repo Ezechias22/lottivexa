@@ -97,4 +97,11 @@
 }
 
 .lottivexa-language-switcher { position: fixed !important; top: 18px !important; right: 22px !important; bottom: auto !important; z-index: 10001; display: flex !important; width: max-content !important; height: auto !important; min-height: 0 !important; padding: 4px !important; overflow: visible !important; }
+.lottivexa-language-switcher { display: none !important; }
+.site-menu { position: fixed; top: 18px; right: 22px; z-index: 10002; }
+.site-menu-toggle { width: 44px; height: 44px; border: 1px solid #dce3df; border-radius: 10px; background: #fff; color: #102e26; font-size: 24px; line-height: 1; cursor: pointer; box-shadow: 0 8px 24px rgba(15,31,58,.12); }
+.site-menu-panel { position: absolute; top: 50px; right: 0; min-width: 150px; display: grid; gap: 3px; padding: 6px; border: 1px solid #dce3df; border-radius: 10px; background: #fff; box-shadow: 0 12px 30px rgba(15,31,58,.18); }
+.site-menu-panel button,.site-menu-panel a { border: 0; border-radius: 7px; padding: 10px 12px; background: transparent; color: #102e26; font: 700 13px Arial,sans-serif; text-align: left; text-decoration: none; cursor: pointer; }
+.site-menu-panel button:hover,.site-menu-panel a:hover { background: #102e26; color: #fff; }
 @media (max-width: 700px) { .lottivexa-language-switcher { top: 10px !important; right: 10px !important; } }
+@media (max-width: 700px) { .site-menu { top: 10px; right: 10px; } }
