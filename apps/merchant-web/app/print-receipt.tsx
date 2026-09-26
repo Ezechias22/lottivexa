@@ -92,7 +92,6 @@ export default function PrintReceipt({
 
       <section className="receipt-meta">
         <div><span>Dat / lè</span><strong>{dateTime(ticket.createdAt)}</strong></div>
-        {(ticket.device?.name || ticket.deviceId) && <div><span>Aparèy</span><strong>{ticket.device?.name ?? ticket.deviceId}</strong></div>}
       </section>
 
       <section className="receipt-draw">
@@ -109,7 +108,7 @@ export default function PrintReceipt({
             <div className="receipt-bet-main">
               <strong className="receipt-option">{option(line)} {shortBetType(line)}</strong>
               <strong className="receipt-selection">{selection(line)}</strong>
-              <strong className="receipt-stake">{line.isPromotional ? 'GRATIS' : money(line.stake)}</strong>
+              <strong className="receipt-stake">{line.isPromotional || line.isFree || line.promotional ? 'GRATIS' : money(line.stake)}</strong>
             </div>
             {line.isWinner === true && <p className="receipt-line-win">GAYAN: {money(line.potentialWin)}</p>}
           </div>

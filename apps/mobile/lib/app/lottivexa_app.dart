@@ -113,8 +113,8 @@ class _AppShellState extends State<AppShell> {
     final canSell = widget.runtime.session.hasPermission('tickets.create');
     final canReports = widget.runtime.session.hasPermission('reports.view');
     final paths = admin
-        ? <String>['/', '/admin', if (canSell) '/new-ticket', '/tickets', if (canReports) '/reports', '/settings']
-        : <String>['/', '/new-ticket', '/tickets', if (canReports) '/reports', '/settings'];
+        ? <String>['/', '/admin', if (canSell) '/new-ticket', '/tickets', '/results', if (canReports) '/reports', '/cash', '/settings']
+        : <String>['/', if (canSell) '/new-ticket', '/tickets', '/results', if (canReports) '/reports', '/cash', '/settings'];
     final destinations = paths.map(_destination).toList();
     final selected = paths.indexOf(widget.currentPath);
     final businessName = widget.runtime.store.setting('receipt_business_name_${widget.runtime.session.tenantId}') ?? 'Bolet';

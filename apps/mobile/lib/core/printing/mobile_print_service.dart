@@ -68,8 +68,7 @@ class MobilePrintService {
       if (name != null && name.isNotEmpty) store.setSetting(settingKey, name);
     } catch (_) { /* Offline: use the last verified business name for this tenant. */ }
     final name = store.setting(settingKey);
-    if (name == null || name.trim().isEmpty) throw StateError('RECEIPT_BUSINESS_NAME_REQUIRED');
-    return {...fullTicket, 'businessName': name};
+    return {...fullTicket, 'businessName': (name == null || name.trim().isEmpty) ? 'BOLET' : name};
   }
   Future<void> queueConfirmedTicket(Map<String, dynamic> ticket) async {
     final printerId=defaultPrinterId,ticketId=ticket['id']?.toString();

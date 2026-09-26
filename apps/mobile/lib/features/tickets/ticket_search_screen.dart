@@ -101,7 +101,6 @@ class TicketDetails extends StatelessWidget {
       Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${ticket['draw']?['game']?['name'] ?? ticket['game']?['name'] ?? ''}', style: Theme.of(context).textTheme.titleLarge),
         Text('Tiraj: ${merchantDrawLabel(Map<String, dynamic>.from(ticket['draw'] as Map? ?? const {}))}'),
-        Text('Machann: ${ticket['merchant']?['displayName'] ?? ''} · ${ticket['merchant']?['branch']?['name'] ?? ''}'),
         Text('Dat: ${ticket['createdAt'] ?? ''}'),
         const Divider(height: 28),
         for (final raw in lines) _winningLine(raw as Map<String, dynamic>),
@@ -124,6 +123,9 @@ class TicketDetails extends StatelessWidget {
     final selection = key.first.replaceAll('-', ' × ');
     final winCount = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
     final winAmount = (double.tryParse('${line['potentialWin'] ?? 0}') ?? 0) * (winCount > 0 ? winCount : 1);
+    final type = _shortBetType(line);
+    final option = key.length > 1 ? 'OP${key[1]} ' : '';
+    final free = line['isPromotional'] == true || line['isFree'] == true || line['promotional'] == true;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -136,12 +138,9 @@ class TicketDetails extends StatelessWidget {
         Icon(won ? Icons.emoji_events : Icons.circle_outlined, color: won ? Colors.green : Colors.grey),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Text('${line['betType']?['name'] ?? 'Jwèt'}', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(selection, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
-          if (key.length > 1) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text('OP ${key[1]}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff2451c7)))),
+          Text('$option$type $selection', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
           if (winCount > 1) Text('DEKABÈS × $winCount', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          if (line['isPromotional'] == true) const Text('GRATIS', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          Text('Pri: ${_money(line['stake'])} · Kòt: ${line['odds']}'),
+          Text(free ? 'GRATIS' : _money(line['stake']), style: TextStyle(fontWeight: FontWeight.w900, color: free ? Colors.green : null)),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(won ? 'GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
@@ -149,6 +148,15 @@ class TicketDetails extends StatelessWidget {
         ]),
       ]),
     );
+  }
+
+  String _shortBetType(Map<String, dynamic> line) {
+    final raw = '${line['betType'] is Map ? line['betType']['code'] ?? line['betType']['name'] : line['betType'] ?? line['betTypeCode'] ?? ''}'
+        .toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (raw.contains('LOTO3') || raw == 'LT3') return 'LT3';
+    if (raw.contains('LOTO4') || raw == 'LT4') return 'LT4';
+    if (raw.contains('LOTO5') || raw == 'LT5') return 'LT5';
+    return 'BL';
   }
 
   Widget _total(String label, String value, {bool winner = false}) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: TextStyle(fontWeight: winner ? FontWeight.w900 : FontWeight.w600)), Text(value, style: TextStyle(fontSize: winner ? 22 : 16, color: winner ? Colors.green.shade800 : null, fontWeight: FontWeight.w900))]));
