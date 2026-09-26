@@ -9,6 +9,7 @@ import {drawLabel} from './draw-label';
 import {buildAutomaticBoulPe,buildAutomaticLoto4,buildAutomaticMaryaj,collectAutomaticNumbers} from './sell-tools';
 const API=process.env.NEXT_PUBLIC_API_URL??'http://localhost:4000/api/v1';const RESET_URL=process.env.NEXT_PUBLIC_PASSWORD_RESET_URL??'https://lottivexa-public-site.onrender.com/reset-password';type Row=Record<string,any>;type Screen='dashboard'|'sell'|'check'|'history'|'reports'|'results'|'cash'|'printer'|'more';type BetLine={betTypeId:string;selection:string;stake:string;resultPosition?:number;betName?:string};
 function form(e:HTMLFormElement){return Object.fromEntries(new FormData(e))as Row}function id(){return crypto.randomUUID()}function cash(v:any){return new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v??0))}function currencyMark(_value:string){return '$'}function jwt(t:string){try{return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))}catch{return{permissions:[]}}}
+function shortBetType(line:Row){const raw=String(line.betType?.code??line.betType?.name??line.betTypeName??line.betTypeCode??'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(raw.includes('LOTO3')||raw==='LT3')return'LT3';if(raw.includes('LOTO4')||raw==='LT4')return'LT4';if(raw.includes('LOTO5')||raw==='LT5')return'LT5';return'BL'}
 export default function MerchantPos(){const{t,language}=useMerchantLanguage();const[token,setToken]=useState(''),[refresh,setRefresh]=useState(''),[force,setForce]=useState(false),[screen,setScreen]=useState<Screen>('dashboard'),[state,setState]=useState<Row>({}),[selected,setSelected]=useState<Row|null>(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[online,setOnline]=useState(true),[lines,setLines]=useState<BetLine[]>([]),[pendingBonus,setPendingBonus]=useState<Row|null>(null);const permissions=useMemo<string[]>(()=>jwt(token).permissions??[],[token]),can=(p:string)=>permissions.includes(p);
  useEffect(()=>{setToken(localStorage.getItem('merchant_access')??'');setRefresh(localStorage.getItem('merchant_refresh')??'');setForce(localStorage.getItem('merchant_force')==='true');const status=()=>setOnline(navigator.onLine);status();addEventListener('online',status);addEventListener('offline',status);return()=>{removeEventListener('online',status);removeEventListener('offline',status)}},[]);
  const logout=useCallback(()=>{for(const k of['merchant_access','merchant_refresh','merchant_force'])localStorage.removeItem(k);setToken('');setRefresh('');setState({});setSelected(null)},[]);
@@ -68,12 +69,12 @@ function Check({selected:t,lookup,pay,cancel,printTicket,shareWhatsApp,replay,ca
   </section>
   {t&&<section className="ticket">
    <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'Vérification requise':'Bezwen verifikasyon'):statusLabel(t.status,language)}</b></div>
-   <p>{t.draw?drawLabel(t.draw,language):t.game?.name}</p>
+   <p className="ticket-draw-label">{t.draw?drawLabel(t.draw,language,true):t.game?.name}</p>
    {(t.lines??[]).map((line:Row)=>{
     const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0),base=Number(line.potentialWin??0),win=base*(count>0?count:1);
     return <div className="ticket-line" key={line.id}>
-     <div className="ticket-selection"><small>{line.betType?.name??'Bolet'}{line.isPromotional?' · '+(language==='fr'?'GRATUIT':'GRATIS'):''}</small><b>{parts[0].replaceAll('-',' × ')}</b>{parts[1]&&<strong className="ticket-position-display">OP {parts[1]}</strong>}{count>1&&<small className="receipt-dekabes">DEKABÈS × {count}</small>}</div>
-     <span>{line.isPromotional?(language==='fr'?'GRATUIT':'GRATIS'):`${currencyMark(currency)}${cash(line.stake)}`} → ${cash(win)}</span>
+     <b>{parts[1]?`OP${parts[1]} `:''}{shortBetType(line)}</b><strong>{parts[0].replaceAll('-',' × ')}</strong>
+     <span>{line.isPromotional?(language==='fr'?'GRATUIT':'GRATIS'):`${currencyMark(currency)}${cash(line.stake)}`}{count>1?` · DEKABÈS × ${count}`:''}</span>
     </div>;
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span><span>{tr('potential')} <b>{currencyMark(currency)}{cash(t.potentialWin)}</b></span></div>

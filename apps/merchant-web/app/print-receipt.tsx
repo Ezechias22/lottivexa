@@ -37,6 +37,14 @@ function option(line: Ticket) {
   return value ? `OP${value}` : '';
 }
 
+function shortBetType(line: Ticket) {
+  const raw = String(line.betType?.code ?? line.betType?.name ?? line.betTypeName ?? line.betTypeCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (raw.includes('LOTO3') || raw === 'LT3') return 'LT3';
+  if (raw.includes('LOTO4') || raw === 'LT4') return 'LT4';
+  if (raw.includes('LOTO5') || raw === 'LT5') return 'LT5';
+  return 'BL';
+}
+
 export default function PrintReceipt({
   ticket,
   businessName,
@@ -51,11 +59,10 @@ export default function PrintReceipt({
   if (!ticket) return null;
 
   const branch = ticket.merchant?.branch ?? ticket.branch ?? {};
-  const merchant = ticket.merchant ?? {};
   const draw = ticket.draw ?? {};
   const lines: Ticket[] = Array.isArray(ticket.lines) ? ticket.lines : [];
   const drawName = draw.game
-    ? drawLabel(draw, 'ht')
+    ? drawLabel(draw, 'ht', true)
     : String(ticket.drawName ?? ticket.game?.name ?? ticket.gameName ?? 'Lotri');
   const number = ticket.ticketNumber ?? ticket.id ?? '—';
   const qrValue = String(ticket.qrCode ?? ticket.barcode ?? number ?? '').trim();
@@ -73,9 +80,9 @@ export default function PrintReceipt({
       <header className="receipt-brand">
         <p className="receipt-eyebrow">RESI BOLET</p>
         <h1>{businessName || ticket.businessName || 'Biwo Bolet'}</h1>
-        {(branch.name || branchName) && <p className="receipt-strong">Biwo: {branch.name ?? branchName}</p>}
+        {(branch.name || branchName) && <p className="receipt-strong">{branch.name ?? branchName}</p>}
         {branch.address && <p>{branch.address}</p>}
-        {branch.phone && <p>Telefòn: {branch.phone}</p>}
+        {branch.phone && <p>{branch.phone}</p>}
       </header>
 
       <section className="receipt-ticket-number">
@@ -85,8 +92,6 @@ export default function PrintReceipt({
 
       <section className="receipt-meta">
         <div><span>Dat / lè</span><strong>{dateTime(ticket.createdAt)}</strong></div>
-        {merchant.displayName && <div><span>Machann</span><strong>{merchant.displayName}</strong></div>}
-        {merchant.merchantNumber && <div><span>Kòd machann</span><strong>{merchant.merchantNumber}</strong></div>}
         {(ticket.device?.name || ticket.deviceId) && <div><span>Aparèy</span><strong>{ticket.device?.name ?? ticket.deviceId}</strong></div>}
       </section>
 
@@ -102,11 +107,8 @@ export default function PrintReceipt({
         {lines.map((line, index) => (
           <div className="receipt-bet" key={line.id ?? index}>
             <div className="receipt-bet-main">
-              <strong className="receipt-option">{option(line)}</strong>
-              <span className="receipt-selection">
-                <span>{line.betType?.name ?? line.betTypeName ?? 'Bolet'}</span>
-                <strong>{selection(line)}</strong>
-              </span>
+              <strong className="receipt-option">{option(line)} {shortBetType(line)}</strong>
+              <strong className="receipt-selection">{selection(line)}</strong>
               <strong className="receipt-stake">{line.isPromotional ? 'GRATIS' : money(line.stake)}</strong>
             </div>
             {line.isWinner === true && <p className="receipt-line-win">GAYAN: {money(line.potentialWin)}</p>}

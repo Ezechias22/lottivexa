@@ -50,7 +50,9 @@ class EscPosEncoder {
       final position = _linePosition(item);
       final free = item['isPromotional'] == true || item['isFree'] == true;
       for (final value in _betLines(position, betType, selection, free ? 'GRATIS' : _money(item['stake'], ticket['currency']?.toString()), width)) line(value);
-      if (item['isWinner'] == true) pair('GAYAN', _money(item['potentialWin'], ticket['currency']?.toString()));
+      if (item['isWinner'] == true) {
+        pair('GAYAN', _money(item['potentialWin'], ticket['currency']?.toString()));
+      }
     }
 
     line(_repeat('-', width));
@@ -205,7 +207,19 @@ class EscPosEncoder {
 
   String _draw(Map<String, dynamic> ticket) {
     final draw = _map(ticket['draw']);
+    final game = _map(draw['game'])['name']?.toString() ?? ticket['gameName']?.toString() ?? '';
+    final session = draw['session']?.toString() ?? draw['sessionType']?.toString() ?? '';
+    if (game.isNotEmpty && session.isNotEmpty) return '$game ${_sessionShort(session)}';
     return ticket['drawName']?.toString() ?? draw['drawNumber']?.toString() ?? '—';
+  }
+
+  String _sessionShort(String value) {
+    final text = value.toUpperCase();
+    if (text.contains('MORNING') || text.contains('MATEN') || text.contains('MATIN')) return 'Maten';
+    if (text.contains('MIDDAY') || text.contains('MIDI')) return 'Midi';
+    if (text.contains('EVENING') || text.contains('SOIR') || text.contains('SWA')) return 'Swa';
+    if (text.contains('NIGHT') || text.contains('NUIT') || text.contains('LANNWIT')) return 'Lannuit';
+    return value;
   }
 
   List<Map<String, dynamic>> _ticketLines(Map<String, dynamic> ticket) {
@@ -245,6 +259,14 @@ class EscPosEncoder {
       return bet['name']?.toString() ?? bet['code']?.toString() ?? 'BOLET';
     }
     return value?.toString() ?? line['betTypeName']?.toString() ?? line['betTypeCode']?.toString() ?? 'BOLET';
+  }
+
+  String _shortBetType(String value) {
+    final code = value.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (code.contains('LOTO3') || code == 'LT3') return 'LT3';
+    if (code.contains('LOTO4') || code == 'LT4') return 'LT4';
+    if (code.contains('LOTO5') || code == 'LT5') return 'LT5';
+    return 'BL';
   }
 
   List<String> _drawResult(Map<String, dynamic> ticket) {
@@ -375,15 +397,11 @@ class EscPosEncoder {
   }
 
   List<String> _betLines(String option, String betType, String selection, String price, int width) {
-    final prefix = option.isEmpty ? '   ' : option.padRight(4);
-    final right = price;
-    final available = width - prefix.length - right.length - 2;
-    final label = '$betType $selection';
-    if (available >= 8) {
-      final first = label.length <= available ? label : label.substring(0, available);
-      return ['$prefix${first.padRight(available)}  $right'];
-    }
-    return [..._wrap('$prefix$label', width), _center(right, width)];
+    final prefix = option.isEmpty ? '' : '$option ';
+    final label = '$prefix${_shortBetType(betType)} $selection';
+    final gap = width - label.length - price.length;
+    if (gap >= 1) return ['$label${_repeat(' ', gap)}$price'];
+    return _wrap('$label $price', width);
   }
 
   String _fit(String value, int width) => value.length <= width ? value : value.substring(0, width);

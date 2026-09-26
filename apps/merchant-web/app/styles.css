@@ -3,7 +3,7 @@
 .print-receipt{display:none}
 .ticket{border:1px solid #cfdae6;border-top:5px solid #153153;box-shadow:0 16px 36px #16294312;background:linear-gradient(#fff,#fbfcff)}
 .ticket-head{border-bottom:1px dashed #b9c8d9;padding-bottom:15px}.ticket-head h2{font-size:23px;letter-spacing:.04em}
-.ticket-line{align-items:center;gap:14px}.ticket-line b{font-size:18px;letter-spacing:.04em}.ticket .total{border-top:1px dashed #b9c8d9;margin-top:12px}.ticket .buttons{border-top:1px solid #e3eaf2;padding-top:16px}
+.ticket-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:12px;padding:12px 0;border-bottom:1px dashed #b9c8d9}.ticket-line b{font-size:18px;letter-spacing:.04em;white-space:nowrap}.ticket-line strong{font:900 18px ui-monospace,Consolas,monospace}.ticket-line span{white-space:nowrap;font-weight:800}.ticket .total{border-top:1px dashed #b9c8d9;margin-top:12px}.ticket .buttons{border-top:1px solid #e3eaf2;padding-top:16px}
 @media print {
   /* Keep the roll width fixed. A finite page height lets Chromium paginate
      long tickets instead of falling back to A4 and shrinking the receipt. */
@@ -54,11 +54,10 @@
   .receipt-section-label { text-align: center; }
   .receipt-table-heading { display: flex; justify-content: space-between; gap: 2mm; border-bottom: 1px solid #000; padding: 1mm 0; font-size: 9pt; font-weight: 800; }
   .receipt-bet { border-bottom: 1px dashed #777; padding: 1.7mm 0; break-inside: avoid; }
-  .receipt-bet-main { display: grid; grid-template-columns: 9mm minmax(0,1fr) auto; align-items: start; gap: 1.5mm; }
-  .receipt-option { font: 800 10pt/1.15 ui-monospace, Consolas, monospace; white-space: nowrap; }
-  .receipt-selection { display: grid; gap: .5mm; min-width: 0; }
-  .receipt-selection strong { font: 800 13pt/1.15 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
-  .receipt-stake { white-space: nowrap; font-size: 11.5pt; }
+  .receipt-bet-main { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: baseline; gap: 1.5mm; }
+  .receipt-option { font: 900 11pt/1.15 ui-monospace, Consolas, monospace; white-space: nowrap; }
+  .receipt-selection { min-width: 0; font: 900 13pt/1.15 ui-monospace, Consolas, monospace; overflow-wrap:anywhere; }
+  .receipt-stake { white-space: nowrap; font: 900 12pt/1.15 ui-monospace, Consolas, monospace; }
   .receipt-line-win { margin: 1mm 0 0; font-weight: 800; }
   .receipt-totals { padding-top: 1mm; }
   .receipt-totals > div { display: flex; justify-content: space-between; gap: 2mm; padding: 1mm 0; }
