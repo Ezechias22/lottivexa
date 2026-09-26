@@ -111,7 +111,7 @@ button.danger {
   align-items: center;
   gap: 15px;
 }
-.content header > .logout-button { position: fixed; top: 12px; right: 12px; z-index: 10000; }
+.content header > .logout-button { position: fixed; top: 12px; right: 12px; z-index: 10000; white-space: nowrap; }
 .content h1 {
   margin: 0.2rem 0;
 }
@@ -314,6 +314,25 @@ th {
   border: 1px solid #dbe3df;
   border-radius: 999px;
   box-shadow: 0 8px 28px #102e2630;
+}
+
+/* The language control is a compact floating control, never a full-height panel. */
+.languageSwitcher[data-language-switcher] {
+  position: fixed !important;
+  top: 12px !important;
+  right: 112px !important;
+  bottom: auto !important;
+  display: block !important;
+  width: max-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .languageSwitcher button {
   border: 0;

@@ -77,7 +77,7 @@ button:disabled {
   padding: 0 120px 0 20px;
   gap: 12px;
 }
-.pos > header > .secondary { position: fixed; top: 12px; right: 12px; z-index: 10000; }
+.pos > header > .secondary { position: fixed; top: 12px; right: 12px; z-index: 10000; white-space: nowrap; }
 .pos > header b,
 .pos > header small {
   display: block;
@@ -1137,6 +1137,24 @@ button:disabled {
     padding: 9px 11px;
     font-size: 12px;
   }
+}
+
+.languageSwitcher[data-language-switcher] {
+  position: fixed !important;
+  top: 12px !important;
+  right: 112px !important;
+  bottom: auto !important;
+  display: block !important;
+  width: max-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .game-sale {
   display: grid;

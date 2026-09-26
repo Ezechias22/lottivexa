@@ -34,8 +34,22 @@
   top: 12px !important;
   right: 112px !important;
   z-index: 9999;
+  display: block !important;
+  width: max-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .languageToggle {
+  display: block;
+  height: auto !important;
+  min-height: 0 !important;
   border: 1px solid #d9e2ec;
   background: #fff;
   color: #102e26;
@@ -84,3 +98,8 @@
     font-size: 12px;
   }
 }
+
+/* Unique selector prevents POS/dashboard styles from changing this control. */
+.lottivexa-language-switcher { position: fixed !important; top: 12px !important; right: 112px !important; z-index: 10001; display: block !important; width: max-content !important; height: auto !important; min-height: 0 !important; padding: 0 !important; overflow: visible !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.lottivexa-language-switcher .languageToggle { display: block; height: auto !important; min-height: 0 !important; }
+@media (max-width: 700px) { .lottivexa-language-switcher { top: 8px !important; right: 104px !important; } }

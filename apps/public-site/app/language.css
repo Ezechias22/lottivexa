@@ -64,6 +64,11 @@
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(15, 31, 58, 0.12);
   backdrop-filter: blur(10px);
+  width: max-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 .languageSwitcher:before {
   content: "🌐";
@@ -85,3 +90,11 @@
     display: none;
   }
 }
+
+/* Keep the public navigation clear of the language control. */
+@media (min-width: 761px) {
+  .siteHeader { padding-right: 190px; }
+}
+
+.lottivexa-language-switcher { position: fixed !important; top: 18px !important; right: 22px !important; bottom: auto !important; z-index: 10001; display: flex !important; width: max-content !important; height: auto !important; min-height: 0 !important; padding: 4px !important; overflow: visible !important; }
+@media (max-width: 700px) { .lottivexa-language-switcher { top: 10px !important; right: 10px !important; } }
