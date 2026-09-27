@@ -1869,32 +1869,6 @@ function LotterySetup({
                   ? t("lottery.close")
                   : t("lottery.activate")}
               </button>
-              <form
-                className="inline"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const logoUrl = String(
-                    new FormData(e.currentTarget).get("logoUrl") ?? "",
-                  );
-                  void execute(
-                    () =>
-                      request(`/lottery/games/${game.id}`, {
-                        method: "PATCH",
-                        body: JSON.stringify({ logoUrl }),
-                      }),
-                    t("lottery.logoSaved"),
-                  );
-                }}
-              >
-                <input
-                  name="logoUrl"
-                  type="url"
-                  defaultValue={game.logoUrl}
-                  placeholder={t("lottery.logoPlaceholder")}
-                  required
-                />
-                <button>{t("lottery.saveLogo")}</button>
-              </form>
             </article>
           ))}
         </div>
