@@ -347,6 +347,39 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 .print-receipt {
   display: none;
 }
+.print-receipt.receipt-export {
+  box-sizing: border-box;
+  display: block;
+  width: 80mm;
+  max-width: 80mm;
+  padding: 3mm 3mm 2mm;
+  color: #172033;
+  background: #fff;
+  font: 11pt/1.22 Arial, sans-serif;
+  overflow-wrap: anywhere;
+}
+.receipt-export header { text-align: center; border-bottom: 1px dashed #8795a6; padding-bottom: 3mm; }
+.receipt-export h1 { color: #132b4b; font-size: 17pt; line-height: 1.1; margin: 0 0 1.5mm; overflow-wrap: anywhere; }
+.receipt-export header strong { font-size: 10pt; }
+.receipt-export .receipt-ticket,
+.receipt-export .receipt-draw,
+.receipt-export .receipt-meta { display: flex; justify-content: space-between; gap: 2mm; padding: 2.5mm 0; }
+.receipt-export .receipt-ticket strong,
+.receipt-export .receipt-draw strong,
+.receipt-export .receipt-meta strong { text-align: right; font-weight: 800; }
+.receipt-export .receipt-draw { border-top: 1px dashed #aab6c4; font-weight: 800; }
+.receipt-export .receipt-row,
+.receipt-export .receipt-total { display: flex; justify-content: space-between; gap: 2mm; padding: 1.8mm 0; }
+.receipt-export .receipt-heading,
+.receipt-export .receipt-total { border-top: 1px dashed #8795a6; font-weight: 800; }
+.receipt-export .receipt-bet { display: block; border-bottom: 1px dotted #cbd5e1; }
+.receipt-export .receipt-number { display: block; font: 900 14pt/1.2 ui-monospace, monospace; letter-spacing: .02em; white-space: normal; }
+.receipt-export .receipt-dekabes,
+.receipt-export .receipt-line-win { display: block; font-size: 9pt; font-weight: 800; }
+.receipt-export .receipt-total { border-top: 1px solid #18365c; margin-top: 2mm; padding-top: 2.5mm; font-size: 13pt; }
+.receipt-export .receipt-qr { display: block; width: 30mm; height: 30mm; margin: 2mm auto; }
+.receipt-export .receipt-code { text-align: center; padding-top: 2mm; }
+.receipt-export footer { text-align: center; border-top: 1px dashed #8795a6; margin-top: 1.5mm; padding-top: 1.5mm; font-size: 8pt; }
 .ticket {
   border: 1px solid #cfdae6;
   border-top: 5px solid #153153;
