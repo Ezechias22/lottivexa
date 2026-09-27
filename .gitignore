@@ -43,3 +43,5 @@ build
 **/.gradle/
 .flutter-plugins-dependencies
 **/.flutter-plugins-dependencies
+
+apps/*/out/
