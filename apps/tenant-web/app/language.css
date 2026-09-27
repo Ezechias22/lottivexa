@@ -115,3 +115,8 @@
 .web-menu-enabled .lottivexa-language-switcher .languageToggle,
 .web-menu-enabled .languageSwitcher{display:none!important}
 .web-menu-enabled .content>header,.web-menu-enabled .pos>header,.web-menu-enabled .siteHeader{position:sticky!important;top:0!important}
+.web-menu-toggle{left:auto!important;right:14px!important;top:14px!important;z-index:10030!important}
+.web-menu-panel{left:auto!important;right:0!important;box-shadow:-18px 0 45px #102e2630!important}
+.web-menu-enabled .content>header,.web-menu-enabled .pos>header,.web-menu-enabled .siteHeader{position:sticky!important;top:0!important;z-index:10020!important;background:#102e26!important;color:#fff!important;border-bottom:1px solid #214d40!important;padding-right:78px!important}
+.web-menu-enabled .content>header h1,.web-menu-enabled .content>header small,.web-menu-enabled .content>header b,.web-menu-enabled .content>header strong,.web-menu-enabled .pos>header h1,.web-menu-enabled .pos>header small,.web-menu-enabled .pos>header b,.web-menu-enabled .pos>header strong,.web-menu-enabled .siteHeader h1,.web-menu-enabled .siteHeader small,.web-menu-enabled .siteHeader b,.web-menu-enabled .siteHeader strong{color:#fff!important}
+@media(max-width:700px){.web-menu-toggle{left:auto!important;right:10px!important;top:10px!important}.web-menu-enabled .content>header,.web-menu-enabled .pos>header,.web-menu-enabled .siteHeader{padding-right:62px!important}}
