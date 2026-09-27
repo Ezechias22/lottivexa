@@ -40,7 +40,7 @@ export function buildSalesPdf(report: SalesReport, businessName: string, _curren
     ['VANT PA LOTRI', ...(report.byGame ?? []).map(row => `${row.gameCode ? `${row.gameCode}  ` : ''}${row.gameName}: ${row.count} tikè, ${dollars(row.amount)}`)],
     ['VANT PA JOU', ...(report.byDay ?? []).map(row => `${row.day}: ${row.count} tikè, ${dollars(row.amount)}`)],
     ['VANT PA BRANCH', ...(report.byBranch ?? []).map(row => `${row.branchCode ? `${row.branchCode}  ` : ''}${row.branchName}: ${row.count} tikè, ${dollars(row.amount)}`)],
-    ['PI GWO PEMAN YO', ...(report.biggestWins ?? []).map(row => `${row.ticketNumber}  ${row.gameName} / ${row.drawNumber}: ${dollars(row.amount)}  (${row.merchantName})`)],
+    ['PI GWO gen YO', ...(report.biggestWins ?? []).map(row => `${row.ticketNumber}  ${row.gameName} / ${row.drawNumber}: ${dollars(row.amount)}  (${row.merchantName})`)],
   ].filter(section => section.length > 1);
   const first = [`Period: ${report.period.from.toISOString()} - ${report.period.to.toISOString()}`, 'Currency: $', `Ticket count: ${report.tickets.count}`, `Gross sales: ${dollars(report.tickets.sales)}`, `Ticket commissions: ${dollars(report.tickets.commission)}`, `Payout count: ${report.payouts.count}`, `Payout amount: ${dollars(report.payouts.amount)}`, `Processed commission: ${dollars(report.commission)}`];
   const pageRows: string[][] = [first];

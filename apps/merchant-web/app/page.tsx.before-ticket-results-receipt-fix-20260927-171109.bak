@@ -76,7 +76,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,replay,can}:any){
     </div>;
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span></div>
-   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gen konfime'}: {currencyMark(currency)}{cash(t.winning.winningAmount)}</p>}
+   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'gen konfime'}: {currencyMark(currency)}{cash(t.winning.winningAmount)}</p>}
    <div className="buttons">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}</div>
   </section>}
  </>;

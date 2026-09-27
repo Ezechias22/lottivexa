@@ -38,7 +38,7 @@ export class ReportsService {
     const commissionWhere = { tenantId, createdAt: range, ...(merchantId ? { merchantId } : {}) };
 
     const [totals, cancelledTotals, statuses, branches, games, payouts, commissions, settings, dayRows, winnerRows] = await Promise.all([
-      prisma.ticket.aggregate({ where: saleWhere, _count: { _all: true }, _sum: { amount: true, commission: true } }),
+      prisma.ticket.aggregate({ where: saleWhere, _count: { _all: true }, _sum: { amount: true, potentialWin: true, commission: true } }),
       prisma.ticket.aggregate({ where: cancelledWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.ticket.groupBy({ by: ['status'], where, orderBy: { status: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
       prisma.ticket.groupBy({ by: ['branchId'], where: saleWhere, orderBy: { branchId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
@@ -80,6 +80,7 @@ export class ReportsService {
       tickets: {
         count: totals._count._all,
         sales: totals._sum.amount?.toString() ?? '0',
+        potentialWin: totals._sum.potentialWin?.toString() ?? '0',
         commission: totals._sum.commission?.toString() ?? '0',
       },
       payouts: { count: payouts._count._all, amount: payouts._sum.amount?.toString() ?? '0' },

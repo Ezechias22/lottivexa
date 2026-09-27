@@ -107,6 +107,7 @@ class TicketDetails extends StatelessWidget {
         for (final raw in lines) _winningLine(raw as Map<String, dynamic>),
         const Divider(height: 28),
         _total('Total jwe', _money(ticket['amount'])),
+        _total('Gayan potansyèl', _money(ticket['potentialWin'])),
         if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', _money(winning?['winningAmount'] ?? 0), winner: true),
         if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
         const Text('Tikè sa a dwe verifye nan sistèm nan anvan peman. Kenbe tikè orijinal la. Yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
@@ -122,6 +123,7 @@ class TicketDetails extends StatelessWidget {
     final key = '${line['selectionKey'] ?? ''}'.split('@');
     final selection = key.first.replaceAll('-', ' × ');
     final winCount = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
+    final winAmount = (double.tryParse('${line['potentialWin'] ?? 0}') ?? 0) * (winCount > 0 ? winCount : 1);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -143,6 +145,7 @@ class TicketDetails extends StatelessWidget {
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(won ? 'GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
+          if (won) Text('\$${winAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
         ]),
       ]),
     );

@@ -143,6 +143,7 @@ class TicketDetails extends StatelessWidget {
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(won ? 'GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
+          if (won) Text('\$${winAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
         ]),
       ]),
     );

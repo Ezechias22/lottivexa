@@ -643,7 +643,7 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     max-width: 58mm;
     min-height: 0;
     margin: 0;
-    padding: 2mm 2mm 1.5mm;
+    padding: 3mm 2.5mm 4mm;
     color: #172033;
     background: #fff;
     font:
@@ -747,8 +747,8 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   .print-receipt footer {
     text-align: center;
     border-top: 1px dashed #8795a6;
-    margin-top: 1.5mm;
-    padding-top: 1.5mm;
+    margin-top: 3mm;
+    padding-top: 2.5mm;
     font-size: 7.5pt;
   }
 }

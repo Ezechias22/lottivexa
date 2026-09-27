@@ -147,8 +147,8 @@ class _ReportsState extends State<ReportsScreen> {
             }),
           ]))),
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(AppLanguage.tr('Pi gwo gany yo'), style: Theme.of(context).textTheme.titleMedium),
-            if (wins.isEmpty) Text(AppLanguage.tr('Pa gen gany nan peryòd sa a.'))
+            Text(AppLanguage.tr('Pi gwo gen yo'), style: Theme.of(context).textTheme.titleMedium),
+            if (wins.isEmpty) Text(AppLanguage.tr('Pa gen gen nan peryòd sa a.'))
             else for (final raw in wins) Builder(builder: (_) {
               final row = Map<String, dynamic>.from(raw as Map), lines = row['lines'] as List<dynamic>? ?? [];
               final detail = lines.map((rawLine) {

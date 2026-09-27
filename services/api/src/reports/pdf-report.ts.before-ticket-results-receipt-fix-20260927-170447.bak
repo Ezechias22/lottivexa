@@ -1,7 +1,7 @@
 type Row = { status?: string; count?: number; amount?: string };
 type SalesReport = {
   period: { from: Date; to: Date };
-  tickets: { count: number; sales: string; commission: string };
+  tickets: { count: number; sales: string; potentialWin: string; commission: string };
   payouts: { count: number; amount: string };
   commission: string;
   accounting?: { cancelledCount: number; cancelledAmount: string; netSales: string; deficit: string };
@@ -23,7 +23,7 @@ function makePage(report: SalesReport, name: string, page: number, total: number
   if (page === 1) {
     out.push(text(`Peryòd: ${report.period.from.toISOString().slice(0, 10)} - ${report.period.to.toISOString().slice(0, 10)}`, 18, y, 7), text('Lajan: $', 18, y - 13, 8), text(`Jenere: ${new Date().toISOString().slice(0, 19)}Z`, 18, y - 26, 7));
     y -= 44;
-    const cards = [['Vant total', dollars(report.tickets.sales)], ['Tikè', String(report.tickets.count)], ['Komisyon', dollars(report.commission)]];
+    const cards = [['Vant total', dollars(report.tickets.sales)], ['Tikè', String(report.tickets.count)], ['gen posib', dollars(report.tickets.potentialWin)], ['Komisyon', dollars(report.commission)]];
     cards.forEach((card, i) => { const cy = y - i * 35; out.push(fill(18, cy - 25, 192, 29, i % 2 ? '0.91 0.95 1' : '0.90 0.97 0.93'), text(`${card[0]}: ${card[1]}`, 26, cy - 17, 9, true)); });
     y -= 155;
     out.push(text('REZIME FINANS', 18, y, 10, true), text(`Peman: ${report.payouts.count} | ${dollars(report.payouts.amount)}`, 18, y - 16, 8), text(`Komisyon: ${dollars(report.tickets.commission)}`, 18, y - 29, 8), text(`Anile: ${report.accounting?.cancelledCount ?? 0} | ${dollars(report.accounting?.cancelledAmount)}`, 18, y - 42, 8), text(`Net: ${dollars(report.accounting?.netSales)}`, 18, y - 55, 8), text(`Defisi: ${dollars(report.accounting?.deficit)}`, 18, y - 68, 8));
@@ -40,9 +40,9 @@ export function buildSalesPdf(report: SalesReport, businessName: string, _curren
     ['VANT PA LOTRI', ...(report.byGame ?? []).map(row => `${row.gameCode ? `${row.gameCode}  ` : ''}${row.gameName}: ${row.count} tikè, ${dollars(row.amount)}`)],
     ['VANT PA JOU', ...(report.byDay ?? []).map(row => `${row.day}: ${row.count} tikè, ${dollars(row.amount)}`)],
     ['VANT PA BRANCH', ...(report.byBranch ?? []).map(row => `${row.branchCode ? `${row.branchCode}  ` : ''}${row.branchName}: ${row.count} tikè, ${dollars(row.amount)}`)],
-    ['PI GWO PEMAN YO', ...(report.biggestWins ?? []).map(row => `${row.ticketNumber}  ${row.gameName} / ${row.drawNumber}: ${dollars(row.amount)}  (${row.merchantName})`)],
+    ['PI GWO gen YO', ...(report.biggestWins ?? []).map(row => `${row.ticketNumber}  ${row.gameName} / ${row.drawNumber}: ${dollars(row.amount)}  (${row.merchantName})`)],
   ].filter(section => section.length > 1);
-  const first = [`Period: ${report.period.from.toISOString()} - ${report.period.to.toISOString()}`, 'Currency: $', `Ticket count: ${report.tickets.count}`, `Gross sales: ${dollars(report.tickets.sales)}`, `Ticket commissions: ${dollars(report.tickets.commission)}`, `Payout count: ${report.payouts.count}`, `Payout amount: ${dollars(report.payouts.amount)}`, `Processed commission: ${dollars(report.commission)}`];
+  const first = [`Period: ${report.period.from.toISOString()} - ${report.period.to.toISOString()}`, 'Currency: $', `Ticket count: ${report.tickets.count}`, `Gross sales: ${dollars(report.tickets.sales)}`, `Potential winnings: ${dollars(report.tickets.potentialWin)}`, `Ticket commissions: ${dollars(report.tickets.commission)}`, `Payout count: ${report.payouts.count}`, `Payout amount: ${dollars(report.payouts.amount)}`, `Processed commission: ${dollars(report.commission)}`];
   const pageRows: string[][] = [first];
   for (const section of sections) { for (let i = 0; i < section.length; i += 38) pageRows.push(section.slice(i, i + 38)); }
   const pages = pageRows.map((rows, i) => makePage(report, businessName, i + 1, pageRows.length, rows));

@@ -1129,6 +1129,7 @@ function Tickets({
             ["ticketNumber", "Ticket"],
             ["status", "Status"],
             ["amount", "Amount"],
+            ["potentialWin", "Potential win"],
             ["createdAt", "Date"],
           ]}
           actions={
@@ -1675,6 +1676,10 @@ function Reports({ data: d, request, run, token }: any) {
         <article>
           <span>{t("report.commissions")}</span>
           <strong>{money(report.commission)}</strong>
+        </article>
+        <article>
+          <span>{language === "fr" ? "Gains potentiels" : "gen posib"}</span>
+          <strong>{money(report.tickets?.potentialWin)}</strong>
         </article>
       </div>
       <div className="split report-breakdowns">

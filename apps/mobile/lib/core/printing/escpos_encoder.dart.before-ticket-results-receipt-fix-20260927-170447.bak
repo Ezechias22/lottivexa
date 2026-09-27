@@ -42,9 +42,10 @@ class EscPosEncoder {
     out
       ..writeln('--------------------------------')
       ..writeln('TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}')
+      ..writeln('${tr('gen POSIB', 'GAIN POTENTIEL')}: $currency${ticket['potentialWin'] ?? ''}')
       ..writeln('${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      out.writeln('${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
+      out.writeln('${tr('gen KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
     }
     out
       ..writeln('--------------------------------')
@@ -88,10 +89,11 @@ class EscPosEncoder {
     }
     _line(out, '--------------------------------');
     _line(out, 'TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
+    _line(out, '${tr('gen POSIB', 'GAIN POTENTIEL')}: $currency${ticket['potentialWin'] ?? ''}');
     _line(out, '${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     final winning = _map(ticket['winning']);
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      _line(out, '${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
+      _line(out, '${tr('gen KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
     }
     _line(out, _date(ticket['createdAt']));
     final code = ticket['ticketNumber']?.toString();

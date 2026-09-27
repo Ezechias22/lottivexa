@@ -39,6 +39,7 @@ export default function PrintReceipt({ ticket, businessName, branchName, currenc
       {(ticket.lines ?? []).map((line: Ticket, index: number) => <div className="receipt-row receipt-bet" key={line.id ?? index}><strong className="receipt-number">{lineText(line, free)}</strong>{Number(line.winCount ?? 0) > 1 && <small className="receipt-dekabes">DEKABÈS ×{line.winCount}</small>}{line.isWinner === true && <small className="receipt-line-win">{language === 'fr' ? 'GAGNANT' : 'GENYEN'}</small>}</div>)}
     </div>
     <div className="receipt-total"><span>TOTAL</span><strong>${amount(ticket.amount)}</strong></div>
+    <div className="receipt-potential"><span>{language === 'fr' ? 'GAIN POTENTIEL' : 'gen POSIB'}</span><strong>${amount(ticket.potentialWin)}</strong></div>
     {status !== 'VALID' && <div className="receipt-winning"><span>{language === 'fr' ? 'STATUT' : 'ESTATI'}</span><strong>{status}</strong></div>}
     <div className="receipt-code"><small>{language === 'fr' ? 'VÉRIFICATION' : 'VERIFYE'}</small><img className="receipt-qr" src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(code)}`} alt="QR" /><strong>{ticket.barcode ?? ticket.ticketNumber}</strong></div>
     <footer>{language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.'}</footer>
