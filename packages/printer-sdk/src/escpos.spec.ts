@@ -49,7 +49,7 @@ describe('ESC/POS', () => {
     }));
     expect(text).toContain('DEKABÈS × 2');
     expect(text).toContain('GRATIS');
-    expect(text).toContain('GANYEN: $100.00');
+    expect(text).toContain('genEN: $100.00');
   });
 
   it('rejects missing or platform branding', () => {
