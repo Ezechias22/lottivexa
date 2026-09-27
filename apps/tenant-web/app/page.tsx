@@ -243,8 +243,10 @@ export default function TenantConsole() {
         } else logout();
       }
       const body = await response.json().catch(() => ({}));
-      if (!response.ok)
-        throw new Error(body.code ?? body.message ?? `HTTP_${response.status}`);
+      if (!response.ok) {
+        const detail = body.code ?? body.error?.code ?? body.message ?? body.error;
+        throw new Error(Array.isArray(detail) ? detail.join("; ") : String(detail ?? `HTTP_${response.status}`));
+      }
       return body;
     },
     [token, refresh, logout],
@@ -801,7 +803,7 @@ function Users({ data: d, submit, request, load, can, has }: any) {
                 <select name="roleId" required>
                   {roles.map((r: Row) => (
                     <option key={r.id} value={r.id}>
-                      {r.name}
+                      {r.name} ({r.code})
                     </option>
                   ))}
                 </select>
