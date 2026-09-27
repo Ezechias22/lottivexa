@@ -774,7 +774,7 @@ function Users({ data: d, submit, request, load, can, has }: any) {
             <form
               className="form one"
               onSubmit={(e) =>
-                submit(e, "/users", (x: Row) => ({ ...x, email: x.email || undefined, phone: x.phone || undefined, roleIds: [x.roleId] }))
+                submit(e, "/users", (x: Row) => { const { roleId, ...rest } = x; return { ...rest, email: x.email || undefined, phone: x.phone || undefined, roleIds: [roleId] }; })
               }
             >
               <label>
