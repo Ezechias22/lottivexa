@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import helmet from 'helmet';
+const express:any=require('express');
 import {randomUUID} from 'node:crypto';
 import {ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
@@ -13,8 +14,10 @@ import {securityMiddleware} from './common/middleware/security.middleware';
 async function bootstrap(){
   for(const key of ['DATABASE_URL','JWT_ACCESS_SECRET'])if(!process.env[key])throw new Error(`Missing required environment variable: ${key}`);
   if(process.env.JWT_ACCESS_SECRET!.length<32)throw new Error('JWT_ACCESS_SECRET must contain at least 32 characters');
-  const app=await NestFactory.create(AppModule,{bufferLogs:true,rawBody:true});
+  const app=await NestFactory.create(AppModule,{bufferLogs:true,rawBody:true,bodyParser:false});
   app.enableShutdownHooks();
+  app.use(express.json({limit:'4mb'}));
+  app.use(express.urlencoded({extended:true,limit:'4mb'}));
   app.use(helmet({contentSecurityPolicy:false,crossOriginResourcePolicy:{policy:'same-site'},referrerPolicy:{policy:'no-referrer'},strictTransportSecurity:{maxAge:31536000,includeSubDomains:true,preload:true}}));
   app.use(securityMiddleware);
   app.use((req:any,res:any,next:any)=>{req.id=req.headers['x-request-id']||randomUUID();res.setHeader('x-request-id',req.id);next()});
