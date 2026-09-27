@@ -11,7 +11,7 @@ export default function WebMenu(){
   useEffect(()=>{
     document.body.classList.add('web-menu-enabled');
     const collect=()=>{
-      const nodes=[...document.querySelectorAll<HTMLElement>('main.shell > aside:not(.web-menu-panel) button, .pos > nav button, .pos > header button.secondary')];
+const nodes=[...document.querySelectorAll<HTMLElement>('.shell > aside:not(.web-menu-panel) button, .pos > nav button, .pos > header button.secondary, [data-language-switcher].languageSwitcher button')];
       const next:Item[]=[];
       const seen=new Set<string>();
       targets.current.clear();
@@ -39,4 +39,3 @@ export default function WebMenu(){
 
   return <><button type="button" className="web-menu-toggle" aria-label="Menu" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>☰</button>{open&&<><button type="button" className="web-menu-backdrop" aria-label="Fèmen meni" onClick={()=>setOpen(false)}/><aside className="web-menu-panel" aria-label="Navigasyon"><div className="web-menu-title">LOTTIVEXA</div><div className="web-menu-scroll">{items.map(item=><button type="button" key={item.id} onClick={()=>activate(item)}>{item.label}</button>)}</div></aside></>}</>;
 }
-
