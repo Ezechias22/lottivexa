@@ -574,9 +574,8 @@ export default function TenantConsole() {
 function Results({ data }: { data: any[] }) {
   const rows = Array.isArray(data[0]) ? data[0] : [];
   const { language } = useI18n();
-  return <section className="panel"><div className="title"><div><h2>{language === "fr" ? "Résultats des tirages" : "Rezilta tiraj yo"}</h2><small>{language === "fr" ? "Résultats publiés" : "Rezilta ki pibliye"}</small></div></div><div className="stats">{rows.map((row: Row) => <article key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name ?? ""} style={{height:48,maxWidth:120,objectFit:"contain"}}/>}<span>{describeDraw(row,language)}</span><strong>{row.result?.winningKeys?.join(" · ") ?? "—"}</strong><small>{row.drawNumber ?? ""}</small></article>)}</div>{!rows.length&&<p className="empty">{language === "fr" ? "Aucun résultat publié." : "Pa gen rezilta pibliye."}</p>}</section>;
-}
-function Dashboard({ data: d }: { data: any[] }) {
+  return <section className="panel results-panel"><div className="title"><div><h2>{language === "fr" ? "Résultats des tirages" : "Rezilta tiraj yo"}</h2><small>{language === "fr" ? "Résultats publiés" : "Rezilta ki pibliye"}</small></div></div><div className="results-grid">{rows.map((row: Row) => <article className="result-card" key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name ?? ""}/>}<strong className="result-game">{row.game?.name ?? "Lotri"}</strong><span className="result-date">{describeDraw(row,language)}</span><b className="result-numbers">{row.result?.winningKeys?.join(" · ") ?? "—"}</b><small className="result-draw">{row.drawNumber ?? ""}</small></article>)}</div>{!rows.length&&<p className="empty">{language === "fr" ? "Aucun résultat publié." : "Pa gen rezilta pibliye."}</p>}</section>;
+}function Dashboard({ data: d }: { data: any[] }) {
   const { t, language } = useI18n();
   const [r = {}, tickets = [], branches = [], merchants = [], notes = []] = d;
   const today = new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "fr-HT", {
@@ -2054,3 +2053,4 @@ function LotterySetup({
     </>
   );
 }
+
