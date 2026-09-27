@@ -99,7 +99,13 @@ function shiftDate(date: string, days: number) {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
-function val(form: HTMLFormElement) {
+function formatCell(key: string, raw: any, language: 'ht' | 'fr') {
+  if (raw == null || raw === '') return '—';
+  if (!/(date|at|timestamp|created|updated|published|opened|closed)/i.test(key)) return String(raw);
+  const date = new Date(String(raw));
+  if (Number.isNaN(date.getTime())) return String(raw);
+  return new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'fr-HT', { timeZone: 'America/Port-au-Prince', dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}function val(form: HTMLFormElement) {
   return Object.fromEntries(new FormData(form)) as Row;
 }
 function uuid() {
@@ -141,7 +147,7 @@ function Table({
                           raw != null &&
                           Number.isFinite(Number(raw))
                         ? money(raw)
-                        : String(raw ?? "—");
+                        : formatCell(c[0], raw, language);
                   return <td key={c[0]}>{value}</td>;
                 })}
                 {actions && <td className="actions">{actions(r)}</td>}
@@ -2053,4 +2059,6 @@ function LotterySetup({
     </>
   );
 }
+
+
 
