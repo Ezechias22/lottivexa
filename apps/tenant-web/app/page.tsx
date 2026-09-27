@@ -21,6 +21,7 @@ type Tab =
   | "merchants"
   | "users"
   | "lottery"
+  | "results"
   | "tickets"
   | "finance"
   | "devices"
@@ -33,6 +34,7 @@ const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
     { id: "dashboard", label: "Dashboard" },
     { id: "tickets", label: "Tickets", permission: "tickets.view" },
     { id: "lottery", label: "Games & Draws", permission: "tickets.view" },
+    { id: "results", label: "Results", permission: "tickets.view" },
     { id: "merchants", label: "Merchants", permission: "merchants.view" },
     { id: "branches", label: "Branches", permission: "branches.view" },
     { id: "users", label: "Users & Roles", permission: "users.view" },
@@ -281,6 +283,7 @@ export default function TenantConsole() {
         merchants: ["/merchants", "/branches"],
         users: ["/users", "/roles", "/permissions"],
         lottery: ["/lottery/games", "/lottery/draws"],
+        results: ["/results"],
         tickets: ["/tickets", "/lottery/draws"],
         finance: [
           "/finance/accounts",
@@ -534,6 +537,7 @@ export default function TenantConsole() {
             can={can}
           />
         )}{" "}
+        {tab === "results" && <Results data={current} />} {" "}
         {tab === "tickets" && (
           <Tickets data={current} can={can} onCancel={cancelTicket} />
         )}{" "}
@@ -566,6 +570,10 @@ export default function TenantConsole() {
       </main>
     </div>
   );
+}
+function Results({ data }: { data: any[] }) {
+  const rows = Array.isArray(data[0]) ? data[0] : [];
+  return <section className="panel"><h2>Résultats des tirages</h2><div className="table-wrap"><table><thead><tr><th>Loterie</th><th>Tirage</th><th>Date</th><th>Numéros gagnants</th></tr></thead><tbody>{rows.length ? rows.map((row: Row) => <tr key={row.id}><td>{row.game?.name ?? "—"}</td><td>{row.drawNumber ?? "—"}</td><td>{row.drawDate ?? "—"}</td><td>{row.result?.winningKeys?.join(", ") ?? "—"}</td></tr>) : <tr><td colSpan={4} className="empty">Aucun résultat publié.</td></tr>}</tbody></table></div></section>;
 }
 function Dashboard({ data: d }: { data: any[] }) {
   const { t, language } = useI18n();

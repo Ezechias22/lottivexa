@@ -17,6 +17,12 @@ export class ResultsService{
     return{tenant:tenant.branding,results:draws.map(draw=>({id:draw.id,drawNumber:draw.drawNumber,drawDate:draw.drawDate,game:draw.game,result:draw.result,publishedAt:draw.publishedAt}))};
   }
 
+  async latestForTenant(u:Principal){
+    const tenantId=this.tenant(u);
+    const draws=await prisma.draw.findMany({where:{tenantId,status:'RESULT_PUBLISHED'},include:{game:{select:{name:true,logoUrl:true,catalogCode:true}}},orderBy:{publishedAt:'desc'},take:50});
+    return draws.map(draw=>({id:draw.id,drawNumber:draw.drawNumber,drawDate:draw.drawDate,game:draw.game,result:draw.result,publishedAt:draw.publishedAt}));
+  }
+
   async enqueueLotteryResultsFeed(event:LotteryResultsFeedEvent){
     if(event.event==='test')return{accepted:true,test:true};
     const dedupeKey=feedEventDedupeKey(event);

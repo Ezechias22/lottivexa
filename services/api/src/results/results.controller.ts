@@ -12,6 +12,9 @@ class ResultDto{@IsArray()@IsString({each:true})winningKeys!:string[]}
 export class ResultsController{
   constructor(private service:ResultsService){}
 
+  @Get()@RequirePermissions('tickets.view')
+  latestForTenant(@CurrentUser()u:Principal){return this.service.latestForTenant(u)}
+
   @Get('provider/status')@RequirePermissions('settings.view')
   providerStatus(){return this.service.providerStatus()}
 
