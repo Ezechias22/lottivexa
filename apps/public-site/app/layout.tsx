@@ -3,11 +3,11 @@ import type {ReactNode} from 'react';
 import './globals.css';
 import './language.css';
 import {LanguageSwitcher} from './language-switcher';
-import MenuButton from './menu-button';
+import WebMenu from './web-menu';
 
 export const metadata:Metadata={
   title:'LOTTIVEXA — Platfòm operasyon lotri',
   description:'Jere lavant, tikè, rezilta, finans, branch ak machann sou yon sèl platfòm sekirize.',
   icons:{icon:'/icon.svg'},
 };
-export default function Layout({children}:{children:ReactNode}){return <html lang="ht"><body><LanguageSwitcher/><MenuButton/>{children}</body></html>}
+export default function Layout({children}:{children:ReactNode}){return <html lang="ht"><body><LanguageSwitcher/><WebMenu/>{children}</body></html>}
