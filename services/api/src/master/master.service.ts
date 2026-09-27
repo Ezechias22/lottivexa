@@ -177,6 +177,22 @@ export class MasterService {
       include: { tenant: { select: { slug: true } } },
     });
   }
+  lotteryCatalog() {
+    return prisma.game.findMany({
+      where: { catalogCode: { not: null }, archivedAt: null },
+      select: { catalogCode: true, code: true, name: true, logoUrl: true, status: true, sourceUrl: true },
+      orderBy: [{ catalogCode: "asc" }, { name: "asc" }],
+    }).then(rows => {
+      const byCode = new Map<string, typeof rows[number]>();
+      for (const row of rows) if (row.catalogCode && !byCode.has(row.catalogCode)) byCode.set(row.catalogCode, row);
+      return [...byCode.values()];
+    });
+  }
+  async updateLotteryLogo(catalogCode: string, logoUrl: string) {
+    const changed = await prisma.game.updateMany({ where: { catalogCode, archivedAt: null }, data: { logoUrl: logoUrl || null } });
+    if (!changed.count) throw new Error("LOTTERY_CATALOG_NOT_FOUND");
+    return { catalogCode, logoUrl: logoUrl || null, updatedGames: changed.count };
+  }
   async failures() {
     const [sync, printing, notifications] = await Promise.all([
       prisma.syncJob.findMany({
