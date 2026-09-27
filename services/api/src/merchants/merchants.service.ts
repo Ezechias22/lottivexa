@@ -55,7 +55,7 @@ export class MerchantsService {
       await Promise.all([
         prisma.tenantBranding.findUnique({
           where: { tenantId: merchant.tenantId },
-          select: { businessName: true },
+          select: { businessName: true, logoUrl: true },
         }),
         prisma.ticket.aggregate({
           where: {
@@ -98,6 +98,7 @@ export class MerchantsService {
     return {
       businessDate,
       businessName: branding?.businessName ?? "Bolet",
+      logoUrl: branding?.logoUrl ?? null,
       currency: settings?.currency ?? "USD",
       merchant: {
         id: merchant.id,
