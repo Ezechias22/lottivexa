@@ -620,7 +620,7 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 
 @media print {
   @page {
-    size: 58mm auto;
+    size: 80mm auto;
     margin: 0;
   }
   body {
@@ -639,8 +639,8 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     position: absolute;
     left: 0;
     top: 0;
-    width: 58mm;
-    max-width: 58mm;
+    width: 80mm;
+    max-width: 80mm;
     min-height: 0;
     margin: 0;
     padding: 2mm 2mm 1.5mm;
