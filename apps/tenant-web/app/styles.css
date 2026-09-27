@@ -541,3 +541,4 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
     grid-template-columns: 1fr 1fr;
   }
 }
+.tenant-header-brand{display:flex;align-items:center;gap:12px;min-width:0}.tenant-header-brand img{width:42px;height:42px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid rgba(148,163,184,.35);padding:3px}.tenant-header-brand>div{min-width:0}

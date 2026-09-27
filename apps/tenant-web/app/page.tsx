@@ -310,13 +310,14 @@ export default function TenantConsole() {
   useEffect(() => {
     if (token && !force)
       void request("/settings")
-        .then((s) =>
+        .then((s) => {
+          setData((old) => ({ ...old, branding: [s, ...(old.branding ?? []).slice(1)] }));
           setFeatures(
             (s.subscription?.plan?.features ?? [])
               .filter((x: Row) => x.enabled)
               .map((x: Row) => x.key),
-          ),
-        )
+          );
+        })
         .catch(() => setFeatures([]));
   }, [token, force, request]);
   useEffect(() => {
@@ -459,6 +460,7 @@ export default function TenantConsole() {
       </main>
     );
   const current = data[tab] ?? [];
+  const tenantBranding = data.branding?.[0]?.branding ?? {};
   return (
     <div className="shell">
       <aside>
@@ -479,9 +481,14 @@ export default function TenantConsole() {
       </aside>
       <main className="content">
         <header>
-          <div>
+          <div className="tenant-header-brand">
+            {tenantBranding.logoUrl && (
+              <img src={tenantBranding.logoUrl} alt="Logo biznis" />
+            )}
+            <div>
             <small>TENANT CONSOLE</small>
             <h1>{NAV.find((n) => n.id === tab)?.label}</h1>
+            </div>
           </div>
           <button
             className="secondary"
@@ -1723,7 +1730,7 @@ function Reports({ data: d, request, run, token }: any) {
     </>
   );
 }
-function Branding({data:d,submit,request,load,has}:any){const[s={},domains=[]]=d;const[logo,setLogo]=useState(String(s.branding?.logoUrl??''));function pick(e:any){const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/'))return;if(file.size>2097152){alert('Logo a dwe pi piti pase 2 MB.');return}const reader=new FileReader();reader.onload=()=>setLogo(String(reader.result));reader.readAsDataURL(file)}return <><div className="split"><section className="panel"><h2>Business settings</h2><form className="form one" onSubmit={e=>submit(e,'/settings',(x:Row)=>({...x,currency:'USD'}),'PUT','Settings sove.')}><label>Currency<select name="currency" defaultValue="USD"><option value="USD">$</option></select></label><label>Timezone<input name="timezone" defaultValue={s.settings?.timezone??'America/Port-au-Prince'} required/></label><label>Locale<input name="locale" defaultValue={s.settings?.locale??'ht-HT'} required/></label><label>Date format<input name="dateFormat" defaultValue={s.settings?.dateFormat??'DD/MM/YYYY'} required/></label><button>Save settings</button></form></section><section className="panel"><h2>Branding</h2><form className="form one" onSubmit={e=>submit(e,'/settings/branding',(x:Row)=>({...x,logoUrl:logo||undefined}),'PUT','Branding sove.')}><label>Business name<input name="businessName" defaultValue={s.branding?.businessName} required/></label><label>Chwazi logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={pick}/></label>{logo&&<img className="tenant-logo-preview" src={logo} alt="Logo biznis"/>}<input name="primaryColor" type="hidden" value={s.branding?.primaryColor??'#172554'} readOnly/><input name="secondaryColor" type="hidden" value={s.branding?.secondaryColor??'#f59e0b'} readOnly/><button disabled={!has('custom_branding')}>Save branding</button></form></section></div><section className="panel"><h2>Custom domains</h2><form className="inline" onSubmit={e=>submit(e,'/domains')}><input name="domain" placeholder="portal.customer.com" required/><button disabled={!has('custom_domain')}>Add domain</button></form>{domains.map((x:Row)=><article className="domain" key={x.id}><div><b>{x.domain}</b><small>{x.verificationStatus} · SSL {x.sslStatus}{x.isPrimary?' · PRIMARY':''}</small><code>TXT _lottivexa.{x.domain} = {x.verificationToken}</code></div><div className="actions"><button onClick={async()=>{await request(`/domains/${x.id}/verify`,{method:'POST'});await load('branding')}}>Verify</button></div></article>)}</section></>}function Audit({ data: d }: { data: any[] }) {
+function Branding({data:d,submit,request,load,has}:any){const[s={},domains=[]]=d;const[logo,setLogo]=useState(String(s.branding?.logoUrl??''));useEffect(()=>setLogo(String(s.branding?.logoUrl??'')),[s.branding?.logoUrl]);function pick(e:any){const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/'))return;if(file.size>2097152){alert('Logo a dwe pi piti pase 2 MB.');return}const reader=new FileReader();reader.onload=()=>setLogo(String(reader.result));reader.readAsDataURL(file)}return <><div className="split"><section className="panel"><h2>Business settings</h2><form className="form one" onSubmit={e=>submit(e,'/settings',(x:Row)=>({...x,currency:'USD'}),'PUT','Settings sove.')}><label>Currency<select name="currency" defaultValue="USD"><option value="USD">$</option></select></label><label>Timezone<input name="timezone" defaultValue={s.settings?.timezone??'America/Port-au-Prince'} required/></label><label>Locale<input name="locale" defaultValue={s.settings?.locale??'ht-HT'} required/></label><label>Date format<input name="dateFormat" defaultValue={s.settings?.dateFormat??'DD/MM/YYYY'} required/></label><button>Save settings</button></form></section><section className="panel"><h2>Branding</h2><form className="form one" onSubmit={e=>submit(e,'/settings/branding',(x:Row)=>({...x,logoUrl:logo||undefined}),'PUT','Branding sove.')}><label>Business name<input name="businessName" defaultValue={s.branding?.businessName} required/></label><label>Chwazi logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={pick}/></label>{logo&&<img className="tenant-logo-preview" src={logo} alt="Logo biznis"/>}<input name="primaryColor" type="hidden" value={s.branding?.primaryColor??'#172554'} readOnly/><input name="secondaryColor" type="hidden" value={s.branding?.secondaryColor??'#f59e0b'} readOnly/><button disabled={!has('custom_branding')}>Save branding</button></form></section></div><section className="panel"><h2>Custom domains</h2><form className="inline" onSubmit={e=>submit(e,'/domains')}><input name="domain" placeholder="portal.customer.com" required/><button disabled={!has('custom_domain')}>Add domain</button></form>{domains.map((x:Row)=><article className="domain" key={x.id}><div><b>{x.domain}</b><small>{x.verificationStatus} · SSL {x.sslStatus}{x.isPrimary?' · PRIMARY':''}</small><code>TXT _lottivexa.{x.domain} = {x.verificationToken}</code></div><div className="actions"><button onClick={async()=>{await request(`/domains/${x.id}/verify`,{method:'POST'});await load('branding')}}>Verify</button></div></article>)}</section></>}function Audit({ data: d }: { data: any[] }) {
   const result = d[0] ?? {};
   return (
     <section className="panel">
