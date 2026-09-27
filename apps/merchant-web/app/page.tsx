@@ -78,7 +78,7 @@ const share=async()=>{if(!t)return;const body=(t.lines??[]).map((line:Row)=>`${l
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span></div>
    {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gen konfime'}: {currencyMark(currency)}{cash(t.winning.winningAmount)}</p>}
-   <div className="buttons">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button>{can('tickets.reprint')&&<button className="secondary" onClick={()=>void share()}>Pataje</button><button className="secondary" onClick={printTicket}>{tr('print')}</button>}</div>
+   <div className="buttons">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={()=>void share()}>Pataje</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}</div>
   </section>}
  </>;
 }
@@ -114,4 +114,5 @@ function HaitianPos({state:s,lines,setLines,gameForDraw,submit,online,openBonus}
  </section>
 }
 function LiveResults({request}:{request:(path:string)=>Promise<any>}){const{t,language}=useMerchantLanguage();const[rows,setRows]=useState<Row[]>([]),[error,setError]=useState('');useEffect(()=>{let active=true;const load=async()=>{try{const draws=await request('/lottery/draws');if(active){setRows(draws.filter((x:Row)=>x.status==='RESULT_PUBLISHED'));setError('')}}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}};void load();const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[request]);return <section className="panel"><div className="title"><div><h2>{t('live')}</h2><small>{t('updates')}</small></div></div>{error&&<p className="message">{error}</p>}<div className="stats">{rows.map(row=><article key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name} style={{height:48,maxWidth:120,objectFit:'contain'}}/>}<span>{drawLabel(row,language)}</span><strong>{row.result?.winningKeys?.join(' · ')??'—'}</strong></article>)}</div>{!rows.length&&!error&&<p>{t('noResults')}</p>}</section>}
+
 
