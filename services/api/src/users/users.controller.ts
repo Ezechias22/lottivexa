@@ -1,5 +1,5 @@
 import{Body,Controller,Get,Param,Patch,Post}from'@nestjs/common';import{ArrayMinSize,IsArray,IsEmail,IsOptional,IsString,MinLength,ValidateIf}from'class-validator';import{CurrentUser}from'../common/decorators/current-user.decorator';import{RequirePermissions}from'../common/decorators/access.decorators';import type{Principal}from'../common/guards/jwt-auth.guard';import{UsersService}from'./users.service';
-class CreateUserDto{@IsString()username!:string;@IsOptional()@IsEmail()email?:string;@IsOptional()@IsString()phone?:string;@MinLength(12)temporaryPassword!:string;@IsArray()@ArrayMinSize(1)@IsString({each:true})roleIds!:string[]}
+class CreateUserDto{@IsString()username!:string;@IsOptional()@ValidateIf((_,value)=>value!=='')@IsEmail()email?:string;@IsOptional()@IsString()phone?:string;@MinLength(12)temporaryPassword!:string;@IsArray()@ArrayMinSize(1)@IsString({each:true})roleIds!:string[]}
 class UpdateUserDto{@IsOptional()@IsString()username?:string;@IsOptional()@ValidateIf((_,value)=>value!=='')@IsEmail()email?:string;@IsOptional()@IsString()phone?:string;@IsOptional()@IsArray()@ArrayMinSize(1)@IsString({each:true})roleIds?:string[]}
 class PasswordDto{@MinLength(12)currentPassword!:string;@MinLength(12)newPassword!:string}
 class TemporaryPasswordDto{@MinLength(12)temporaryPassword!:string}
