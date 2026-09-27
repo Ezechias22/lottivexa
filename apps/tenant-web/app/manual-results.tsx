@@ -6,7 +6,7 @@ import {describeDraw} from './draw-label';
 
 type Draw = {id:string;drawNumber:string;status:string;drawDate?:string;resultAt?:string;opensAt?:string;closesAt?:string;session?:string;sessionType?:string;game?:{name?:string};result?:{winningKeys?:string[]}};
 
-export default function ManualResults({draws,request,reload}:{draws:Draw[];request:(path:string,init?:RequestInit)=>Promise<unknown>;reload:()=>Promise<void>}) {
+export default function ManualResults({draws,request,reload,canPublish=true}:{draws:Draw[];request:(path:string,init?:RequestInit)=>Promise<unknown>;reload:()=>Promise<void>;canPublish?:boolean}) {
   const {t,language} = useI18n();
   const eligible = draws.filter(draw => draw.status === 'CLOSED' || draw.status === 'RESULT_PENDING').sort((a,b)=>String(b.resultAt??'').localeCompare(String(a.resultAt??'')));
   const published = draws.filter(draw => draw.status === 'RESULT_PUBLISHED');
@@ -34,13 +34,13 @@ export default function ManualResults({draws,request,reload}:{draws:Draw[];reque
   return <section className="panel" id="manual-results">
     <h2>{t('result.title')}</h2>
     <p className="muted">{t('result.offline')}</p>
-    <form className="form one" onSubmit={publish}>
+    {canPublish&&<form className="form one" onSubmit={publish}>
       <label>{t('result.draw')}<select value={drawId} onChange={event=>setDrawId(event.target.value)} required><option value="">{t('result.choose')}</option>{eligible.map(draw=><option key={draw.id} value={draw.id}>{describeDraw(draw,language)}</option>)}</select></label>
       {chosen&&<p className="muted" role="status">{describeDraw(chosen,language)}</p>}
       <label>{t('result.numbers')}<input value={numbers} onChange={event=>setNumbers(event.target.value)} inputMode="numeric" placeholder="12, 34, 56" required /></label>
       <button type="submit" disabled={busy || !chosen}>{busy?t('result.wait'):t('result.publish')}</button>
-    </form>
-    {!eligible.length&&<p className="muted">{t('result.none')}</p>}
+    </form>}
+    {canPublish&& !eligible.length&&<p className="muted">{t('result.none')}</p>}
     {notice&&<p role="status" className="message">{notice}</p>}
     <h3>{t('result.history')}</h3>
     <div className="table-wrap"><table><thead><tr><th>{t('result.lottery')}</th><th>{t('result.draw')}</th><th>{t('result.numbers')}</th></tr></thead><tbody>{published.map(draw=><tr key={draw.id}><td>{draw.game?.name??'—'}</td><td>{describeDraw(draw,language)}</td><td>{draw.result?.winningKeys?.join(', ')??'—'}</td></tr>)}</tbody></table></div>
