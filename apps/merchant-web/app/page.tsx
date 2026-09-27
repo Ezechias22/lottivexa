@@ -57,8 +57,9 @@ function Dashboard({state:s,reload,onNavigate,selectTicket}:any){
 }
 function More({onNavigate}:{onNavigate:(screen:Screen)=>void}){const{t}=useMerchantLanguage();return <section className="panel more-menu"><span className="eyebrow">{t('more')}</span><h2>{t('moreTools')}</h2><div>{([['check',t('check')],['results',t('results')],['cash',t('cash')],['printer',t('printer')]] as [Screen,string][]).map(([screen,label])=><button key={screen} onClick={()=>onNavigate(screen)}>{label}<span>›</span></button>)}</div></section>}
 function Check({selected:t,lookup,pay,cancel,printTicket,replay,can}:any){
-const share=async()=>{if(!t)return;const body=(t.lines??[]).map((line:Row)=>`${line.betType?.name??'Bolet'} ${String(line.selectionKey??'').replaceAll('-', ' × ')} — $${cash(line.stake)}`).join('\n');const text=`${t.businessName??'Bolet'}\nTIKÈ ${t.ticketNumber}\n${body}\nTOTAL: $${cash(t.amount)}`;try{if(navigator.share)await navigator.share({title:`Tikè ${t.ticketNumber}`,text});else{await navigator.clipboard.writeText(text);alert('Resi a kopye pou pataje.')}}catch(error){if((error as Error).name!=='AbortError')alert('Pataj resi a echwe.')}};
  const{t:tr,language}=useMerchantLanguage();
+ const[shareOpen,setShareOpen]=useState(false);
+ const exportReceipt=async(kind:'pdf'|'image')=>{const element=document.querySelector('.ticket') as HTMLElement|null;if(!element)return;try{const html2canvas=(await import('html2canvas')).default;const canvas=await html2canvas(element,{backgroundColor:'#fff',scale:2,useCORS:true});const filename=`lottivexa-ticket-${t.ticketNumber}`;if(kind==='image'){const link=document.createElement('a');link.download=`${filename}.png`;link.href=canvas.toDataURL('image/png');link.click();}else{const{jsPDF}=await import('jspdf');const width=80;const height=width*canvas.height/canvas.width;const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:[width,height]});pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,width,height);pdf.save(`${filename}.pdf`);}setShareOpen(false);}catch(error){alert(`Telechajman resi a echwe: ${error instanceof Error?error.message:'erè enkoni'}`)}};
  const verified=t?.status==='WINNER'&&Number(t?.winning?.winningAmount)>0&&(t?.lines??[]).some((line:Row)=>line.isWinner===true);
  const currency=t?.currency??'USD';
  return <>
@@ -78,7 +79,8 @@ const share=async()=>{if(!t)return;const body=(t.lines??[]).map((line:Row)=>`${l
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span></div>
    {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gen konfime'}: {currencyMark(currency)}{cash(t.winning.winningAmount)}</p>}
-   <div className="buttons">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={()=>void share()}>Pataje</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}</div>
+   <div className="buttons">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={()=>setShareOpen(value=>!value)}>Pataje</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}</div>
+   {shareOpen&&<div className="receipt-share-menu"><strong>Chwazi fòma resi a</strong><button className="secondary" onClick={()=>void exportReceipt('pdf')}>Telechaje PDF</button><button className="secondary" onClick={()=>void exportReceipt('image')}>Telechaje foto</button></div>}
   </section>}
  </>;
 }
@@ -114,5 +116,3 @@ function HaitianPos({state:s,lines,setLines,gameForDraw,submit,online,openBonus}
  </section>
 }
 function LiveResults({request}:{request:(path:string)=>Promise<any>}){const{t,language}=useMerchantLanguage();const[rows,setRows]=useState<Row[]>([]),[error,setError]=useState('');useEffect(()=>{let active=true;const load=async()=>{try{const draws=await request('/lottery/draws');if(active){setRows(draws.filter((x:Row)=>x.status==='RESULT_PUBLISHED'));setError('')}}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}};void load();const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[request]);return <section className="panel"><div className="title"><div><h2>{t('live')}</h2><small>{t('updates')}</small></div></div>{error&&<p className="message">{error}</p>}<div className="stats">{rows.map(row=><article key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name} style={{height:48,maxWidth:120,objectFit:'contain'}}/>}<span>{drawLabel(row,language)}</span><strong>{row.result?.winningKeys?.join(' · ')??'—'}</strong></article>)}</div>{!rows.length&&!error&&<p>{t('noResults')}</p>}</section>}
-
-

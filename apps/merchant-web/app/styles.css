@@ -377,6 +377,22 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   border-top: 1px solid #e3eaf2;
   padding-top: 16px;
 }
+.receipt-share-menu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d7e1ec;
+  border-radius: 12px;
+  background: #f6f9fc;
+}
+.receipt-share-menu strong {
+  width: 100%;
+  color: #18365c;
+  font-size: 13px;
+}
 
 .sell-heading {
   display: flex;
