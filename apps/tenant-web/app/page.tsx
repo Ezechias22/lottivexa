@@ -573,7 +573,8 @@ export default function TenantConsole() {
 }
 function Results({ data }: { data: any[] }) {
   const rows = Array.isArray(data[0]) ? data[0] : [];
-  return <section className="panel"><h2>Résultats des tirages</h2><div className="table-wrap"><table><thead><tr><th>Loterie</th><th>Tirage</th><th>Date</th><th>Numéros gagnants</th></tr></thead><tbody>{rows.length ? rows.map((row: Row) => <tr key={row.id}><td>{row.game?.name ?? "—"}</td><td>{row.drawNumber ?? "—"}</td><td>{row.drawDate ?? "—"}</td><td>{row.result?.winningKeys?.join(", ") ?? "—"}</td></tr>) : <tr><td colSpan={4} className="empty">Aucun résultat publié.</td></tr>}</tbody></table></div></section>;
+  const { language } = useI18n();
+  return <section className="panel"><div className="title"><div><h2>{language === "fr" ? "Résultats des tirages" : "Rezilta tiraj yo"}</h2><small>{language === "fr" ? "Résultats publiés" : "Rezilta ki pibliye"}</small></div></div><div className="stats">{rows.map((row: Row) => <article key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name ?? ""} style={{height:48,maxWidth:120,objectFit:"contain"}}/>}<span>{describeDraw(row,language)}</span><strong>{row.result?.winningKeys?.join(" · ") ?? "—"}</strong><small>{row.drawNumber ?? ""}</small></article>)}</div>{!rows.length&&<p className="empty">{language === "fr" ? "Aucun résultat publié." : "Pa gen rezilta pibliye."}</p>}</section>;
 }
 function Dashboard({ data: d }: { data: any[] }) {
   const { t, language } = useI18n();
