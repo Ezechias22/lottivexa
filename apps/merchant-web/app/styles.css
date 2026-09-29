@@ -483,6 +483,44 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   border-radius: 9px;
   background: #fff;
 }
+.multi-draw-picker {
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0;
+}
+.multi-draw-picker summary {
+  cursor: pointer;
+  padding: 12px;
+  color: #102b50;
+  font-size: 13px;
+  font-weight: 800;
+  list-style-position: inside;
+}
+.multi-draw-picker[open] summary {
+  border-bottom: 1px solid #e2e8f0;
+}
+.draw-checkbox-list {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px 4px;
+}
+.draw-checkbox-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  line-height: 1.35;
+}
+.draw-checkbox-list input {
+  margin-top: 2px;
+}
+.multi-draw-picker > small {
+  display: block;
+  padding: 4px 12px 11px;
+  color: #64748b;
+}
 .sell-entry {
   padding: 16px;
   background: #f7f9fc;
