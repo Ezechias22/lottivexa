@@ -9,8 +9,6 @@ import { presentTicketLines } from './ticket-line-flags';
 /** Creates one physical ticket containing lines for several lottery draws. */
 @Injectable()
 export class MultiTicketService {
-  constructor(private readonly single: { checkLimits?: unknown } = {}) {}
-
   async create(u: Principal, dto: any) {
     const tenantId = this.tenant(u);
     const db: any = prisma;
