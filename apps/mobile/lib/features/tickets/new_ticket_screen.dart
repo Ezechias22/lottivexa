@@ -8,8 +8,9 @@ import '../../core/mobile_runtime.dart';
 import '../../core/draw_label.dart';
 
 class PosLine {
-  PosLine({required this.number, required this.betTypeId, required this.betName, this.position, required this.stake});
+  PosLine({required this.number, required this.betTypeId, required this.betName, this.position, required this.stake, this.drawId});
   final String number, betTypeId, betName;
+  String? drawId;
   final int? position;
   String stake;
 }
@@ -154,7 +155,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     if (values.length < 2) { setState(() => message = 'Ajoute omwen 2 boul Bolet oswa Boul Pè 2 chif; tout nimewo sa yo konte.'); return; }
     final stake = await _askAutomaticStake(controller: maryajAutoStake, title: 'Maryaj otomatik', help: 'Boul Bolet ak Boul Pè ki sou fich la ap sèvi pou kreye Maryaj. Mete pri pou chak pè.');
     if (stake == null || !mounted) return;
-    setState(() { for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake)); message = '${values.length} nimewo Bolet ak Boul Pè yo sèvi pou jenere Maryaj.'; });
+    setState(() { for (var first = 0; first < values.length; first++) for (var second = first + 1; second < values.length; second++) lines.add(PosLine(number: '${values[first]}-${values[second]}', betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: stake, drawId: drawId)); message = '${values.length} nimewo Bolet ak Boul Pè yo sèvi pou jenere Maryaj.'; });
   }
 
   Future<void> addBoulPe() async {
@@ -163,7 +164,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     final values = const ['00','11','22','33','44','55','66','77','88','99'];
     final stake = await _askAutomaticStake(controller: allStake, title: 'Boul Pè otomatik', help: 'Chwazi pri pou chak boul pè. Nimewo yo ap rete de chif sou fich la.', previewNumbers: values);
     if (stake == null || !mounted) return;
-    setState(() { for (final value in values) { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',stake:stake)); } message = null; });
+    setState(() { for (final value in values) { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',stake:stake,drawId:drawId)); } message = null; });
   }
 
   Future<Map<String,dynamic>?> chooseLotoOptions() {
@@ -182,7 +183,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     final options = await chooseLotoOptions();
     if (options == null || !mounted) return;
     final selected = options['positions'] as Set<int>, stake = options['stake'] as String;
-    setState(() { selectedPositions..clear()..addAll(selected); for (var i = 0; i < values.length; i++) for (var j = i + 1; j < values.length; j++) { for (final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}']) for (final position in selected) lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake)); } message = 'Loto otomatik fèt ak nimewo Bolet ak Boul Pè yo ak opsyon ou chwazi a.'; });
+    setState(() { selectedPositions..clear()..addAll(selected); for (var i = 0; i < values.length; i++) for (var j = i + 1; j < values.length; j++) { for (final value in ['${values[i]}${values[j]}','${values[j]}${values[i]}']) for (final position in selected) lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:position,stake:stake,drawId:drawId)); } message = 'Loto otomatik fèt ak nimewo Bolet ak Boul Pè yo ak opsyon ou chwazi a.'; });
   }
 
   Future<void> addManualMaryaj() async {
@@ -204,7 +205,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     }));
     first.dispose(); second.dispose(); stake.dispose();
     if (result == null || !mounted) return;
-    setState(() { lines.add(PosLine(number: result[0] + '-' + result[1], betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: result[2])); message = 'Maryaj peye a ajoute sou tikè a.'; });
+    setState(() { lines.add(PosLine(number: result[0] + '-' + result[1], betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: result[2], drawId: drawId)); message = 'Maryaj peye a ajoute sou tikè a.'; });
   }
 
   List<List<String>> _freeMaryajSuggestions() {
@@ -246,7 +247,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     final value = number.text.replaceAll(RegExp(r'\D'), ''), bet = _betForDigits(number.text.replaceAll(RegExp(r'\D'), '').length);
     if (bet == null) { setState(() => message = value.length < 2 || value.length > 5 ? 'Antre 2, 3, 4 oswa 5 chif.' : 'Jwèt sa a pa aktive pou tiraj la.'); return; }
     final stake = lineStake.text.trim().isEmpty ? '0' : lineStake.text.trim().replaceAll(',', '.');
-    setState(() { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:value.length==2?1:null,stake:stake));number.clear();lineStake.clear();message=null; });
+    setState(() { lines.add(PosLine(number:value,betTypeId:'${bet['id']}',betName:'${bet['name']}',position:value.length==2?1:null,stake:stake,drawId:drawId));number.clear();lineStake.clear();message=null; });
   }
 
   Future<void> sell() async {
@@ -273,9 +274,21 @@ class _NewTicketState extends State<NewTicketScreen> {
     }
     final mutationId = const Uuid().v7();
     setState(() => busy = true);
+    final grouped = <String, List<Map<String,dynamic>>>{};
+    for (final line in lines) {
+      final key = line.drawId ?? drawId!;
+      (grouped[key] ??= []).add({'betTypeId': line.betTypeId, 'selection': line.number.split('-').toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position});
+    }
+    if (usingOfflineCatalog && grouped.length > 1) { setState(() => message = 'Plizyè lotri sou yon sèl fich mande koneksyon ak sèvè a. Rekonekte anvan vant lan.'); return; }
     final payload = lines.map((line) => {'betTypeId': line.betTypeId, 'selection': line.number.split('-').toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position}).toList();
     try {
-      final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: {'drawId': drawId, 'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId, 'lines': payload, if (freeMaryaj.isNotEmpty) 'freeMaryaj': freeMaryaj.map((selection) => {'selection': selection}).toList()});
+      final requestData = <String,dynamic>{'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId};
+      if (grouped.length > 1) {
+        requestData['draws'] = grouped.entries.map((entry) => {'drawId': entry.key, 'lines': entry.value}).toList();
+      } else {
+        requestData.addAll({'drawId': drawId, 'lines': payload, if (freeMaryaj.isNotEmpty) 'freeMaryaj': freeMaryaj.map((selection) => {'selection': selection}).toList()});
+      }
+      final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: requestData);
       final ticket=<String,dynamic>{...response.data!,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
@@ -299,7 +312,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 20), children: [
     const Text('Vann bolet', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
     const Text('Antre boul la; sistèm nan detekte Bolet 2, Loto 3, Loto 4 oswa Loto 5 otomatikman.'), const SizedBox(height: 16),
-    DropdownButtonFormField<String>(isExpanded: true, value: drawId, decoration: const InputDecoration(labelText: 'Tiraj ki ouvè', border: OutlineInputBorder()), items: draws.map<DropdownMenuItem<String>>((row) => DropdownMenuItem(value: '${row['id']}', child: Text(drawLabel(row), maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() { drawId = value; lines.clear(); })),
+    DropdownButtonFormField<String>(isExpanded: true, value: drawId, decoration: const InputDecoration(labelText: 'Tiraj ki ouvè (chanje san efase liy yo)', border: OutlineInputBorder()), items: draws.map<DropdownMenuItem<String>>((row) => DropdownMenuItem(value: '${row['id']}', child: Text(drawLabel(row), maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() { drawId = value; })),
     const SizedBox(height: 14),
     LayoutBuilder(builder: (context, constraints) {
       final numberField = TextField(controller:number,autofocus:true,keyboardType:TextInputType.number,maxLength:5,decoration:const InputDecoration(labelText:'Boul',hintText:'12, 123, 1234 oswa 12345',border:OutlineInputBorder()));

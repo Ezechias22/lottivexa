@@ -99,19 +99,25 @@ export class ResultsService{
     return prisma.$transaction(async tx=>{
       const changed=await tx.draw.updateMany({where:{id:drawId,tenantId,status:{in:['CLOSED','RESULT_PENDING']}},data:{status:'RESULT_PUBLISHED',result,publishedAt:new Date()}});
       if(changed.count!==1)throw new ConflictException('DRAW_NOT_READY_FOR_RESULT');
-      const tickets=await tx.ticket.findMany({where:{tenantId,drawId,status:'VALID'},include:{lines:{include:{betType:{select:{code:true}}}},merchant:{select:{userId:true}}}});
-      let winners=0;
+      const tickets=await tx.ticket.findMany({where:{tenantId,status:'VALID',OR:[{drawId},{ticketDraws:{some:{drawId}}}]},include:{lines:{include:{betType:{select:{code:true}}}},ticketDraws:{include:{draw:{select:{id:true,status:true,result:true}}}},merchant:{select:{userId:true}}}});
+      let winners=0,finalized=0;
       for(const ticket of tickets){
-        let win=new Prisma.Decimal(0);const lineWinCounts:{lineId:string;winCount:number}[]=[];
-        for(const line of ticket.lines){const winCount=winningSelectionCount(line.betType.code,line.selectionKey,keys),isWinner=winCount>0;await tx.ticketLine.update({where:{id:line.id},data:{isWinner}});if(isWinner){lineWinCounts.push({lineId:line.id,winCount});win=win.add(line.potentialWin.mul(winCount))}}
-        // Only a real matching line can make a ticket a winner. potentialWin
-        // is internal payout math and must not determine winner status.
-        if(lineWinCounts.length > 0){
-          winners++;await tx.ticket.update({where:{id:ticket.id},data:{status:'WINNER'}});await tx.winningTicket.create({data:{tenantId,ticketId:ticket.id,winningAmount:win}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:u.sub,metadata:{winningAmount:win.toString(),lineWinCounts}}});await tx.notification.create({data:{tenantId,userId:ticket.merchant.userId,type:'TICKET_WINNER',title:'Winning ticket',body:`Ticket ${ticket.ticketNumber} won ${win.toString()}`,data:{ticketId:ticket.id,ticketNumber:ticket.ticketNumber,amount:win.toString()},status:'SENT',sentAt:new Date()}});
+        const associated=ticket.ticketDraws.length?ticket.ticketDraws.map(item=>item.draw):[{id:ticket.drawId,status:'RESULT_PUBLISHED',result:null}];
+        const allPublished=associated.every(item=>item.status==='RESULT_PUBLISHED');
+        const drawResults=new Map<string,string[]>();
+        for(const item of associated){if(item.result)drawResults.set(item.id,resultWinningKeys(item.result));}
+        const relevant=ticket.lines.filter(line=>(line as any).drawId===drawId || (!(line as any).drawId&&ticket.drawId===drawId));
+        for(const line of relevant){const drawKeys=drawResults.get(((line as any).drawId??ticket.drawId))??keys;await tx.ticketLine.update({where:{id:line.id},data:{isWinner:winningSelectionCount(line.betType.code,line.selectionKey,drawKeys)>0}})}
+        if(!allPublished)continue;
+        finalized++;
+        let win=new Prisma.Decimal(0);const lineWinCounts:{lineId:string;drawId:string;winCount:number}[]=[];
+        for(const line of ticket.lines){const lineDrawId=(line as any).drawId??ticket.drawId;const drawKeys=drawResults.get(lineDrawId)??[];const winCount=winningSelectionCount(line.betType.code,line.selectionKey,drawKeys);await tx.ticketLine.update({where:{id:line.id},data:{isWinner:winCount>0}});if(winCount>0){lineWinCounts.push({lineId:line.id,drawId:lineDrawId,winCount});win=win.add(line.potentialWin.mul(winCount))}}
+        if(lineWinCounts.length>0){
+          winners++;await tx.ticket.update({where:{id:ticket.id},data:{status:'WINNER'}});await tx.winningTicket.upsert({where:{ticketId:ticket.id},update:{winningAmount:win},create:{tenantId,ticketId:ticket.id,winningAmount:win}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:u.sub,metadata:{winningAmount:win.toString(),lineWinCounts}}});await tx.notification.create({data:{tenantId,userId:ticket.merchant.userId,type:'TICKET_WINNER',title:'Winning ticket',body:`Ticket ${ticket.ticketNumber} won ${win.toString()}`,data:{ticketId:ticket.id,ticketNumber:ticket.ticketNumber,amount:win.toString()},status:'SENT',sentAt:new Date()}});
         }else{await tx.ticket.update({where:{id:ticket.id},data:{status:'LOSER'}});await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'MARKED_LOSER',userId:u.sub}})}
       }
-      await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'DrawResult',entityId:drawId,newValues:{winningKeys:result.winningKeys,ticketsProcessed:tickets.length,winners}}});
-      return{drawId,ticketsProcessed:tickets.length,winners};
+      await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'DrawResult',entityId:drawId,newValues:{winningKeys:result.winningKeys,ticketsProcessed:tickets.length,finalized,winners}}});
+      return{drawId,ticketsProcessed:tickets.length,finalized,winners};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 

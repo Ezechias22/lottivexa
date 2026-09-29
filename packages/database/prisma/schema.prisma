@@ -693,6 +693,8 @@ model Draw {
   game        Game           @relation(fields: [gameId], references: [id], onDelete: Restrict)
   limits      BettingLimit[]
   tickets     Ticket[]
+  ticketDraws TicketDraw[]
+  ticketLines TicketLine[]
 
   @@unique([tenantId, drawNumber])
   @@index([tenantId, status, closesAt])
@@ -777,6 +779,7 @@ model Ticket {
   merchant              MerchantAccount        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   game                  Game                   @relation(fields: [gameId], references: [id], onDelete: Restrict)
   draw                  Draw                   @relation(fields: [drawId], references: [id], onDelete: Restrict)
+  ticketDraws           TicketDraw[]
   lines                 TicketLine[]
   events                TicketEvent[]
   winning               WinningTicket?
@@ -802,12 +805,26 @@ model TicketLine {
   stake        Decimal  @db.Decimal(19, 4)
   odds         Decimal  @db.Decimal(19, 6)
   potentialWin Decimal  @db.Decimal(19, 4)
+  drawId       String?  @db.Uuid
   isWinner     Boolean?
   ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
   betType      BetType  @relation(fields: [betTypeId], references: [id], onDelete: Restrict)
+  draw         Draw?    @relation(fields: [drawId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, ticketId])
   @@index([tenantId, selectionKey])
+}
+
+model TicketDraw {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  ticketId String @db.Uuid
+  drawId   String @db.Uuid
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  draw     Draw   @relation(fields: [drawId], references: [id], onDelete: Restrict)
+
+  @@unique([ticketId, drawId])
+  @@index([tenantId, drawId])
 }
 
 model TicketEvent {
