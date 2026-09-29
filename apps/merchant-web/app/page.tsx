@@ -91,14 +91,15 @@ function Printer({state:s,reload}:any){const{t,language}=useMerchantLanguage();r
 function HaitianPos({state:s,lines,setLines,gameForDraw,submit,online,openBonus}:any){
  const{t,language}=useMerchantLanguage();
  const[draw,setDraw]=useState(s.draws?.[0]?.id??''),[number,setNumber]=useState(''),[entryStake,setEntryStake]=useState(''),[lotoStake,setLotoStake]=useState(''),[maryajAutoStake,setMaryajAutoStake]=useState(''),[boulPeStake,setBoulPeStake]=useState(''),[positions,setPositions]=useState<number[]>([1]),[toolMenuOpen,setToolMenuOpen]=useState(false),[autoDialog,setAutoDialog]=useState<'maryaj'|'loto'|'boulPe'|null>(null),[manualOpen,setManualOpen]=useState(false),[saleError,setSaleError]=useState('');
- useEffect(()=>{if(!draw&&s.draws?.[0])setDraw(s.draws[0].id)},[s.draws,draw]);
+ useEffect(()=>{if(!s.draws?.some((x:Row)=>x.id===draw))setDraw(s.draws?.[0]?.id??'')},[s.draws,draw]);
  const game=gameForDraw(draw),bets=game?.betTypes?.filter((x:Row)=>x.active!==false).map((x:Row)=>x.betType)??[];
  const codeFor=(length:number)=>({2:'BOLET',3:'LOTO3',4:'LOTO4',5:'LOTO5'}as Record<number,string>)[length];
  const bolet=collectAutomaticNumbers(lines as BetLine[],bets as {id:string;code:string;name:string}[]);
  const boulPeNumbers=['00','11','22','33','44','55','66','77','88','99'];
  function freeMaryaj(){const values=[...bolet];for(const line of lines){const code=bets.find((x:Row)=>x.id===line.betTypeId)?.code;const tokens=line.selection.replaceAll('-',' ').split(' ').filter((value:string)=>value.length===2);values.push(...tokens);if(code==='LOTO3'||code==='LOTO4'||code==='LOTO5'){const digits=line.selection.replaceAll('-','').replaceAll(' ','');for(let i=0;i+1<digits.length;i+=2)values.push(digits.slice(i,i+2));if(digits.length>=3&&digits.length%2)values.push(digits.slice(-2))}}const unique=[...new Set(values)];if(unique.length<2)return[];return[{selection:[unique[0],unique[1]]},{selection:[unique[0],unique[2]??unique[1]]}]}
  function handleSale(e:FormEvent<HTMLFormElement>){if(total<100){submit(e,[]);return}if(!bets.some((x:Row)=>x.code==='MARYAJ')){e.preventDefault();setSaleError('Maryaj pa aktive sou tiraj sa a; pa ka ajoute 2 Maryaj gratis.');return}const gifts=freeMaryaj();if(gifts.length!==2){e.preventDefault();setSaleError('Chwazi nimewo pou de Maryaj gratis yo anvan vant lan.');openBonus(form(e.currentTarget));return}setSaleError('');submit(e,gifts)}
- const activeDrawLabel=drawLabel(s.draws?.find((x:Row)=>x.id===draw),language);
+ const selectedDraw=s.draws?.find((x:Row)=>x.id===draw);
+ const activeDrawLabel=selectedDraw?drawLabel(selectedDraw,language):'';
  const tag=(items:BetLine[])=>items.map(item=>({...item,drawId:draw,drawLabel:activeDrawLabel}));
  function add(){const clean=number.replace(/\D/g,'');if(clean.length<2||clean.length>5||!(Number(entryStake)>0))return;const bet=bets.find((x:Row)=>x.code===codeFor(clean.length));if(!bet)return;setLines([...lines,{betTypeId:bet.id,betName:bet.name,selection:clean,stake:entryStake,resultPosition:clean.length===2?1:undefined,drawId:draw,drawLabel:activeDrawLabel}]);setNumber('');setEntryStake('')}
  function addMaryaj(){const bet=bets.find((x:Row)=>x.code==='MARYAJ');if(!bet||bolet.length<2||!(Number(maryajAutoStake)>0))return;setLines([...lines,...tag(buildAutomaticMaryaj(bolet,bet,maryajAutoStake))]);setAutoDialog(null)}
