@@ -647,6 +647,7 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 }
 .receipt-draw strong {
   font-size: 9pt;
+  white-space: pre-line;
 }
 .receipt-meta strong {
   font-size: 8.5pt;

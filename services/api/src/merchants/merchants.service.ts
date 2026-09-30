@@ -88,7 +88,7 @@ export class MerchantsService {
           where: { tenantId: merchant.tenantId, merchantId: merchant.id },
           orderBy: { createdAt: "desc" },
           take: 12,
-          include: { winning: true, lines: { select: { isWinner: true } } },
+          include: { winning: true, lines: { select: { isWinner: true } }, ticketDraws: { include: { draw: { include: { game: true } } } } },
         }),
         prisma.tenantSetting.findUnique({
           where: { tenantId: merchant.tenantId },
