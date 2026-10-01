@@ -10,7 +10,7 @@ type Key=keyof typeof copy.ht;
 const LanguageContext=createContext<{language:Language;t:(key:Key)=>string}>({language:'ht',t:key=>copy.ht[key]});
 export const useMerchantLanguage=()=>useContext(LanguageContext);
 export function statusLabel(value:string,language:Language){
- const labels:Record<string,[string,string]>={VALID:['Valab','Valide'],WINNER:['Gayan','Gagnant'],LOSER:['Pèdan','Perdant'],PAID:['Peye','Payé'],CANCELLED:['Anile','Annulé'],VOID:['Anile','Annulé'],OPEN:['Ouvè','Ouvert'],CLOSED:['Fèmen','Fermé'],ONLINE:['Sou entènèt','En ligne'],OFFLINE:['San entènèt','Hors ligne'],PENDING:['An atant','En attente'],PRINTED:['Enprime','Imprimé'],QUEUED:['Nan fil la','En attente'],FAILED:['Echwe','Échec']};
+ const labels:Record<string,[string,string]>={VALID:['An atant','En attente'],WINNER:['Ganyan','Gagnant'],LOSER:['Pèdi','Perdant'],PAID:['Peye','Payé'],CANCELLED:['Anile','Annulé'],VOID:['Anile','Annulé'],OPEN:['Ouvè','Ouvert'],CLOSED:['Fèmen','Fermé'],ONLINE:['Sou entènèt','En ligne'],OFFLINE:['San entènèt','Hors ligne'],PENDING:['An atant','En attente'],PRINTED:['Enprime','Imprimé'],QUEUED:['Nan fil la','En attente'],FAILED:['Echwe','Échec']};
  return labels[value]?.[language==='fr'?1:0]??value;
 }
 

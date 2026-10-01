@@ -193,6 +193,17 @@ button:disabled {
   color: #64748b;
   margin-top: 4px;
 }
+.history .ticket-status {
+  font-weight: 800;
+  color: #334155;
+}
+.history .ticket-status-winner,
+.history .ticket-status-paid { color: #15803d; }
+.history .ticket-status-loser,
+.history .ticket-status-cancelled,
+.history .ticket-status-void { color: #b91c1c; }
+.history .ticket-status-valid,
+.history .ticket-status-pending { color: #a16207; }
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 1fr));
