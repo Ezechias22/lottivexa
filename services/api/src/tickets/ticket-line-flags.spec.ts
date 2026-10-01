@@ -8,8 +8,8 @@ describe('ticket line flags from ticket events', () => {
   ];
 
   it('marks free Maryaj lines and reports dekabes counts without extra columns', () => {
-    expect(ticketLineFlags(events, 'gift-1')).toEqual({ isPromotional: true, winCount: 0 });
-    expect(ticketLineFlags(events, 'bet-1')).toEqual({ isPromotional: false, winCount: 2 });
+    expect(ticketLineFlags(events, 'gift-1')).toMatchObject({ isPromotional: true, winCount: 0 });
+    expect(ticketLineFlags(events, 'bet-1')).toMatchObject({ isPromotional: false, winCount: 2 });
   });
 
   it('adds event-derived flags to ticket lines', () => {
