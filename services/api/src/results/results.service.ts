@@ -106,6 +106,10 @@ export class ResultsService{
         const allPublished=associated.every(item=>item.status==='RESULT_PUBLISHED');
         const drawResults=new Map<string,string[]>();
         for(const item of associated){if(item.result)drawResults.set(item.id,resultWinningKeys(item.result));}
+        // Legacy single-draw tickets do not have a TicketDraw row. The draw
+        // being published is nevertheless the result source for their lines.
+        // Keep the current result available for the final payout pass too.
+        drawResults.set(drawId, keys);
         const relevant=ticket.lines.filter(line=>(line as any).drawId===drawId || (!(line as any).drawId&&ticket.drawId===drawId));
         for(const line of relevant){const drawKeys=drawResults.get(((line as any).drawId??ticket.drawId))??keys;await tx.ticketLine.update({where:{id:line.id},data:{isWinner:winningSelectionCount(line.betType.code,line.selectionKey,drawKeys)>0}})}
         if(!allPublished)continue;
