@@ -16,10 +16,14 @@ export function ticketLineFlags(events: readonly EventRecord[], lineId: string) 
   const winnerData = asRecord(winner?.metadata);
   const counts = Array.isArray(winnerData?.lineWinCounts) ? winnerData.lineWinCounts : [];
   const lineCount = counts.map(asRecord).find(item => item?.lineId === lineId)?.winCount;
+  const winningDrawIds = counts
+    .filter(item => item?.lineId === lineId && typeof item?.drawId === 'string')
+    .map(item => item?.drawId as string);
 
   return {
     isPromotional: promoIds.includes(lineId),
     winCount: typeof lineCount === 'number' && Number.isInteger(lineCount) ? lineCount : 0,
+    winningDrawIds,
   };
 }
 

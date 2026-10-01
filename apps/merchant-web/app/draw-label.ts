@@ -53,7 +53,7 @@ function sessionLabel(session: Session, language: 'ht' | 'fr') {
     MORNING: language === 'fr' ? 'Matin' : 'Maten',
     MIDDAY: language === 'fr' ? 'Midi' : 'Midi',
     EVENING: language === 'fr' ? 'Soir' : 'Swa',
-    NIGHT: language === 'fr' ? 'Nuit' : 'Lannuit',
+    NIGHT: language === 'fr' ? 'Nuit' : 'Swa',
     UNKNOWN: language === 'fr' ? 'Séance à confirmer' : 'Sesyon pou verifye',
   };
   return labels[session];
@@ -84,6 +84,11 @@ export function drawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
 
 export function compactDrawLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   return drawLabel(draw, language).replace(/ · /g, ' ');
+}
+
+export function drawNameSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
+  const game = draw.game?.name ?? (language === 'fr' ? 'Loterie' : 'Lotri');
+  return `${game} · ${sessionLabel(drawSession(draw), language)}`;
 }
 
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {

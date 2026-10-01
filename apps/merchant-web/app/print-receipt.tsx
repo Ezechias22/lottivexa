@@ -1,7 +1,7 @@
 'use client';
 
 import { useMerchantLanguage } from './language-switcher';
-import { compactDrawLabel } from './draw-label';
+import { drawNameSessionLabel } from './draw-label';
 
 type Ticket = Record<string, any>;
 const amount = (value: unknown) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
@@ -17,7 +17,7 @@ const shortCode = (line: Ticket) => {
 const drawTimes = (ticket: Ticket) => {
   const draws = Array.isArray(ticket.ticketDraws) ? ticket.ticketDraws.map((item: Ticket) => item.draw).filter(Boolean) : [];
   if (!draws.length && ticket.draw) draws.push(ticket.draw);
-  const labels = draws.map((draw: Ticket) => compactDrawLabel(draw, 'ht'));
+  const labels = draws.map((draw: Ticket) => drawNameSessionLabel(draw, 'ht'));
   return [...new Set(labels)].filter(Boolean);
 };
 const lineText = (line: Ticket, free: string, copies = 1) => {
