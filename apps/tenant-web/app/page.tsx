@@ -332,6 +332,13 @@ export default function TenantConsole() {
   useEffect(() => {
     if (token && !force) void load(tab);
   }, [tab, token, force]);
+  const tenantBranding = data.branding?.[0]?.branding ?? {};
+  useEffect(() => {
+    if (!tenantBranding.faviconUrl) return;
+    let icon = document.querySelector<HTMLLinkElement>('link[data-tenant-favicon]');
+    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; icon.dataset.tenantFavicon = 'true'; document.head.appendChild(icon); }
+    icon.href = tenantBranding.faviconUrl;
+  }, [tenantBranding.faviconUrl]);
   async function login(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const body = val(e.currentTarget);
@@ -469,13 +476,6 @@ export default function TenantConsole() {
       </main>
     );
   const current = data[tab] ?? [];
-  const tenantBranding = data.branding?.[0]?.branding ?? {};
-  useEffect(() => {
-    if (!tenantBranding.faviconUrl) return;
-    let icon = document.querySelector<HTMLLinkElement>('link[data-tenant-favicon]');
-    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; icon.dataset.tenantFavicon = 'true'; document.head.appendChild(icon); }
-    icon.href = tenantBranding.faviconUrl;
-  }, [tenantBranding.faviconUrl]);
   return (
     <div className="shell" style={{ "--tenant-primary": tenantBranding.primaryColor ?? "#172554", "--tenant-secondary": tenantBranding.secondaryColor ?? "#f59e0b" } as any}>
       <aside>
