@@ -22,18 +22,20 @@ export class AuthService {
     password: string;
     deviceId?: string;
   }) {
-    const platform = input.tenant === "platform",
+    const tenantKey = input.tenant.trim().toLowerCase(),
+      identifier = input.username.trim(),
+      platform = tenantKey === "platform",
       user = await prisma.user.findFirst({
         where: {
           OR: [
-            { username: input.username },
-            { email: input.username },
-            { phone: input.username },
+            { username: identifier },
+            { email: identifier },
+            { phone: identifier },
           ],
           deletedAt: null,
           ...(platform
             ? { tenantId: null }
-            : { tenant: { slug: input.tenant } }),
+            : { tenant: { slug: tenantKey } }),
         },
         include: {
           roles: {
