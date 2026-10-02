@@ -5,6 +5,7 @@ import DeviceActions from "./device-actions";
 import MerchantActions from "./merchant-actions";
 import UserActions from "./user-actions";
 import ManualResults from "./manual-results";
+import { LotteryCompact, LotterySchedules, ManualResultsPage, PublishedResults } from "./lottery-pages";
 import { localizedColumn, useI18n } from "./i18n";
 import { describeDraw, drawSessionLabel } from "./draw-label";
 const RAW_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -21,6 +22,9 @@ type Tab =
   | "merchants"
   | "users"
   | "lottery"
+  | "lotterySchedules"
+  | "manualResults"
+  | "results"
   | "tickets"
   | "finance"
   | "devices"
@@ -32,7 +36,10 @@ const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
   [
     { id: "dashboard", label: "Dashboard" },
     { id: "tickets", label: "Tickets", permission: "tickets.view" },
-    { id: "lottery", label: "Games & Draws", permission: "tickets.view" },
+    { id: "lottery", label: "Loteries", permission: "tickets.view" },
+    { id: "lotterySchedules", label: "Horaires des tirages", permission: "settings.view" },
+    { id: "manualResults", label: "Saisir un résultat", permission: "settings.edit" },
+    { id: "results", label: "Résultats", permission: "tickets.view" },
     { id: "merchants", label: "Merchants", permission: "merchants.view" },
     { id: "branches", label: "Branches", permission: "branches.view" },
     { id: "users", label: "Users & Roles", permission: "users.view" },
@@ -278,7 +285,10 @@ export default function TenantConsole() {
         branches: ["/branches"],
         merchants: ["/merchants", "/branches"],
         users: ["/users", "/roles", "/permissions"],
-        lottery: ["/lottery/games", "/lottery/draws"],
+        lottery: ["/lottery/games"],
+        lotterySchedules: ["/lottery/games"],
+        manualResults: ["/lottery/draws"],
+        results: ["/lottery/draws"],
         tickets: ["/tickets", "/lottery/draws"],
         finance: [
           "/finance/accounts",
@@ -525,6 +535,9 @@ export default function TenantConsole() {
             can={can}
           />
         )}{" "}
+        {tab === "lotterySchedules" && <LotterySchedules games={current[0] ?? []} request={request} reload={() => load("lotterySchedules")} can={can} />}{" "}
+        {tab === "manualResults" && <ManualResultsPage draws={current[0] ?? []} request={request} reload={() => load("manualResults")} />}{" "}
+        {tab === "results" && <PublishedResults draws={current[0] ?? []} />}{" "}
         {tab === "tickets" && (
           <Tickets data={current} can={can} onCancel={cancelTicket} />
         )}{" "}
@@ -891,7 +904,11 @@ function Users({ data: d, submit, request, load, can, has }: any) {
     </>
   );
 }
-function Lottery({ data: d, submit, request, load, can }: any) {
+function Lottery({ data: d, request, load, can }: any) {
+  const [games = []] = d;
+  return <LotteryCompact games={games} request={request} reload={() => load("lottery")} can={can} />;
+}
+function LegacyLottery({ data: d, submit, request, load, can }: any) {
   const { language, t } = useI18n();
   const [games = [], draws = []] = d;
   const labeledDraws = draws.map((draw: Row) => ({

@@ -6,7 +6,7 @@ import {describeDraw} from './draw-label';
 
 type Draw = {id:string;drawNumber:string;status:string;drawDate?:string;resultAt?:string;opensAt?:string;closesAt?:string;session?:string;sessionType?:string;game?:{name?:string};result?:{winningKeys?:string[]}};
 
-export default function ManualResults({draws,request,reload}:{draws:Draw[];request:(path:string,init?:RequestInit)=>Promise<unknown>;reload:()=>Promise<void>}) {
+export default function ManualResults({draws,request,reload,showHistory=true}:{draws:Draw[];request:(path:string,init?:RequestInit)=>Promise<unknown>;reload:()=>Promise<void>;showHistory?:boolean}) {
   const {t,language} = useI18n();
   const eligible = draws.filter(draw => draw.status === 'CLOSED' || draw.status === 'RESULT_PENDING').sort((a,b)=>String(b.resultAt??'').localeCompare(String(a.resultAt??'')));
   const published = draws.filter(draw => draw.status === 'RESULT_PUBLISHED');
@@ -42,7 +42,6 @@ export default function ManualResults({draws,request,reload}:{draws:Draw[];reque
     </form>
     {!eligible.length&&<p className="muted">{t('result.none')}</p>}
     {notice&&<p role="status" className="message">{notice}</p>}
-    <h3>{t('result.history')}</h3>
-    <div className="table-wrap"><table><thead><tr><th>{t('result.lottery')}</th><th>{t('result.draw')}</th><th>{t('result.numbers')}</th></tr></thead><tbody>{published.map(draw=><tr key={draw.id}><td>{draw.game?.name??'—'}</td><td>{describeDraw(draw,language)}</td><td>{draw.result?.winningKeys?.join(', ')??'—'}</td></tr>)}</tbody></table></div>
+    {showHistory && <><h3>{t('result.history')}</h3><div className="table-wrap"><table><thead><tr><th>{t('result.lottery')}</th><th>{t('result.draw')}</th><th>{t('result.numbers')}</th></tr></thead><tbody>{published.map(draw=><tr key={draw.id}><td>{draw.game?.name??'—'}</td><td>{describeDraw(draw,language)}</td><td>{draw.result?.winningKeys?.join(', ')??'—'}</td></tr>)}</tbody></table></div></>}
   </section>;
 }
