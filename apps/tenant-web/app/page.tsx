@@ -21,7 +21,6 @@ type Tab =
   | "merchants"
   | "users"
   | "lottery"
-  | "results"
   | "tickets"
   | "finance"
   | "devices"
@@ -34,7 +33,6 @@ const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
     { id: "dashboard", label: "Dashboard" },
     { id: "tickets", label: "Tickets", permission: "tickets.view" },
     { id: "lottery", label: "Games & Draws", permission: "tickets.view" },
-    { id: "results", label: "Results", permission: "tickets.view" },
     { id: "merchants", label: "Merchants", permission: "merchants.view" },
     { id: "branches", label: "Branches", permission: "branches.view" },
     { id: "users", label: "Users & Roles", permission: "users.view" },
@@ -99,13 +97,7 @@ function shiftDate(date: string, days: number) {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
-function formatCell(key: string, raw: any, language: 'ht' | 'fr') {
-  if (raw == null || raw === '') return '—';
-  if (!/(date|at|timestamp|created|updated|published|opened|closed)/i.test(key)) return String(raw);
-  const date = new Date(String(raw));
-  if (Number.isNaN(date.getTime())) return String(raw);
-  return new Intl.DateTimeFormat(language === 'fr' ? 'fr-FR' : 'fr-HT', { timeZone: 'America/Port-au-Prince', dateStyle: 'medium', timeStyle: 'short' }).format(date);
-}function val(form: HTMLFormElement) {
+function val(form: HTMLFormElement) {
   return Object.fromEntries(new FormData(form)) as Row;
 }
 function uuid() {
@@ -147,7 +139,7 @@ function Table({
                           raw != null &&
                           Number.isFinite(Number(raw))
                         ? money(raw)
-                        : formatCell(c[0], raw, language);
+                        : String(raw ?? "—");
                   return <td key={c[0]}>{value}</td>;
                 })}
                 {actions && <td className="actions">{actions(r)}</td>}
@@ -251,10 +243,8 @@ export default function TenantConsole() {
         } else logout();
       }
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = body.code ?? body.error?.code ?? body.message ?? body.error;
-        throw new Error(Array.isArray(detail) ? detail.join("; ") : String(detail ?? `HTTP_${response.status}`));
-      }
+      if (!response.ok)
+        throw new Error(body.code ?? body.message ?? `HTTP_${response.status}`);
       return body;
     },
     [token, refresh, logout],
@@ -289,7 +279,6 @@ export default function TenantConsole() {
         merchants: ["/merchants", "/branches"],
         users: ["/users", "/roles", "/permissions"],
         lottery: ["/lottery/games", "/lottery/draws"],
-        results: ["/results"],
         tickets: ["/tickets", "/lottery/draws"],
         finance: [
           "/finance/accounts",
@@ -321,14 +310,13 @@ export default function TenantConsole() {
   useEffect(() => {
     if (token && !force)
       void request("/settings")
-        .then((s) => {
-          setData((old) => ({ ...old, branding: [s, ...(old.branding ?? []).slice(1)] }));
+        .then((s) =>
           setFeatures(
             (s.subscription?.plan?.features ?? [])
               .filter((x: Row) => x.enabled)
               .map((x: Row) => x.key),
-          );
-        })
+          ),
+        )
         .catch(() => setFeatures([]));
   }, [token, force, request]);
   useEffect(() => {
@@ -471,7 +459,6 @@ export default function TenantConsole() {
       </main>
     );
   const current = data[tab] ?? [];
-  const tenantBranding = data.branding?.[0]?.branding ?? {};
   return (
     <div className="shell">
       <aside>
@@ -492,14 +479,9 @@ export default function TenantConsole() {
       </aside>
       <main className="content">
         <header>
-          <div className="tenant-header-brand">
-            {tenantBranding.logoUrl && (
-              <img src={tenantBranding.logoUrl} alt="Logo biznis" />
-            )}
-            <div>
+          <div>
             <small>TENANT CONSOLE</small>
             <h1>{NAV.find((n) => n.id === tab)?.label}</h1>
-            </div>
           </div>
           <button
             className="secondary"
@@ -543,7 +525,6 @@ export default function TenantConsole() {
             can={can}
           />
         )}{" "}
-        {tab === "results" && <Results data={current} />} {" "}
         {tab === "tickets" && (
           <Tickets data={current} can={can} onCancel={cancelTicket} />
         )}{" "}
@@ -577,11 +558,7 @@ export default function TenantConsole() {
     </div>
   );
 }
-function Results({ data }: { data: any[] }) {
-  const rows = Array.isArray(data[0]) ? data[0] : [];
-  const { language } = useI18n();
-  return <section className="panel results-panel"><div className="title"><div><h2>{language === "fr" ? "Résultats des tirages" : "Rezilta tiraj yo"}</h2><small>{language === "fr" ? "Résultats publiés" : "Rezilta ki pibliye"}</small></div></div><div className="results-grid">{rows.map((row: Row) => <article className="result-card" key={row.id}>{row.game?.logoUrl&&<img src={row.game.logoUrl} alt={row.game?.name ?? ""}/>}<strong className="result-game">{row.game?.name ?? "Lotri"}</strong><span className="result-date">{describeDraw(row,language)}</span><b className="result-numbers">{row.result?.winningKeys?.join(" · ") ?? "—"}</b><small className="result-draw">{row.drawNumber ?? ""}</small></article>)}</div>{!rows.length&&<p className="empty">{language === "fr" ? "Aucun résultat publié." : "Pa gen rezilta pibliye."}</p>}</section>;
-}function Dashboard({ data: d }: { data: any[] }) {
+function Dashboard({ data: d }: { data: any[] }) {
   const { t, language } = useI18n();
   const [r = {}, tickets = [], branches = [], merchants = [], notes = []] = d;
   const today = new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "fr-HT", {
@@ -788,7 +765,7 @@ function Users({ data: d, submit, request, load, can, has }: any) {
             <form
               className="form one"
               onSubmit={(e) =>
-                submit(e, "/users", (x: Row) => { const { roleId, ...rest } = x; return { ...rest, email: x.email || undefined, phone: x.phone || undefined, roleIds: [roleId] }; })
+                submit(e, "/users", (x: Row) => ({ ...x, roleIds: [x.roleId] }))
               }
             >
               <label>
@@ -817,7 +794,7 @@ function Users({ data: d, submit, request, load, can, has }: any) {
                 <select name="roleId" required>
                   {roles.map((r: Row) => (
                     <option key={r.id} value={r.id}>
-                      {r.name} ({r.code})
+                      {r.name}
                     </option>
                   ))}
                 </select>
@@ -915,7 +892,7 @@ function Users({ data: d, submit, request, load, can, has }: any) {
   );
 }
 function Lottery({ data: d, submit, request, load, can }: any) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const [games = [], draws = []] = d;
   const labeledDraws = draws.map((draw: Row) => ({
     ...draw,
@@ -932,7 +909,7 @@ function Lottery({ data: d, submit, request, load, can }: any) {
       />
       <div className="split">
         <section className="panel">
-          <h2>Create game</h2>
+          <h2>{t("lottery.createGame")}</h2>
           {can("settings.edit") && (
             <form
               className="form one"
@@ -945,23 +922,23 @@ function Lottery({ data: d, submit, request, load, can }: any) {
               }
             >
               <label>
-                Code
+                {t("lottery.betCode")}
                 <input name="code" required />
               </label>
               <label>
-                Name
+                {t("lottery.game")}
                 <input name="name" required />
               </label>
               <label>
-                Description
+                {t("lottery.description")}
                 <input name="description" />
               </label>
               <label>
-                Cutoff seconds
+                {t("lottery.cutoffSeconds")}
                 <input name="cutoffSeconds" type="number" min="0" required />
               </label>
               <label>
-                Result digits
+                {t("lottery.resultDigits")}
                 <input
                   name="resultDigits"
                   type="number"
@@ -970,12 +947,12 @@ function Lottery({ data: d, submit, request, load, can }: any) {
                   required
                 />
               </label>
-              <button>Create game</button>
+              <button>{t("lottery.createGame")}</button>
             </form>
           )}
         </section>
         <section className="panel">
-          <h2>Create draw</h2>
+          <h2>{t("lottery.createDraw")}</h2>
           {can("settings.edit") && (
             <form
               className="form one"
@@ -990,7 +967,7 @@ function Lottery({ data: d, submit, request, load, can }: any) {
               }
             >
               <label>
-                Game
+                {t("lottery.game")}
                 <select name="gameId" required>
                   {games.map((g: Row) => (
                     <option key={g.id} value={g.id}>
@@ -1000,52 +977,52 @@ function Lottery({ data: d, submit, request, load, can }: any) {
                 </select>
               </label>
               <label>
-                Draw number
+                {t("lottery.drawNumber")}
                 <input name="drawNumber" required />
               </label>
               <label>
-                Draw date
+                {t("lottery.drawDate")}
                 <input name="drawDate" type="date" required />
               </label>
               <label>
-                Opens at
+                {t("lottery.opensAt")}
                 <input name="opensAt" type="datetime-local" required />
               </label>
               <label>
-                Closes at
+                {t("lottery.closesAt")}
                 <input name="closesAt" type="datetime-local" required />
               </label>
               <label>
-                Result at
+                {t("lottery.resultAt")}
                 <input name="resultAt" type="datetime-local" required />
               </label>
-              <button>Create draw</button>
+              <button>{t("lottery.createDraw")}</button>
             </form>
           )}
         </section>
       </div>
       <section className="panel">
-        <h2>Games</h2>
+        <h2>{t("lottery.games")}</h2>
         <Table
           rows={games}
           columns={[
-            ["code", "Code"],
-            ["name", "Name"],
-            ["status", "Status"],
-            ["cutoffSeconds", "Cutoff"],
-            ["resultDigits", "Digits"],
+            ["code", t("lottery.betCode")],
+            ["name", t("lottery.game")],
+            ["status", t("report.status")],
+            ["cutoffSeconds", t("lottery.cutoffSeconds")],
+            ["resultDigits", t("lottery.resultDigits")],
           ]}
         />
       </section>
       <section className="panel">
-        <h2>Draws</h2>
+        <h2>{t("lottery.draws")}</h2>
         <Table
           rows={labeledDraws}
           columns={[
-            ["sessionLabel", "Lottery / session"],
-            ["status", "Status"],
-            ["opensAt", "Open"],
-            ["closesAt", "Close"],
+            ["sessionLabel", `${t("lottery.game")} / ${t("report.session")}`],
+            ["status", t("report.status")],
+            ["opensAt", t("lottery.opensAt")],
+            ["closesAt", t("lottery.closesAt")],
           ]}
           actions={
             can("settings.edit")
@@ -1061,7 +1038,7 @@ function Lottery({ data: d, submit, request, load, can }: any) {
                           await load("lottery");
                         }}
                       >
-                        Open
+                        {t("lottery.activateDraw")}
                       </button>
                     )}
                     {r.status === "OPEN" && (
@@ -1074,7 +1051,7 @@ function Lottery({ data: d, submit, request, load, can }: any) {
                           await load("lottery");
                         }}
                       >
-                        Close
+                        {t("lottery.closeDraw")}
                       </button>
                     )}
                   </>
@@ -1129,6 +1106,7 @@ function Tickets({
             ["ticketNumber", "Ticket"],
             ["status", "Status"],
             ["amount", "Amount"],
+            ["potentialWin", "Potential win"],
             ["createdAt", "Date"],
           ]}
           actions={
@@ -1676,6 +1654,10 @@ function Reports({ data: d, request, run, token }: any) {
           <span>{t("report.commissions")}</span>
           <strong>{money(report.commission)}</strong>
         </article>
+        <article>
+          <span>{language === "fr" ? "Gains potentiels" : "Gany posib"}</span>
+          <strong>{money(report.tickets?.potentialWin)}</strong>
+        </article>
       </div>
       <div className="split report-breakdowns">
         <section className="panel">
@@ -1741,7 +1723,155 @@ function Reports({ data: d, request, run, token }: any) {
     </>
   );
 }
-function Branding({data:d,submit,request,load,has}:any){const[s={},domains=[]]=d;const[logo,setLogo]=useState(String(s.branding?.logoUrl??''));useEffect(()=>setLogo(String(s.branding?.logoUrl??'')),[s.branding?.logoUrl]);function pick(e:any){const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/'))return;if(file.size>2097152){alert('Logo a dwe pi piti pase 2 MB.');return}const reader=new FileReader();reader.onload=()=>setLogo(String(reader.result));reader.readAsDataURL(file)}return <><div className="split"><section className="panel"><h2>Business settings</h2><form className="form one" onSubmit={e=>submit(e,'/settings',(x:Row)=>({...x,currency:'USD'}),'PUT','Settings sove.')}><label>Currency<select name="currency" defaultValue="USD"><option value="USD">$</option></select></label><label>Timezone<input name="timezone" defaultValue={s.settings?.timezone??'America/Port-au-Prince'} required/></label><label>Locale<input name="locale" defaultValue={s.settings?.locale??'ht-HT'} required/></label><label>Date format<input name="dateFormat" defaultValue={s.settings?.dateFormat??'DD/MM/YYYY'} required/></label><button>Save settings</button></form></section><section className="panel"><h2>Branding</h2><form className="form one" onSubmit={e=>submit(e,'/settings/branding',(x:Row)=>({...x,logoUrl:logo||undefined}),'PUT','Branding sove.')}><label>Business name<input name="businessName" defaultValue={s.branding?.businessName} required/></label><label>Chwazi logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={pick}/></label>{logo&&<img className="tenant-logo-preview" src={logo} alt="Logo biznis"/>}<input name="primaryColor" type="hidden" value={s.branding?.primaryColor??'#172554'} readOnly/><input name="secondaryColor" type="hidden" value={s.branding?.secondaryColor??'#f59e0b'} readOnly/><button disabled={!has('custom_branding')}>Save branding</button></form></section></div><section className="panel"><h2>Custom domains</h2><form className="inline" onSubmit={e=>submit(e,'/domains')}><input name="domain" placeholder="portal.customer.com" required/><button disabled={!has('custom_domain')}>Add domain</button></form>{domains.map((x:Row)=><article className="domain" key={x.id}><div><b>{x.domain}</b><small>{x.verificationStatus} · SSL {x.sslStatus}{x.isPrimary?' · PRIMARY':''}</small><code>TXT _lottivexa.{x.domain} = {x.verificationToken}</code></div><div className="actions"><button onClick={async()=>{await request(`/domains/${x.id}/verify`,{method:'POST'});await load('branding')}}>Verify</button></div></article>)}</section></>}function Audit({ data: d }: { data: any[] }) {
+function Branding({ data: d, submit, request, load, has }: any) {
+  const [s = {}, domains = []] = d;
+  return (
+    <>
+      <div className="split">
+        <section className="panel">
+          <h2>Business settings</h2>
+          <form
+            className="form one"
+            onSubmit={(e) =>
+              submit(
+                e,
+                "/settings",
+                (x: Row) => ({ ...x, currency: "USD" }),
+                "PUT",
+                "Settings sove.",
+              )
+            }
+          >
+            <label>
+              Currency
+              <select name="currency" defaultValue="USD">
+                <option value="USD">$</option>
+              </select>
+            </label>
+            <label>
+              Timezone
+              <input
+                name="timezone"
+                defaultValue={s.settings?.timezone ?? "America/Port-au-Prince"}
+                required
+              />
+            </label>
+            <label>
+              Locale
+              <input
+                name="locale"
+                defaultValue={s.settings?.locale ?? "ht-HT"}
+                required
+              />
+            </label>
+            <label>
+              Date format
+              <input
+                name="dateFormat"
+                defaultValue={s.settings?.dateFormat ?? "DD/MM/YYYY"}
+                required
+              />
+            </label>
+            <button>Save settings</button>
+          </form>
+        </section>
+        <section className="panel">
+          <h2>Branding</h2>
+          <form
+            className="form one"
+            onSubmit={(e) =>
+              submit(
+                e,
+                "/settings/branding",
+                (x: Row) => x,
+                "PUT",
+                "Branding sove.",
+              )
+            }
+          >
+            <label>
+              Business name
+              <input
+                name="businessName"
+                defaultValue={s.branding?.businessName}
+                required
+              />
+            </label>
+            <label>
+              Logo HTTPS URL
+              <input name="logoUrl" defaultValue={s.branding?.logoUrl} />
+            </label>
+            <label>
+              Favicon HTTPS URL
+              <input name="faviconUrl" defaultValue={s.branding?.faviconUrl} />
+            </label>
+            <label>
+              Primary color
+              <input
+                name="primaryColor"
+                type="color"
+                defaultValue={s.branding?.primaryColor ?? "#172554"}
+              />
+            </label>
+            <label>
+              Secondary color
+              <input
+                name="secondaryColor"
+                type="color"
+                defaultValue={s.branding?.secondaryColor ?? "#f59e0b"}
+              />
+            </label>
+            <button disabled={!has("custom_branding")}>Save branding</button>
+          </form>
+        </section>
+      </div>
+      <section className="panel">
+        <h2>Custom domains</h2>
+        <form className="inline" onSubmit={(e) => submit(e, "/domains")}>
+          <input name="domain" placeholder="portal.customer.com" required />
+          <button disabled={!has("custom_domain")}>Add domain</button>
+        </form>
+        {domains.map((x: Row) => (
+          <article className="domain" key={x.id}>
+            <div>
+              <b>{x.domain}</b>
+              <small>
+                {x.verificationStatus} · SSL {x.sslStatus}
+                {x.isPrimary ? " · PRIMARY" : ""}
+              </small>
+              <code>
+                TXT _lottivexa.{x.domain} = {x.verificationToken}
+              </code>
+            </div>
+            <div className="actions">
+              <button
+                onClick={async () => {
+                  await request(`/domains/${x.id}/verify`, { method: "POST" });
+                  await load("branding");
+                }}
+              >
+                Verify
+              </button>
+              {x.verificationStatus === "VERIFIED" && !x.isPrimary && (
+                <button
+                  onClick={async () => {
+                    await request(`/domains/${x.id}/primary`, {
+                      method: "PATCH",
+                    });
+                    await load("branding");
+                  }}
+                >
+                  Primary
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </section>
+    </>
+  );
+}
+function Audit({ data: d }: { data: any[] }) {
   const result = d[0] ?? {};
   return (
     <section className="panel">
@@ -1880,6 +2010,32 @@ function LotterySetup({
                   ? t("lottery.close")
                   : t("lottery.activate")}
               </button>
+              <form
+                className="inline"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const logoUrl = String(
+                    new FormData(e.currentTarget).get("logoUrl") ?? "",
+                  );
+                  void execute(
+                    () =>
+                      request(`/lottery/games/${game.id}`, {
+                        method: "PATCH",
+                        body: JSON.stringify({ logoUrl }),
+                      }),
+                    t("lottery.logoSaved"),
+                  );
+                }}
+              >
+                <input
+                  name="logoUrl"
+                  type="url"
+                  defaultValue={game.logoUrl}
+                  placeholder={t("lottery.logoPlaceholder")}
+                  required
+                />
+                <button>{t("lottery.saveLogo")}</button>
+              </form>
             </article>
           ))}
         </div>
@@ -2054,5 +2210,3 @@ function LotterySetup({
     </>
   );
 }
-
-
