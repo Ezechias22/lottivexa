@@ -694,13 +694,13 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   }
   .print-receipt h1 {
     color: #132b4b;
-    font-size: 14pt;
+    font-size: 17pt;
     line-height: 1.15;
     margin: 0 0 1mm;
     overflow-wrap: anywhere;
   }
   .print-receipt header strong {
-    font-size: 9pt;
+    font-size: 10pt;
   }
   .receipt-branch {
     font-size: 8pt;
@@ -715,6 +715,23 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     font-weight: bold;
     border-top: 1px dashed #aab6c4;
     padding: 2.5mm 0;
+  }
+  .receipt-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2mm;
+    border-bottom: 1px dashed #aab6c4;
+    padding: 2.5mm 0;
+  }
+  .receipt-meta span {
+    font-size: 8pt;
+    color: #455468;
+  }
+  .receipt-meta strong {
+    font-size: 9.5pt;
+    text-align: right;
+    white-space: nowrap;
   }
   .receipt-row,
   .receipt-total {
@@ -743,9 +760,10 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   .receipt-number {
     display: block;
     font:
-      800 11pt/1.25 ui-monospace,
+      900 14pt/1.3 ui-monospace,
       monospace;
     white-space: normal;
+    letter-spacing: 0.04em;
   }
   .receipt-dekabes,
   .receipt-line-win {
