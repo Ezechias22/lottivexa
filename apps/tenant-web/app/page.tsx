@@ -469,10 +469,17 @@ export default function TenantConsole() {
       </main>
     );
   const current = data[tab] ?? [];
+  const tenantBranding = data.branding?.[0]?.branding ?? {};
+  useEffect(() => {
+    if (!tenantBranding.faviconUrl) return;
+    let icon = document.querySelector<HTMLLinkElement>('link[data-tenant-favicon]');
+    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; icon.dataset.tenantFavicon = 'true'; document.head.appendChild(icon); }
+    icon.href = tenantBranding.faviconUrl;
+  }, [tenantBranding.faviconUrl]);
   return (
-    <div className="shell">
+    <div className="shell" style={{ "--tenant-primary": tenantBranding.primaryColor ?? "#172554", "--tenant-secondary": tenantBranding.secondaryColor ?? "#f59e0b" } as any}>
       <aside>
-        <div className="logo">LOTTIVEXA</div>
+        <div className="logo">{tenantBranding.logoUrl ? <img src={tenantBranding.logoUrl} alt={tenantBranding.businessName ?? "Logo"} /> : "LOTTIVEXA"}</div>
         {NAV.filter(
           (n) =>
             (!n.permission || can(n.permission)) &&
@@ -1742,6 +1749,22 @@ function Reports({ data: d, request, run, token }: any) {
 }
 function Branding({ data: d, submit, request, load, has }: any) {
   const [s = {}, domains = []] = d;
+  const [logo, setLogo] = useState(String(s.branding?.logoUrl ?? ""));
+  const [favicon, setFavicon] = useState(String(s.branding?.faviconUrl ?? ""));
+  const [primaryColor, setPrimaryColor] = useState(String(s.branding?.primaryColor ?? "#172554"));
+  const [secondaryColor, setSecondaryColor] = useState(String(s.branding?.secondaryColor ?? "#f59e0b"));
+  const [brandingMessage, setBrandingMessage] = useState("");
+  useEffect(() => { setLogo(String(s.branding?.logoUrl ?? "")); setFavicon(String(s.branding?.faviconUrl ?? "")); setPrimaryColor(String(s.branding?.primaryColor ?? "#172554")); setSecondaryColor(String(s.branding?.secondaryColor ?? "#f59e0b")); }, [s.branding?.logoUrl, s.branding?.faviconUrl, s.branding?.primaryColor, s.branding?.secondaryColor]);
+  function readImage(file: File, setValue: (value: string) => void) {
+    if (!file.type.startsWith("image/")) { setBrandingMessage("Chwazi yon fichye imaj."); return; }
+    if (file.size > 5 * 1024 * 1024) { setBrandingMessage("Logo/Favicon lan dwe pi piti pase 5 MB."); return; }
+    const reader = new FileReader(); reader.onload = () => setValue(String(reader.result ?? "")); reader.readAsDataURL(file);
+  }
+  async function saveBranding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBrandingMessage("");
+    try { const values = Object.fromEntries(new FormData(event.currentTarget).entries()); await request("/settings/branding", { method: "PUT", body: JSON.stringify({ businessName: String(values.businessName ?? ""), logoUrl: logo || undefined, faviconUrl: favicon || undefined, primaryColor, secondaryColor }) }); setBrandingMessage("Branding sove."); await load("branding"); }
+    catch (error) { setBrandingMessage(error instanceof Error ? error.message : String(error)); }
+  }
   return (
     <>
       <div className="split">
@@ -1794,18 +1817,7 @@ function Branding({ data: d, submit, request, load, has }: any) {
         </section>
         <section className="panel">
           <h2>Branding</h2>
-          <form
-            className="form one"
-            onSubmit={(e) =>
-              submit(
-                e,
-                "/settings/branding",
-                (x: Row) => x,
-                "PUT",
-                "Branding sove.",
-              )
-            }
-          >
+          <form className="form one" onSubmit={saveBranding}>
             <label>
               Business name
               <input
@@ -1815,19 +1827,22 @@ function Branding({ data: d, submit, request, load, has }: any) {
               />
             </label>
             <label>
-              Logo HTTPS URL
-              <input name="logoUrl" defaultValue={s.branding?.logoUrl} />
+              Logo biznis (upload)
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImage(file, setLogo); }} />
             </label>
+            {logo && <img className="tenant-logo-preview" src={logo} alt="Logo biznis" />}
             <label>
-              Favicon HTTPS URL
-              <input name="faviconUrl" defaultValue={s.branding?.faviconUrl} />
+              Favicon (upload)
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImage(file, setFavicon); }} />
             </label>
+            {favicon && <img className="tenant-favicon-preview" src={favicon} alt="Favicon" />}
             <label>
               Primary color
               <input
                 name="primaryColor"
                 type="color"
-                defaultValue={s.branding?.primaryColor ?? "#172554"}
+                value={primaryColor}
+                onChange={(event) => setPrimaryColor(event.target.value)}
               />
             </label>
             <label>
@@ -1835,11 +1850,13 @@ function Branding({ data: d, submit, request, load, has }: any) {
               <input
                 name="secondaryColor"
                 type="color"
-                defaultValue={s.branding?.secondaryColor ?? "#f59e0b"}
+                value={secondaryColor}
+                onChange={(event) => setSecondaryColor(event.target.value)}
               />
             </label>
             <button disabled={!has("custom_branding")}>Save branding</button>
           </form>
+          {brandingMessage && <p className="message">{brandingMessage}</p>}
         </section>
       </div>
       <section className="panel">

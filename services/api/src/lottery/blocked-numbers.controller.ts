@@ -5,7 +5,7 @@ import {RequirePermissions} from '../common/decorators/access.decorators';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {LotteryService} from './lottery.service';
 
-class BlockNumberDto{ @IsString() gameId!:string; @IsOptional() @IsString() betTypeId?:string; @IsString() numberKey!:string; @IsOptional() @IsDateString() startsAt?:string; @IsOptional() @IsDateString() endsAt?:string; }
+class BlockNumberDto{ @IsOptional() @IsString() gameId?:string; @IsOptional() @IsString() betTypeId?:string; @IsString() numberKey!:string; @IsOptional() @IsDateString() startsAt?:string; @IsOptional() @IsDateString() endsAt?:string; }
 class StatusDto{ @IsOptional() enabled?:boolean; }
 
 @Controller('lottery')

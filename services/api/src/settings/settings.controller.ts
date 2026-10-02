@@ -1,2 +1,30 @@
-import{Body,Controller,Get,Put}from'@nestjs/common';import{IsHexColor,IsOptional,IsString,Length,MaxLength}from'class-validator';import{CurrentUser}from'../common/decorators/current-user.decorator';import{RequireFeature,RequirePermissions}from'../common/decorators/access.decorators';import type{Principal}from'../common/guards/jwt-auth.guard';import{SettingsService}from'./settings.service';class SettingsDto{@Length(3,3)currency!:string;@IsString()timezone!:string;@IsString()locale!:string;@IsString()dateFormat!:string}class BrandingDto{@IsString()businessName!:string;@IsOptional()@IsString()@MaxLength(4000000)logoUrl?:string;@IsOptional()@IsString()@MaxLength(4000000)faviconUrl?:string;@IsHexColor()primaryColor!:string;@IsHexColor()secondaryColor!:string}
-@Controller('settings')export class SettingsController{constructor(private service:SettingsService){}@Get()@RequirePermissions('settings.view')get(@CurrentUser()u:Principal){return this.service.get(u)}@Put()@RequirePermissions('settings.edit')settings(@CurrentUser()u:Principal,@Body()dto:SettingsDto){return this.service.settings(u,dto)}@Put('branding')@RequireFeature('custom_branding')@RequirePermissions('settings.edit')branding(@CurrentUser()u:Principal,@Body()dto:BrandingDto){return this.service.branding(u,dto)}}
+import { Body, Controller, Get, Put } from '@nestjs/common';
+import { IsHexColor, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RequireFeature, RequirePermissions } from '../common/decorators/access.decorators';
+import type { Principal } from '../common/guards/jwt-auth.guard';
+import { SettingsService } from './settings.service';
+
+class SettingsDto {
+  @Length(3, 3) currency!: string;
+  @IsString() timezone!: string;
+  @IsString() locale!: string;
+  @IsString() dateFormat!: string;
+}
+
+const imageValue = /^(https:\/\/|data:image\/(?:png|jpeg|webp|svg\+xml);base64,)[A-Za-z0-9+/=._~:/?%-]+$/;
+class BrandingDto {
+  @IsString() businessName!: string;
+  @IsOptional() @IsString() @MaxLength(7000000) @Matches(imageValue) logoUrl?: string;
+  @IsOptional() @IsString() @MaxLength(7000000) @Matches(imageValue) faviconUrl?: string;
+  @IsHexColor() primaryColor!: string;
+  @IsHexColor() secondaryColor!: string;
+}
+
+@Controller('settings')
+export class SettingsController {
+  constructor(private service: SettingsService) {}
+  @Get() @RequirePermissions('settings.view') get(@CurrentUser() u: Principal) { return this.service.get(u); }
+  @Put() @RequirePermissions('settings.edit') settings(@CurrentUser() u: Principal, @Body() dto: SettingsDto) { return this.service.settings(u, dto); }
+  @Put('branding') @RequireFeature('custom_branding') @RequirePermissions('settings.edit') branding(@CurrentUser() u: Principal, @Body() dto: BrandingDto) { return this.service.branding(u, dto); }
+}

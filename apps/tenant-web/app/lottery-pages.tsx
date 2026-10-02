@@ -12,6 +12,8 @@ export function LotteryCompact({ games, request, reload, can }: { games: Row[]; 
   const { t } = useI18n();
   const [blocked, setBlocked] = useState<Row[]>([]);
   const [message, setMessage] = useState('');
+  const [selectedGame, setSelectedGame] = useState('__ALL__');
+  const [selectedBet, setSelectedBet] = useState('__ALL__');
   useEffect(() => { void request('/lottery/limits').then(value => setBlocked(Array.isArray(value) ? value : [])).catch(() => {}); }, [request]);
   if (!can('settings.view') && !can('settings.edit')) return null;
   async function execute(work: () => Promise<any>, success: string) {
@@ -20,8 +22,16 @@ export function LotteryCompact({ games, request, reload, can }: { games: Row[]; 
   }
   async function blockNumber(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const x = Object.fromEntries(new FormData(form).entries());
-    await execute(() => request('/lottery/blocked-numbers', { method: 'POST', body: JSON.stringify({ gameId: x.gameId, betTypeId: x.betTypeId || undefined, numberKey: String(x.numberKey).trim() }) }), t('lottery.numberBlocked'));
+    const key = String(x.numberKey).trim();
+    const selectedEntry = games.flatMap(game => (game.betTypes ?? []).map((entry: Row) => ({ game, entry }))).find(({ game, entry }) => `${game.id}|${entry.betType.id}` === selectedBet);
+    const targets = selectedGame === '__ALL__'
+      ? (selectedBet === '__ALL__'
+        ? [{ gameId: undefined, betTypeId: undefined }]
+        : games.flatMap(game => (game.betTypes ?? []).filter((entry: Row) => entry.betType.code === selectedEntry?.entry.betType.code).map((entry: Row) => ({ gameId: game.id, betTypeId: entry.betType.id }))))
+      : [{ gameId: selectedGame, betTypeId: selectedBet === '__ALL__' ? undefined : selectedBet }];
+    await execute(async () => { for (const target of targets) await request('/lottery/blocked-numbers', { method: 'POST', body: JSON.stringify({ ...target, numberKey: key }) }); }, t('lottery.numberBlocked'));
     form.reset();
+    setSelectedGame('__ALL__'); setSelectedBet('__ALL__');
   }
   async function unblock(id: string) { await execute(() => request(`/lottery/limits/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled: false }) }), t('lottery.numberUnblocked')); }
   return <>
@@ -32,12 +42,12 @@ export function LotteryCompact({ games, request, reload, can }: { games: Row[]; 
     {can('settings.edit') && <section className="panel">
       <h2>{t('lottery.blockNumbers')}</h2><p className="muted">{t('lottery.blockNumbersHelp')}</p>
       <form className="form one" onSubmit={blockNumber}>
-        <label>{t('lottery.game')}<select name="gameId" required><option value="">{t('lottery.chooseGame')}</option>{games.map(game => <option key={game.id} value={game.id}>{game.name}</option>)}</select></label>
-        <label>{t('lottery.betType')}<select name="betTypeId"><option value="">{t('lottery.allBetTypes')}</option>{games.flatMap(game => (game.betTypes ?? []).map((entry: Row) => <option key={`${game.id}|${entry.betType.id}`} value={entry.betType.id}>{game.name} — {entry.betType.name}</option>))}</select></label>
+        <label>{t('lottery.game')}<select name="gameId" value={selectedGame} onChange={event => { setSelectedGame(event.target.value); setSelectedBet('__ALL__'); }}><option value="__ALL__">Tout lotri</option>{games.map(game => <option key={game.id} value={game.id}>{game.name}</option>)}</select></label>
+        <label>{t('lottery.betType')}<select name="betTypeId" value={selectedBet} onChange={event => setSelectedBet(event.target.value)}><option value="__ALL__">{t('lottery.allBetTypes')}</option>{games.filter(game => selectedGame === '__ALL__' || game.id === selectedGame).flatMap(game => (game.betTypes ?? []).map((entry: Row) => <option key={`${game.id}|${entry.betType.id}`} value={selectedGame === '__ALL__' ? `${game.id}|${entry.betType.id}` : entry.betType.id}>{game.name} — {entry.betType.name}</option>))}</select></label>
         <label>{t('lottery.blockedNumber')}<input name="numberKey" placeholder="45, 12-34 or 45@1" required /></label>
         <button>{t('lottery.blockNumber')}</button>
       </form>
-      <div className="domain-list">{blocked.filter(item => item.active).map(item => <article className="domain" key={item.id}><div><b>{item.numberKey}</b><small>{item.game?.name ?? ''}{item.betType ? ` · ${item.betType.name}` : ''}</small></div><button className="danger" onClick={() => void unblock(item.id)}>{t('lottery.unblockNumber')}</button></article>)}</div>
+      <div className="domain-list">{blocked.filter(item => item.active).map(item => <article className="domain" key={item.id}><div><b>{item.numberKey}</b><small>{item.game?.name ?? 'Tout lotri'}{item.betType ? ` · ${item.betType.name}` : ''}</small></div><button className="danger" onClick={() => void unblock(item.id)}>{t('lottery.unblockNumber')}</button></article>)}</div>
     </section>}
     {message && <p className="message">{message}</p>}
   </>;
