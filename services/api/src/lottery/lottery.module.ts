@@ -1,1 +1,1 @@
-import{Module}from'@nestjs/common';import{LotteryController}from'./lottery.controller';import{LotteryService}from'./lottery.service';@Module({controllers:[LotteryController],providers:[LotteryService]})export class LotteryModule{}
+import{Module}from'@nestjs/common';import{LotteryController}from'./lottery.controller';import{BlockedNumbersController}from'./blocked-numbers.controller';import{LotteryService}from'./lottery.service';@Module({controllers:[LotteryController,BlockedNumbersController],providers:[LotteryService]})export class LotteryModule{}

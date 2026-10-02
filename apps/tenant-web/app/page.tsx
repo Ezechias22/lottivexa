@@ -1904,6 +1904,8 @@ function LotterySetup({
 }) {
   const { t } = useI18n();
   const [message, setMessage] = useState("");
+  const [blocked,setBlocked] = useState<Row[]>([]);
+  useEffect(()=>{void request("/lottery/limits").then(value=>setBlocked(Array.isArray(value)?value:[])).catch(()=>{});},[]);
   if (!can("settings.edit")) return null;
   async function execute(work: () => Promise<void>, success: string) {
     setMessage("");
@@ -1959,6 +1961,12 @@ function LotterySetup({
       target.reset();
     }, "Odds yo aktive.");
   }
+  async function blockNumber(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const target=e.currentTarget,x=val(target);
+    await execute(async()=>{await request("/lottery/blocked-numbers",{method:"POST",body:JSON.stringify({gameId:x.gameId,betTypeId:x.betTypeId||undefined,numberKey:String(x.numberKey).trim()})});target.reset();},t("lottery.numberBlocked"));
+  }
+  async function unblockNumber(id:string){await execute(()=>request(`/lottery/limits/${id}`,{method:"PATCH",body:JSON.stringify({enabled:false})}),t("lottery.numberUnblocked"));}
   async function installCatalog() {
     await execute(
       () => request("/lottery/catalog/install", { method: "POST", body: "{}" }),
@@ -2206,6 +2214,17 @@ function LotterySetup({
           </form>
         </section>
       </div>
+      <section className="panel">
+        <h2>{t("lottery.blockNumbers")}</h2>
+        <p className="muted">{t("lottery.blockNumbersHelp")}</p>
+        <form className="form one" onSubmit={blockNumber}>
+          <label>{t("lottery.game")}<select name="gameId" required><option value="">{t("lottery.chooseGame")}</option>{games.map((game:Row)=><option key={game.id} value={game.id}>{game.name}</option>)}</select></label>
+          <label>{t("lottery.betType")}<select name="betTypeId"><option value="">{t("lottery.allBetTypes")}</option>{games.flatMap((game:Row)=>(game.betTypes??[]).map((entry:Row)=><option key={`${game.id}|${entry.betType.id}`} value={entry.betType.id}>{game.name} — {entry.betType.name}</option>))}</select></label>
+          <label>{t("lottery.blockedNumber")}<input name="numberKey" placeholder="45, 12-34 or 45@1" required /></label>
+          <button>{t("lottery.blockNumber")}</button>
+        </form>
+        <div className="domain-list">{blocked.filter((item:Row)=>item.active).map((item:Row)=><article className="domain" key={item.id}><div><b>{item.numberKey}</b><small>{item.game?.name??""}{item.betType?` · ${item.betType.name}`:""}</small></div><button className="danger" onClick={()=>void unblockNumber(item.id)}>{t("lottery.unblockNumber")}</button></article>)}</div>
+      </section>
       {message && <p className="message">{message}</p>}
     </>
   );
