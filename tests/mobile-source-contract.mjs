@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../apps/mobile/lib/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
-const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter, reports] = await Promise.all([
+const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter, reports, merchantDashboard, ticketSearch] = await Promise.all([
   read('app/lottivexa_app.dart'), read('core/security/session_store.dart'),
   read('features/admin/admin_dashboard_screen.dart'), read('features/admin/admin_hub_screen.dart'),
   read('features/admin/admin_resource_screen.dart'), read('features/tickets/new_ticket_screen.dart'),
@@ -11,6 +11,8 @@ const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, 
   read('core/printing/escpos_encoder.dart'), read('core/draw_label.dart'),
   readFile(new URL('../apps/mobile/android/app/src/main/kotlin/com/lottivexa/mobile/MainActivity.kt', import.meta.url), 'utf8'),
   read('features/reports/reports_screen.dart'),
+  readFile(new URL('../services/api/src/merchants/merchants.service.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../services/api/src/tickets/tickets.service.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(session, /isTenantAdmin/);
@@ -34,12 +36,16 @@ assert.match(tickets, /_displayTicketStatus/);
 assert.match(tickets, /MONTAN POKO KONFIME/);
 assert.match(tickets, /double ticketWinningAmount\(/);
 assert.match(tickets, /ticketWinningAmount\(ticket\)/);
+assert.match(tickets, /merchantDrawLabel\(/);
 assert.doesNotMatch(tickets, /_winningAmount\(ticket\)/);
 assert.doesNotMatch(tickets, /BEZWEN VERIFIKASYON/);
 assert.ok(results.includes('/api/v1/lottery/draws'));
 assert.ok(reports.includes('/api/v1/reports/sales.pdf'));
 assert.ok(reports.includes("'Telechaje rapò an PDF'"));
 assert.ok(nativePrinter.includes('sharePdf'));
+assert.match(merchantDashboard, /payout: true, draw: \{ include: \{ game: true \} \}/);
+assert.match(ticketSearch, /payout:true,draw:\{include:\{game:true\}\}/);
+assert.match(ticketSearch, /ticketDraws:\{include:\{draw:\{include:\{game:true\}\}\}\}/);
 assert.match(app, /hasPermission\('tickets\.create'\)/);
 assert.match(encoder, /selectionKey/);
 assert.match(encoder, /RECEIPT_BUSINESS_NAME_REQUIRED/);

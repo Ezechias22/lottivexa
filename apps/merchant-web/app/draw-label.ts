@@ -94,3 +94,13 @@ export function drawNameSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
 export function drawSessionLabel(draw: DrawLabel, language: 'ht' | 'fr') {
   return sessionLabel(drawSession(draw), language);
 }
+
+type TicketDraws = {
+  draw?: DrawLabel | null;
+};
+
+export function ticketDrawLabels(ticket: { draw?: DrawLabel | null; ticketDraws?: TicketDraws[] }, language: 'ht' | 'fr') {
+  const linked = (ticket.ticketDraws ?? []).map((item) => item.draw).filter((draw): draw is DrawLabel => Boolean(draw));
+  const draws = linked.length ? linked : ticket.draw ? [ticket.draw] : [];
+  return [...new Set(draws.map((draw) => drawLabel(draw, language)))].join(' / ');
+}

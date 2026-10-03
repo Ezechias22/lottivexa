@@ -104,6 +104,12 @@ class _TicketState extends State<TicketSearchScreen> {
     final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
     return stored <= 0 || ticketWinningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
   }
+  String _ticketDrawLabel(Map<String, dynamic> value) {
+    final linked = value['ticketDraws'] as List<dynamic>? ?? [];
+    final draws = linked.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
+    final rows = draws.isNotEmpty ? draws : value['draw'] is Map ? [value['draw'] as Map] : <Map>[];
+    return rows.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw))).where((label) => label.isNotEmpty).toSet().join(' / ');
+  }
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
     'PAID' => Colors.blue.shade700,
@@ -120,7 +126,19 @@ class _TicketState extends State<TicketSearchScreen> {
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
       if (ticket != null) TicketDetails(ticket: {...ticket!, '_displayStatus': _displayTicketStatus(ticket!)}, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: _displayTicketStatus(ticket!) == 'WINNER' && ticket!['payout'] == null && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
       const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      ...rows.map((row) { final ticketRow = Map<String, dynamic>.from(row as Map); final displayStatus = _displayTicketStatus(ticketRow); final label = '${statusLabel(displayStatus)}${_needsWinningReview(ticketRow) ? ' · MONTAN POKO KONFIME' : ''}'; return Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, displayStatus)), title: Text('${row['ticketNumber']}'), subtitle: Text('$label · ${row['createdAt']}'), trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}'))); }),
+      ...rows.map((row) {
+        final ticketRow = Map<String, dynamic>.from(row as Map);
+        final displayStatus = _displayTicketStatus(ticketRow);
+        final label = '${statusLabel(displayStatus)}${_needsWinningReview(ticketRow) ? ' · MONTAN POKO KONFIME' : ''}';
+        final draw = _ticketDrawLabel(ticketRow);
+        return Card(child: ListTile(
+          leading: Icon(Icons.confirmation_number, color: statusColor(context, displayStatus)),
+          title: Text('${row['ticketNumber']}'),
+          subtitle: Text([label, if (draw.isNotEmpty) draw, '${row['createdAt']}'].join(' · ')),
+          trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)),
+          onTap: () => search('${row['ticketNumber']}'),
+        ));
+      }),
       if (rows.isEmpty && !busy) const Padding(padding: EdgeInsets.all(24), child: Text('Pa gen tikè.')),
     ]),
   );

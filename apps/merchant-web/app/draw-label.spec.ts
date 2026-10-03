@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawLabel, drawSession, drawSessionLabel } from './draw-label';
+import { drawLabel, drawSession, drawSessionLabel, ticketDrawLabels } from './draw-label';
 
 describe('draw session labels', () => {
   it('recognizes catalog day and evening sessions from the scheduled draw number', () => {
@@ -24,5 +24,12 @@ describe('draw session labels', () => {
     const draw = { game: { name: 'Georgia' }, drawNumber: 'GA-20260920-1229' };
     expect(drawSessionLabel(draw, 'ht')).toBe('Midi');
     expect(drawLabel(draw, 'fr')).toContain('Midi');
+  });
+
+  it('lists the linked draw and falls back to the primary draw', () => {
+    const gameDraw = { game: { name: 'Georgia' }, sessionType: 'EVENING' };
+    expect(ticketDrawLabels({ draw: { game: { name: 'Florida' } }, ticketDraws: [{ draw: gameDraw }] }, 'ht'))
+      .toBe('Georgia · Swa');
+    expect(ticketDrawLabels({ draw: gameDraw }, 'fr')).toBe('Georgia · Soir');
   });
 });

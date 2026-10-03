@@ -9,7 +9,7 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
   } else if (RegExp(r'\b(EVENING|SOIR|SWA|EVE|ASWE)\b').hasMatch(text)) {
     session = french ? 'Soir' : 'Swa';
   } else if (RegExp(r'\b(NIGHT|NUIT|LANNWIT)\b').hasMatch(text)) {
-    session = french ? 'Nuit' : 'Lannuit';
+      session = french ? 'Nuit' : 'Swa';
   }
   if (session == null) {
     final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'];
@@ -19,7 +19,7 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
       session = date.hour < 12 ? (french ? 'Matin' : 'Maten')
           : date.hour < 16 ? 'Midi'
           : date.hour < 21 ? (french ? 'Soir' : 'Swa')
-          : (french ? 'Nuit' : 'Lannuit');
+          : (french ? 'Nuit' : 'Swa');
     }
   }
   if (session == null) {
@@ -31,7 +31,7 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
       session = hour < 12 ? (french ? 'Matin' : 'Maten')
           : hour < 16 ? 'Midi'
           : hour < 21 ? (french ? 'Soir' : 'Swa')
-          : (french ? 'Nuit' : 'Lannuit');
+          : (french ? 'Nuit' : 'Swa');
     }
   }
   if (session == null) return french ? 'Séance à confirmer' : 'Sesyon pou verifye';
@@ -49,9 +49,10 @@ String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false}) {
   if (date != null) {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
-    final time = date.hour.toString().padLeft(2, '0') + ':' + date.minute.toString().padLeft(2, '0');
-    parts.add(day + '/' + month + '/' + date.year.toString() +
-        (draw['resultAt'] != null || draw['closesAt'] != null || draw['opensAt'] != null ? ' ' + time : ''));
+    final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final dateLabel = '$day/$month/${date.year}';
+    final timeLabel = draw['resultAt'] != null || draw['closesAt'] != null || draw['opensAt'] != null ? ' $time' : '';
+    parts.add('$dateLabel$timeLabel');
   }
   return parts.join(' ');
 }

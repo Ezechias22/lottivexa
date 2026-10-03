@@ -43,6 +43,10 @@ describe('ticket result status presentation', () => {
     expect(ticketDisplayStatus({ status: 'PENDING', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('LOSER');
   });
 
+  it('lets completed losing line outcomes override a stale WINNER status in history', () => {
+    expect(ticketDisplayStatus({ status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('LOSER');
+  });
+
   it('shows paid when a payout exists even if the ticket status is stale', () => {
     expect(ticketDisplayStatus({ status: 'WINNER', payout: { amount: '50' } })).toBe('PAID');
   });
