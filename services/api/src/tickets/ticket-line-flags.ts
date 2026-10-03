@@ -33,6 +33,14 @@ export function presentTicketLines<T extends {
 }>(ticket: T) {
   return {
     ...ticket,
-    lines: ticket.lines.map(line => ({ ...line, ...ticketLineFlags(ticket.events, line.id) })),
+    lines: ticket.lines.map(line => {
+      const flags = ticketLineFlags(ticket.events, line.id);
+      // Rehydrate winner flags from the authoritative result event.
+      return {
+        ...line,
+        ...flags,
+        ...(flags.winCount > 0 ? { isWinner: true } : {}),
+      };
+    }),
   };
 }
