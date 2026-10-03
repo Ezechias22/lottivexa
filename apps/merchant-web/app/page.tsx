@@ -89,7 +89,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
    <form className="lookup" onSubmit={lookup}><input name="reference" placeholder={tr('ticketNumber')} autoFocus required/><button>{tr('search')}</button></form>
   </section>
   {t&&<section className="ticket">
-   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'Vérification requise':'Bezwen verifikasyon'):statusLabel(ticketDisplayStatus(t),language)}</b></div>
+   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'En attente':'An atant'):statusLabel(ticketDisplayStatus(t),language)}</b></div>
    <p>{t.draw?drawLabel(t.draw,language):t.game?.name}</p>
    {(t.lines??[]).map((line:Row)=>{
     const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0);
