@@ -96,6 +96,22 @@ export function formatTenantApiError(
       ht: "Enfòmasyon yo pa disponib ankò. Rechaje paj la epi eseye ankò.",
       fr: "Ces informations ne sont plus disponibles. Actualisez la page puis réessayez.",
     },
+    INVALID_COMMISSION_PERCENTAGE: {
+      ht: "Pousantaj komisyon an dwe yon chif ant 0 ak 100.",
+      fr: "Le taux de commission doit être un nombre entre 0 et 100.",
+    },
+    INVALID_BOLET_PAYOUTS: {
+      ht: "Mete twa miltiplikatè ki pi gran pase zewo pou 1ye, 2yèm ak 3yèm rezilta yo.",
+      fr: "Saisissez trois multiplicateurs supérieurs à zéro pour les 1er, 2e et 3e résultats.",
+    },
+    BOLET_NOT_ENABLED_FOR_GAME: {
+      ht: "Jwèt sa a pa gen kalite pari Bolet ki aktif.",
+      fr: "Le jeu ne dispose pas d’un pari Bolet actif.",
+    },
+    INVALID_SCHEDULE_TIMES: {
+      ht: "Lè ouvèti a dwe anvan lè fèmti a, epi rezilta a dwe fèt apre fèmti a.",
+      fr: "L’ouverture doit précéder la fermeture, et le résultat doit suivre la fermeture.",
+    },
   };
 
   const knownMessage = messages[code];

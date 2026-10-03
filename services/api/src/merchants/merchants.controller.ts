@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
 import {
   IsEmail,
+  IsNumberString,
   IsOptional,
   IsString,
   MinLength,
@@ -16,6 +17,7 @@ export class CreateMerchantDto {
   @IsString() username!: string;
   @IsOptional() @ValidateIf((_, value) => value !== "") @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
+  @IsNumberString() commissionPercentage!: string;
   @MinLength(12) temporaryPassword!: string;
   @IsString() branchId!: string;
 }

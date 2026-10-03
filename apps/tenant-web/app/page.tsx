@@ -7,11 +7,14 @@ import UserActions from "./user-actions";
 import ManualResults from "./manual-results";
 import { LotteryCompact, LotterySchedules, ManualResultsPage, PublishedResults } from "./lottery-pages";
 import { localizedColumn, useI18n } from "./i18n";
-import { describeDraw, drawSessionLabel } from "./draw-label";
+import { describeDraw } from "./draw-label";
 import {
   formatTenantApiError,
   normalizeMerchantCreateForm,
 } from "./tenant-api-feedback";
+import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
+import TenantReports from "./tenant-reports";
+import TenantLotterySettings from "./tenant-lottery-settings";
 const RAW_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const API = RAW_API.replace(/\/$/, "").endsWith("/api/v1")
   ? RAW_API.replace(/\/$/, "")
@@ -177,6 +180,7 @@ export default function TenantConsole() {
     [refresh, setRefresh] = useState(""),
     [force, setForce] = useState(false),
     [tab, setTab] = useState<Tab>("dashboard"),
+    [tabReady, setTabReady] = useState(false),
     [data, setData] = useState<Record<string, any>>({}),
     [features, setFeatures] = useState<string[]>([]),
     [message, setMessage] = useState(""),
@@ -187,10 +191,25 @@ export default function TenantConsole() {
   );
   const can = (p: string) => permissions.includes(p),
     has = (f: string) => features.includes(f);
+  const availableTabs = useMemo(
+    () => NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.feature || has(n.feature))).map((n) => n.id),
+    [permissions, features],
+  );
   useEffect(() => {
     setToken(localStorage.getItem("tenant_access") ?? "");
     setRefresh(localStorage.getItem("tenant_refresh") ?? "");
     setForce(localStorage.getItem("tenant_force_password") === "true");
+  }, []);
+  useEffect(() => {
+    const syncTab = () => setTab(tenantTabFromSearch(window.location.search, availableTabs) as Tab);
+    syncTab();
+    setTabReady(true);
+    window.addEventListener("popstate", syncTab);
+    return () => window.removeEventListener("popstate", syncTab);
+  }, [availableTabs]);
+  const navigateTab = useCallback((next: Tab) => {
+    window.history.pushState({ tenantTab: next }, "", tenantTabHref(window.location.href, next));
+    setTab(next);
   }, []);
   const logout = useCallback(() => {
     localStorage.removeItem("tenant_access");
@@ -261,6 +280,23 @@ export default function TenantConsole() {
     },
     [token, refresh, logout, language],
   );
+  const downloadSalesReport = useCallback(
+    async (from: string, to: string) => {
+      const query = new URLSearchParams({ from, to });
+      const access = localStorage.getItem("tenant_access") ?? token;
+      const response = await fetch(`${API}/reports/sales.pdf?${query}`, {
+        headers: { authorization: `Bearer ${access}` },
+      });
+      if (!response.ok) throw new Error("Report PDF download failed.");
+      const url = URL.createObjectURL(await response.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lottivexa-sales-${from}-${to}.pdf`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+    [token],
+  );
   const run = useCallback(
     async (action: () => Promise<any>, success?: string) => {
       setBusy(true);
@@ -312,7 +348,7 @@ export default function TenantConsole() {
           `/reports/sales?from=${shiftDate(haitiToday(), -29)}&to=${haitiToday()}`,
           `/reports/draws?from=${shiftDate(haitiToday(), -29)}&to=${haitiToday()}`,
         ],
-        branding: ["/settings", "/domains"],
+        branding: ["/settings", "/domains", "/lottery/settings"],
         audit: ["/audit?limit=100"],
       };
       const values = await run(() =>
@@ -335,8 +371,8 @@ export default function TenantConsole() {
         .catch(() => setFeatures([]));
   }, [token, force, request]);
   useEffect(() => {
-    if (token && !force) void load(tab);
-  }, [tab, token, force]);
+    if (tabReady && token && !force) void load(tab);
+  }, [tab, tabReady, token, force, load]);
   const tenantBranding = data.branding?.[0]?.branding ?? {};
   useEffect(() => {
     if (!tenantBranding.faviconUrl) return;
@@ -493,7 +529,7 @@ export default function TenantConsole() {
           <button
             key={n.id}
             className={tab === n.id ? "active" : ""}
-            onClick={() => setTab(n.id)}
+            onClick={() => navigateTab(n.id)}
           >
             {n.label}
           </button>
@@ -567,7 +603,7 @@ export default function TenantConsole() {
           <Printers data={current} submit={submit} has={has} />
         )}{" "}
         {tab === "reports" && (
-          <Reports data={current} request={request} run={run} token={token} />
+          <TenantReports data={current} request={request} run={run} downloadReport={downloadSalesReport} canExport={can("reports.export")} />
         )}{" "}
         {tab === "branding" && (
           <Branding
@@ -576,6 +612,7 @@ export default function TenantConsole() {
             request={request}
             load={load}
             has={has}
+            can={can}
           />
         )}{" "}
         {tab === "audit" && <Audit data={current} />}
@@ -743,6 +780,10 @@ function Merchants({ data: d, submit, request, load, can }: any) {
               <input name="email" type="email" />
             </label>
             <label>
+              Merchant commission (%)
+              <input name="commissionPercentage" type="number" min="0" max="100" step="0.01" placeholder="e.g. 10" required />
+            </label>
+            <label>
               Temporary password
               <input
                 name="temporaryPassword"
@@ -774,6 +815,7 @@ function Merchants({ data: d, submit, request, load, can }: any) {
             ["displayName", "Name"],
             ["user.username", "Login"],
             ["branch.name", "Branch"],
+            ["commissionRate", "Commission"],
             ["status", "Status"],
           ]}
           actions={(r) => (
@@ -1569,196 +1611,8 @@ function Printers({ data: d, submit, has }: any) {
     </>
   );
 }
-function Reports({ data: d, request, run, token }: any) {
-  const { t, language } = useI18n();
-  const [report, setReport] = useState(d[0] ?? {}),
-    [drawReport, setDrawReport] = useState(d[1] ?? {}),
-    [from, setFrom] = useState(() => shiftDate(haitiToday(), -29)),
-    [to, setTo] = useState(() => haitiToday());
-  useEffect(() => {
-    setReport(d[0] ?? {});
-    setDrawReport(d[1] ?? {});
-  }, [d]);
-  async function filter(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (from > to) {
-      await run(async () => {
-        throw new Error(t("report.invalidDates"));
-      });
-      return;
-    }
-    const q = new URLSearchParams({ from, to });
-    const values = await run(() =>
-      Promise.all([
-        request(`/reports/sales?${q}`),
-        request(`/reports/draws?${q}`),
-      ]),
-    );
-    if (values) {
-      setReport(values[0]);
-      setDrawReport(values[1]);
-    }
-  }
-  async function pdf() {
-    const q = new URLSearchParams({ from, to });
-    const response = await fetch(`${API}/reports/sales.pdf?${q}`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return;
-    const url = URL.createObjectURL(await response.blob()),
-      a = document.createElement("a");
-    a.href = url;
-    a.download = `lottivexa-sales-${from}-${to}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-  const sessions = (drawReport.byDraw ?? []).map((x: Row) => ({
-    ...x,
-    sessionLabel: drawSessionLabel({ session: x.session }, language),
-    humanLabel: describeDraw(
-      {
-        game: { name: x.gameName },
-        drawDate: x.drawDate,
-        resultAt: x.drawTime,
-        session: x.session,
-      },
-      language,
-    ),
-  }));
-  return (
-    <>
-      <section className="report-banner">
-        <div>
-          <span className="eyebrow">{t("nav.reports")}</span>
-          <h2>{t("report.byDraw")}</h2>
-          <p>{t("report.fromToday")}</p>
-        </div>
-      </section>
-      <section className="panel">
-        <form className="inline report-filter" onSubmit={filter}>
-          <label>
-            {t("report.from")}
-            <input
-              name="from"
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            {t("report.to")}
-            <input
-              name="to"
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              required
-            />
-          </label>
-          <button>{t("report.show")}</button>
-          <button type="button" className="secondary" onClick={pdf}>
-            {t("report.download")}
-          </button>
-        </form>
-      </section>
-      <div className="cards report-cards">
-        <article className="metric-sales">
-          <span>{t("report.sales")}</span>
-          <strong>{money(report.tickets?.sales)}</strong>
-        </article>
-        <article>
-          <span>{t("report.tickets")}</span>
-          <strong>{report.tickets?.count ?? 0}</strong>
-        </article>
-        <article>
-          <span>{t("report.payouts")}</span>
-          <strong>{money(report.payouts?.amount)}</strong>
-        </article>
-        <article>
-          <span>{t("report.net")}</span>
-          <strong>
-            {money(
-              Number(report.tickets?.sales ?? 0) -
-                Number(report.payouts?.amount ?? 0),
-            )}
-          </strong>
-        </article>
-        <article>
-          <span>{t("report.commissions")}</span>
-          <strong>{money(report.commission)}</strong>
-        </article>
-        <article>
-          <span>{language === "fr" ? "Gains potentiels" : "Gany posib"}</span>
-          <strong>{money(report.tickets?.potentialWin)}</strong>
-        </article>
-      </div>
-      <div className="split report-breakdowns">
-        <section className="panel">
-          <h2>{t("report.byStatus")}</h2>
-          <Table
-            rows={report.byStatus ?? []}
-            columns={[
-              ["status", t("report.status")],
-              ["count", t("report.count")],
-              ["amount", t("report.amount")],
-            ]}
-          />
-        </section>
-        <section className="panel">
-          <h2>{t("report.byGame")}</h2>
-          <Table
-            rows={report.byGame ?? []}
-            columns={[
-              ["gameName", t("report.lottery")],
-              ["count", t("report.count")],
-              ["amount", t("report.amount")],
-            ]}
-          />
-        </section>
-        <section className="panel">
-          <h2>{t("report.byBranch")}</h2>
-          <Table
-            rows={report.byBranch ?? []}
-            columns={[
-              ["branchName", t("report.branch")],
-              ["count", t("report.count")],
-              ["amount", t("report.amount")],
-            ]}
-          />
-        </section>
-        <section className="panel draw-breakdown">
-          <h2>{t("report.byDraw")}</h2>
-          <div className="draw-report-list">
-            {sessions.length ? (
-              sessions.map((draw: Row) => (
-                <article key={draw.drawId}>
-                  <div>
-                    <strong>{draw.gameName}</strong>
-                    <span>{draw.humanLabel}</span>
-                  </div>
-                  <span
-                    className={`session-pill ${draw.session === "MORNING" ? "morning" : "evening"}`}
-                  >
-                    {draw.sessionLabel}
-                  </span>
-                  <b>{money(draw.amount)}</b>
-                  <small>
-                    {draw.count} {t("report.tickets").toLowerCase()}
-                  </small>
-                </article>
-              ))
-            ) : (
-              <p className="empty">{t("report.noDraws")}</p>
-            )}
-          </div>
-        </section>
-      </div>
-    </>
-  );
-}
-function Branding({ data: d, submit, request, load, has }: any) {
-  const [s = {}, domains = []] = d;
+function Branding({ data: d, submit, request, load, has, can }: any) {
+  const [s = {}, domains = [], lotterySettings = []] = d;
   const [logo, setLogo] = useState(String(s.branding?.logoUrl ?? ""));
   const [favicon, setFavicon] = useState(String(s.branding?.faviconUrl ?? ""));
   const [primaryColor, setPrimaryColor] = useState(String(s.branding?.primaryColor ?? "#172554"));
@@ -1869,6 +1723,12 @@ function Branding({ data: d, submit, request, load, has }: any) {
           {brandingMessage && <p className="message">{brandingMessage}</p>}
         </section>
       </div>
+      <TenantLotterySettings
+        games={lotterySettings}
+        request={request}
+        reload={() => load("branding")}
+        canEdit={can("settings.edit")}
+      />
       <section className="panel">
         <h2>Custom domains</h2>
         <form className="inline" onSubmit={(e) => submit(e, "/domains")}>

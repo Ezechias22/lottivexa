@@ -9,6 +9,7 @@ import type { Principal } from "../common/guards/jwt-auth.guard";
 import { merchantUpdate, MerchantUpdate } from "./merchant-update-policy";
 import { reportRange } from "../reports/report-policy";
 import { presentTicketLines } from "../tickets/ticket-line-flags";
+import { merchantCommissionPercentage } from "./merchant-commission-policy";
 export const merchantPermissions = [
   "tickets.view",
   "tickets.create",
@@ -117,24 +118,52 @@ export class MerchantsService {
       recent: recent.map(presentTicketLines),
     };
   }
-  list(u: Principal) {
-    return prisma.merchantAccount.findMany({
-      where: { tenantId: this.tenant(u), archivedAt: null },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            phone: true,
-            status: true,
-            forcePasswordChange: true,
+  async list(u: Principal) {
+    const tenantId = this.tenant(u);
+    const now = new Date();
+    const [merchants, commissionRules] = await Promise.all([
+      prisma.merchantAccount.findMany({
+        where: { tenantId, archivedAt: null },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              phone: true,
+              status: true,
+              forcePasswordChange: true,
+            },
           },
+          branch: { select: { id: true, code: true, name: true } },
         },
-        branch: { select: { id: true, code: true, name: true } },
-      },
-      orderBy: { displayName: "asc" },
-    });
+        orderBy: { displayName: "asc" },
+      }),
+      prisma.commissionRule.findMany({
+        where: {
+          tenantId,
+          scope: "MERCHANT",
+          scopeId: { not: null },
+          active: true,
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+        },
+        orderBy: [{ priority: "desc" }, { startsAt: "desc" }],
+      }),
+    ]);
+    const commissionByMerchant = new Map<string, string>();
+    for (const rule of commissionRules) {
+      if (rule.scopeId && !commissionByMerchant.has(rule.scopeId)) {
+        commissionByMerchant.set(
+          rule.scopeId,
+          `${rule.percentage?.toString() ?? "0"}%`,
+        );
+      }
+    }
+    return merchants.map((merchant) => ({
+      ...merchant,
+      commissionRate: commissionByMerchant.get(merchant.id) ?? null,
+    }));
   }
   async create(
     u: Principal,
@@ -144,10 +173,12 @@ export class MerchantsService {
       username: string;
       email?: string;
       phone?: string;
+      commissionPercentage: string;
       temporaryPassword: string;
       branchId: string;
     },
   ) {
+    const commissionPercentage = merchantCommissionPercentage(dto.commissionPercentage);
     const tenantId = this.tenant(u),
       branch = await prisma.branch.findFirst({
         where: {
@@ -207,6 +238,17 @@ export class MerchantsService {
           status: "ACTIVE",
         },
       });
+      await tx.commissionRule.create({
+        data: {
+          tenantId,
+          scope: "MERCHANT",
+          scopeId: merchant.id,
+          kind: "PERCENTAGE",
+          percentage: new Prisma.Decimal(commissionPercentage),
+          priority: 1000,
+          startsAt: new Date(),
+        },
+      });
       await tx.auditLog.create({
         data: {
           tenantId,
@@ -218,6 +260,7 @@ export class MerchantsService {
             username: dto.username,
             branchId: branch.id,
             merchantNumber: dto.merchantNumber,
+            commissionPercentage,
           },
         },
       });
@@ -225,6 +268,7 @@ export class MerchantsService {
         id: merchant.id,
         userId: user.id,
         username: user.username,
+        commissionPercentage,
         temporaryPasswordRequired: true,
       };
     });

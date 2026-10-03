@@ -13,12 +13,14 @@ describe("tenant API feedback", () => {
       email: "   ",
       phone: "   ",
       branchId: "branch-1",
+      commissionPercentage: "12.5",
     });
     expect(payload).toMatchObject({
       displayName: "Seller",
       merchantNumber: "M-10",
       username: "seller10",
       branchId: "branch-1",
+      commissionPercentage: "12.5",
     });
     expect(payload.email).toBeUndefined();
     expect(payload.phone).toBeUndefined();
@@ -48,5 +50,15 @@ describe("tenant API feedback", () => {
         "fr",
       ),
     ).toContain("succursale choisie");
+  });
+
+  it("explains invalid merchant commission rates in Haitian Creole", () => {
+    expect(
+      formatTenantApiError(
+        { error: { code: "INVALID_COMMISSION_PERCENTAGE" } },
+        400,
+        "ht",
+      ),
+    ).toContain("ant 0 ak 100");
   });
 });

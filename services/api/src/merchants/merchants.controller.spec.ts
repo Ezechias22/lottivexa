@@ -8,6 +8,7 @@ function validMerchant(overrides: Partial<CreateMerchantDto> = {}) {
     displayName: "Machann",
     merchantNumber: "M-100",
     username: "machann100",
+    commissionPercentage: "10",
     email: "",
     phone: "",
     temporaryPassword: "safe-temporary-password",
@@ -24,5 +25,10 @@ describe("create merchant validation", () => {
   it("still rejects a malformed non-empty email", async () => {
     const errors = await validate(validMerchant({ email: "not-an-email" }));
     expect(errors.map((error) => error.property)).toContain("email");
+  });
+
+  it("requires a numeric merchant commission percentage", async () => {
+    const errors = await validate(validMerchant({ commissionPercentage: "ten" }));
+    expect(errors.map((error) => error.property)).toContain("commissionPercentage");
   });
 });
