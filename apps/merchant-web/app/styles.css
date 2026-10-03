@@ -395,8 +395,11 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   margin: 1.5mm auto;
 }
 .print-receipt .receipt-branch {
+  display: grid;
+  gap: 0.6mm;
   color: #455468;
   font-size: 8pt;
+  overflow-wrap: anywhere;
 }
 .print-receipt .receipt-draw {
   padding: 2.5mm 0;
@@ -724,6 +727,17 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     size: 58mm auto;
     margin: 0;
   }
+  html,
+  body,
+  #__next {
+    width: 58mm !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
   body {
     background: #fff;
     color: #000;
@@ -735,11 +749,26 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   .print-receipt * {
     visibility: visible !important;
   }
+  .pos {
+    display: block !important;
+    width: 58mm !important;
+    max-width: 58mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+  .pos > :not(.print-receipt) {
+    display: none !important;
+  }
   .print-receipt {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
     width: 58mm;
     max-width: 58mm;
     min-height: 0;

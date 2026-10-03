@@ -114,7 +114,8 @@ function pdfBlocks(ticket: Ticket, language: Language) {
   };
   const addRow = (line: ReceiptLine) => {
     blocks.push({ kind: 'row', line });
-    bodyHeight += 6.1 + (line.extra ? wrapText(line.extra, 38).length * 4.2 : 0);
+    bodyHeight += Math.max(6.1, wrapText(line.number, 20).length * 4.8)
+      + (line.extra ? wrapText(line.extra, 38).length * 4.2 : 0);
   };
   const addHeading = () => {
     blocks.push({ kind: 'heading' });
@@ -159,12 +160,13 @@ export function makeTicketPdf(ticket: Ticket, language: Language) {
       continue;
     }
     if (block.kind === 'row') {
+      const numberLines = wrapText(block.line.number, 20);
       pdf.setFont('courier', 'bold');
       pdf.setFontSize(8);
       pdf.text(block.line.label.slice(0, 12), left, y);
-      pdf.text(block.line.number, numberX, y);
+      numberLines.forEach((line, index) => pdf.text(line, numberX, y + index * 4.8));
       pdf.text(block.line.price, right, y, { align: 'right' });
-      y += 6.1;
+      y += Math.max(6.1, numberLines.length * 4.8);
       if (block.line.extra) {
         pdf.setFont('courier', 'normal');
         pdf.setFontSize(7);
@@ -225,10 +227,15 @@ export function ticketSvg(ticket: Ticket, language: Language) {
   lines.push(text(language === 'fr' ? 'MISE' : 'PRI', 456, y, 14, 700, 'end'));
   y += 24;
   for (const line of receiptLineRows(ticket, language)) {
+    const numberLines = wrapText(line.number, 25);
     lines.push(text(line.label, 24, y, 16, 700));
-    lines.push(text(line.number, 150, y, 16, 700));
+    lines.push(text(numberLines[0], 150, y, 16, 700));
     lines.push(text(line.price, 456, y, 16, 700, 'end'));
     y += 28;
+    for (const continuation of numberLines.slice(1)) {
+      lines.push(text(continuation, 150, y, 16, 700));
+      y += 22;
+    }
     if (line.extra) {
       lines.push(text(line.extra, 36, y, 12, 500));
       y += 21;

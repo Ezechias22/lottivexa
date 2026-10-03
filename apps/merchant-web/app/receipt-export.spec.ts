@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { receiptBrandName, receiptDrawName, receiptLineRows, receiptStatus, ticketSvg } from './receipt-export';
+import { makeTicketPdf, receiptBrandName, receiptDrawName, receiptLineRows, receiptStatus, ticketSvg } from './receipt-export';
 
 describe('ticket receipt output', () => {
   it('does not print the generic Bolet heading but keeps a tenant brand', () => {
@@ -53,5 +53,20 @@ describe('ticket receipt output', () => {
     expect(svg).toContain('TOTAL: $300.00');
     expect(svg).toContain('Kenbe tikè orijinal la.');
     expect(svg).not.toContain('>Bolet<');
+  });
+
+  it('wraps a long selection onto extra lines in both PDF and image exports', () => {
+    const selectionKey = '1234567890123456789012345678901234567890';
+    const ticket = {
+      ticketNumber: '261003LGK4G',
+      amount: '20',
+      currency: 'USD',
+      lines: [{ betType: { code: 'BOUL' }, selectionKey, stake: '20' }],
+    };
+    const pdf = makeTicketPdf(ticket, 'ht');
+    const svg = ticketSvg(ticket, 'ht');
+    expect(pdf.internal.pageSize.getHeight()).toBeGreaterThan(65);
+    expect(svg).toContain('1234567890123456789012345</text>');
+    expect(svg).toContain('678901234567890</text>');
   });
 });

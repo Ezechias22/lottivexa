@@ -145,9 +145,34 @@ class EscPosEncoder {
     final left = _compactLine(line, selection, option);
     final price = line['isPromotional'] == true ? free : currency + (line['stake'] ?? '').toString();
     const width = 32;
-    final leftWidth = width - price.length;
-    if (left.length <= leftWidth) return left.padRight(leftWidth) + price;
-    return left + '\n' + price.padLeft(width);
+    if (price.length >= width - 2) return '$left\n${price.padLeft(width)}';
+    final firstWidth = width - price.length;
+    if (left.length <= firstWidth) return left.padRight(firstWidth) + price;
+    final continuationWidth = firstWidth - 2;
+    final output = <String>[];
+    var remaining = left;
+    var first = true;
+    while (remaining.isNotEmpty) {
+      final widthForLine = first ? firstWidth : continuationWidth;
+      final split = _splitReceiptLine(remaining, widthForLine);
+      final segment = split[0];
+      remaining = split[1];
+      if (remaining.isEmpty) {
+        final prefix = first ? '' : '  ';
+        output.add((prefix + segment).padRight(firstWidth) + price);
+      } else {
+        output.add(first ? segment : '  $segment');
+      }
+      first = false;
+    }
+    return output.join('\n');
+  }
+
+  List<String> _splitReceiptLine(String value, int maxChars) {
+    if (value.length <= maxChars) return [value, ''];
+    var split = value.lastIndexOf(' ', maxChars);
+    if (split < maxChars ~/ 2) split = maxChars;
+    return [value.substring(0, split).trimRight(), value.substring(split).trimLeft()];
   }
 
   bool _showBusinessName(String name) => !const {'bolet', 'lottivexa'}.contains(name.trim().toLowerCase());

@@ -27,7 +27,38 @@ export default function MerchantPos(){const{t,language}=useMerchantLanguage();co
  async function lookupTicket(reference:string){const ticket=await run(()=>request(`/tickets/${encodeURIComponent(reference)}`));if(ticket){setSelected(ticket);setScreen('check')}}
  async function pay(){if(selected)await mutate('/payouts',{ticketReference:selected.ticketNumber,idempotencyKey:id()},'Payout otorize; ledger ajiste.').then(async r=>{if(r)setSelected(await request(`/tickets/${selected.ticketNumber}`))})}
  async function cancel(){if(selected)await mutate(`/tickets/${encodeURIComponent(selected.ticketNumber)}/cancel`,{},'Ticket anile; sale ak commission ranvèse.').then(r=>r&&setSelected(r))}
- async function printTicket(){if(!selected)return;try{const ticket=await request(`/tickets/${encodeURIComponent(selected.ticketNumber)}`);setSelected(ticket);requestAnimationFrame(()=>requestAnimationFrame(()=>{const receipt=document.querySelector('.print-receipt');let style:HTMLStyleElement|undefined;if(receipt){const clone=receipt.cloneNode(true) as HTMLElement;clone.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:58mm;max-width:58mm;visibility:hidden';document.body.append(clone);const height=Math.max(65,Math.ceil(clone.scrollHeight*25.4/96+8));clone.remove();style=document.createElement('style');style.textContent=`@page{size:58mm ${height}mm;margin:0}`;document.head.append(style);window.addEventListener('afterprint',()=>style?.remove(),{once:true})}window.print()}));}catch(e){setMessage(e instanceof Error?e.message:String(e))}}
+ async function printTicket(){
+  if(!selected)return;
+  try{
+   const ticket=await request(`/tickets/${encodeURIComponent(selected.ticketNumber)}`);
+   setSelected(ticket);
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const receipt=document.querySelector('.print-receipt');
+    let style:HTMLStyleElement|undefined;
+    if(receipt){
+     const clone=receipt.cloneNode(true) as HTMLElement;
+     clone.style.cssText='display:block;position:absolute;left:-10000px;top:0;width:58mm;max-width:58mm;visibility:hidden';
+     document.body.append(clone);
+     const height=Math.max(65,Math.ceil(clone.scrollHeight*25.4/96+8));
+     clone.remove();
+     style=document.createElement('style');
+     style.textContent=`@page{size:58mm ${height}mm;margin:0}`;
+     document.head.append(style);
+    }
+    const previousTitle=document.title;
+    document.title='';
+    const restorePrintState=()=>{
+     document.title=previousTitle;
+     style?.remove();
+    };
+    window.addEventListener('afterprint',restorePrintState,{once:true});
+    window.print();
+    window.setTimeout(()=>{
+     if(document.title==='')restorePrintState();
+    },120000);
+   }));
+  }catch(e){setMessage(e instanceof Error?e.message:String(e))}
+ }
  function ticketForReceipt(ticket:Row){return{...ticket,businessName:state.dashboard?.businessName??'',branchName:state.dashboard?.merchant?.branch?.name??'',currency:state.dashboard?.currency??'USD',logoUrl:state.dashboard?.logoUrl??''}}
  async function exportPdf(){if(!selected)return;try{downloadTicketPdf(ticketForReceipt(selected),language)}catch(e){setMessage(e instanceof Error?e.message:String(e))}}
  async function exportImage(){if(!selected)return;try{await downloadTicketImage(ticketForReceipt(selected),language)}catch(e){setMessage(e instanceof Error?e.message:String(e))}}
