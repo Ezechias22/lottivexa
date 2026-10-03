@@ -60,9 +60,18 @@ function Dashboard({state:s,reload,onNavigate,selectTicket}:any){
  </div>
 }
 function More({onNavigate}:{onNavigate:(screen:Screen)=>void}){const{t}=useMerchantLanguage();return <section className="panel more-menu"><span className="eyebrow">{t('more')}</span><h2>{t('moreTools')}</h2><div>{([['check',t('check')],['results',t('results')],['cash',t('cash')],['printer',t('printer')]] as [Screen,string][]).map(([screen,label])=><button key={screen} onClick={()=>onNavigate(screen)}>{label}<span>›</span></button>)}</div></section>}
+function ticketDisplayStatus(ticket:Row){
+ const raw=String(ticket?.status??'VALID');
+ if(ticket?.payout)return 'PAID';
+ if(['CANCELLED','VOID','WINNER','LOSER','PAID'].includes(raw))return raw;
+ const draws=Array.isArray(ticket?.draws)&&ticket.draws.length?ticket.draws:(ticket?.draw?[ticket.draw]:[]);
+ const resolved=draws.length>0&&draws.every((draw:Row)=>draw.status==='RESULT_PUBLISHED'||Boolean(draw.result));
+ if(!resolved)return 'PENDING';
+ return (ticket?.lines??[]).some((line:Row)=>line.isWinner===true)||Number(ticket?.winning?.winningAmount??0)>0?'WINNER':'LOSER';
+}
 function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadImage,share,replay,can}:any){
  const{t:tr,language}=useMerchantLanguage();
- const verified=t?.status==='WINNER'&&Number(t?.winning?.winningAmount)>0&&(t?.lines??[]).some((line:Row)=>line.isWinner===true);
+ const verified=ticketDisplayStatus(t)==='WINNER'&&Number(t?.winning?.winningAmount)>0&&(t?.lines??[]).some((line:Row)=>line.isWinner===true);
  const currency=t?.currency??'USD';
  return <>
   <section className="panel">
@@ -70,7 +79,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
    <form className="lookup" onSubmit={lookup}><input name="reference" placeholder={tr('ticketNumber')} autoFocus required/><button>{tr('search')}</button></form>
   </section>
   {t&&<section className="ticket">
-   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'Vérification requise':'Bezwen verifikasyon'):statusLabel(t.status,language)}</b></div>
+   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'Vérification requise':'Bezwen verifikasyon'):statusLabel(ticketDisplayStatus(t),language)}</b></div>
    <p>{t.draw?drawLabel(t.draw,language):t.game?.name}</p>
    {(t.lines??[]).map((line:Row)=>{
     const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0);
@@ -85,7 +94,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
   </section>}
  </>;
 }
-function History({rows,select}:{rows:Row[];select:(x:Row)=>void}){const{t,language}=useMerchantLanguage();return <div className="history">{rows.length?rows.map(x=><button key={x.id} onClick={()=>select(x)}><span><b>{x.ticketNumber}</b><small>{new Date(x.createdAt).toLocaleString()}</small></span><span><b>${cash(x.amount)}</b><small>{x.status==='WINNER'&&(!(Number(x.winning?.winningAmount)>0)||!(x.lines??[]).some((line:Row)=>line.isWinner===true))?(language==='fr'?'À vérifier':'Pou verifye'):statusLabel(x.status,language)}</small></span></button>):<p>{t('none')}</p>}</div>}
+function History({rows,select}:{rows:Row[];select:(x:Row)=>void}){const{t,language}=useMerchantLanguage();return <div className="history">{rows.length?rows.map(x=><button key={x.id} onClick={()=>select(x)}><span><b>{x.ticketNumber}</b><small>{new Date(x.createdAt).toLocaleString()}</small></span><span><b>${cash(x.amount)}</b><small>{x.status==='WINNER'&&(!(Number(x.winning?.winningAmount)>0)||!(x.lines??[]).some((line:Row)=>line.isWinner===true))?(language==='fr'?'À vérifier':'Pou verifye'):statusLabel(ticketDisplayStatus(x),language)}</small></span></button>):<p>{t('none')}</p>}</div>}
 function Cash({session,mutate,can}:any){const{t,language}=useMerchantLanguage();if(!can('finance.view'))return <section className="panel"><h2>{t('cash')}</h2><p>{t('permissionCash')}</p></section>;return <section className="panel"><h2>{t('cash')}</h2>{session?<><div className="stats"><article><span>{t('status')}</span><strong>{statusLabel(session.status,language)}</strong></article><article><span>{t('opening')}</span><strong>${cash(session.openingCash)}</strong></article><article><span>{t('movements')}</span><strong>{session.movements?.length??0}</strong></article></div>{can('finance.adjust')&&<form className="form-grid" onSubmit={e=>{e.preventDefault();const x=form(e.currentTarget);void mutate(`/cash/session/${session.id}/movements`,{...x,idempotencyKey:id()},'Cash movement saved.');e.currentTarget.reset()}}><label>{t('type')}<select name="type"><option>CASH_IN</option><option>CASH_OUT</option><option>EXPENSE</option><option>DEPOSIT</option><option>WITHDRAWAL</option><option>ADJUSTMENT</option></select></label><label>{t('amount')}<input name="amount" type="number" min=".01" step=".01" required/></label><label>{t('reason')}<input name="reason" required/></label><button>{t('addMovement')}</button></form>}<form className="lookup" onSubmit={e=>{e.preventDefault();void mutate(`/cash/session/${session.id}/close`,form(e.currentTarget),'Shift closed; final difference calculated.')}}><input name="actualCash" type="number" step=".01" min="0" placeholder={t("actualCash")} required/><button className="danger">{t('closeShift')}</button></form></>:<form className="lookup" onSubmit={e=>{e.preventDefault();void mutate('/cash/session/open',form(e.currentTarget),'Shift opened.')}}><input name="openingCash" type="number" min="0" step=".01" placeholder="Opening cash" required/><button>{t('openShift')}</button></form>}</section>}
 function Printer({state:s,reload}:any){const{t,language}=useMerchantLanguage();return <><div className="stats">{s.printers?.map((x:Row)=><article key={x.id}><span>{x.connectionType}</span><strong>{x.name}</strong><small>{statusLabel(x.status,language)}{x.isDefault?' · DEFAULT':''}</small></article>)}</div><section className="panel"><div className="title"><h2>{t('printerQueue')}</h2><button onClick={reload}>{t('refresh')}</button></div><div className="history">{s.jobs?.map((x:Row)=><button key={x.id}><span><b>{x.ticket?.ticketNumber}</b><small>{x.printer?.name}</small></span><span><b>{statusLabel(x.status,language)}</b><small>{t('attempts')} {x.attempts}/{x.maxAttempts}</small></span></button>)}</div></section></>}
 
