@@ -452,6 +452,18 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   align-items: center;
   gap: 14px;
 }
+.ticket-line-winner {
+  margin-inline: -8px;
+  padding: 8px;
+  border-left: 4px solid #168046;
+  border-radius: 7px;
+  background: #effaf2;
+}
+.ticket-line-win {
+  color: #14743a;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
 .ticket-line b {
   font-size: 18px;
   letter-spacing: 0.04em;

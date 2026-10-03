@@ -55,10 +55,13 @@ export function receiptLineRows(ticket: Ticket, language: Language): ReceiptLine
     const price = line.isPromotional
       ? (language === 'fr' ? 'GRATUIT' : 'GRATIS')
       : prefix + money(line.stake);
-    const winCount = Number(line.winCount ?? 0);
+    const winCount = Math.max(0, Number(line.winCount ?? 0));
+    const won = line.isWinner === true || winCount > 0;
+    const lineWinningAmount = Number(line.potentialWin ?? 0) * (winCount > 0 ? winCount : won ? 1 : 0);
+    const winLabel = language === 'fr' ? 'GAGNANT' : 'GENYEN';
     const extra = [
       winCount > 1 ? (language === 'fr' ? 'DÉKABÈS × ' : 'DEKABÈS × ') + winCount : '',
-      line.isWinner === true ? (language === 'fr' ? 'GAGNANT' : 'GENYEN') : '',
+      won ? `${winLabel} ✓${lineWinningAmount > 0 ? ' · ' + prefix + money(lineWinningAmount) : ''}` : '',
     ].filter(Boolean).join(' · ');
     return { label, number, price, extra };
   });

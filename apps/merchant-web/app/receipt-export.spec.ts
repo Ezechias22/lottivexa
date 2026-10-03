@@ -31,6 +31,13 @@ describe('ticket receipt output', () => {
     expect(receiptStatus('PAID', 'fr')).toBe('PAYÉ');
   });
 
+  it('marks winning lines and shows each line payout including repeated hits', () => {
+    expect(receiptLineRows({
+      currency: 'HTG',
+      lines: [{ betType: { code: 'BOUL' }, selectionKey: '12', stake: '20', isWinner: false, winCount: 2, potentialWin: '150' }],
+    }, 'ht')).toEqual([{ label: 'BL', number: '12', price: 'G20.00', extra: 'DEKABÈS × 2 · GENYEN ✓ · G300.00' }]);
+  });
+
   it('sizes the exported image to include all lines and the receipt footer', () => {
     const svg = ticketSvg({
       businessName: 'Bolet',

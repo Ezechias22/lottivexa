@@ -8,16 +8,22 @@ import 'package:uuid/uuid.dart';
 import '../../core/draw_label.dart';
 import '../../core/mobile_runtime.dart';
 
+bool ticketLineWon(dynamic raw) {
+  if (raw is! Map) return false;
+  final count = int.tryParse('${raw['winCount'] ?? 0}') ?? 0;
+  return raw['isWinner'] == true || count > 0;
+}
+
 double ticketWinningAmount(Map<String, dynamic> value) {
   final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
   if (stored > 0) return stored;
   final lines = value['lines'] as List<dynamic>? ?? [];
   return lines.fold<double>(0, (sum, raw) {
     final line = raw as Map<String, dynamic>;
-    if (line['isWinner'] != true) return sum;
-    final count = int.tryParse('${line['winCount'] ?? 1}') ?? 1;
+    final count = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
+    if (!ticketLineWon(line)) return sum;
     final potential = double.tryParse('${line['potentialWin'] ?? 0}') ?? 0;
-    return count > 0 ? sum + potential * count : sum;
+    return sum + potential * (count > 0 ? count : 1);
   });
 }
 
@@ -99,9 +105,9 @@ class _TicketState extends State<TicketSearchScreen> {
     if (drawRows.isNotEmpty && !allResolved) return 'PENDING';
     final lines = value['lines'] as List<dynamic>? ?? [];
     if (allResolved && lines.isNotEmpty && lines.every((line) => line['isWinner'] is bool)) {
-      return lines.any((line) => line['isWinner'] == true) ? 'WINNER' : 'LOSER';
+      return lines.any(ticketLineWon) ? 'WINNER' : 'LOSER';
     }
-    if (lines.any((line) => line['isWinner'] == true) || (double.tryParse('${value['winning']?['winningAmount']}') ?? 0) > 0) return 'WINNER';
+    if (lines.any(ticketLineWon) || (double.tryParse('${value['winning']?['winningAmount']}') ?? 0) > 0) return 'WINNER';
     if (raw == 'WINNER' || raw == 'LOSER') return raw;
     return 'PENDING';
   }
@@ -109,7 +115,7 @@ class _TicketState extends State<TicketSearchScreen> {
     if (_displayTicketStatus(value) != 'WINNER') return false;
     final lines = value['lines'] as List<dynamic>? ?? [];
     final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
-    return stored <= 0 || ticketWinningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
+    return stored <= 0 || ticketWinningAmount(value) <= 0 || !lines.any(ticketLineWon);
   }
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
@@ -125,7 +131,7 @@ class _TicketState extends State<TicketSearchScreen> {
       const SizedBox(height: 12),
       TextField(controller: reference, onSubmitted: search, decoration: InputDecoration(labelText: 'Nimewo tikè / barcode / QR', border: const OutlineInputBorder(), prefixIcon: IconButton(tooltip: 'Eskane QR', onPressed: busy ? null : scan, icon: const Icon(Icons.qr_code_scanner)), suffixIcon: IconButton(onPressed: busy ? null : search, icon: const Icon(Icons.search)))),
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
-      if (ticket != null) TicketDetails(ticket: {...ticket!, '_displayStatus': _displayTicketStatus(ticket!)}, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: _displayTicketStatus(ticket!) == 'WINNER' && ticket!['payout'] == null && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
+      if (ticket != null) TicketDetails(ticket: {...ticket!, '_displayStatus': _displayTicketStatus(ticket!)}, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: _displayTicketStatus(ticket!) == 'WINNER' && ticket!['payout'] == null && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any(ticketLineWon) ? pay : null),
       const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
       ...rows.map((row) {
         final ticketRow = Map<String, dynamic>.from(row as Map);
@@ -160,7 +166,7 @@ class TicketDetails extends StatelessWidget {
     final lines = ticket['lines'] as List<dynamic>? ?? [];
     final winning = ticket['winning'] as Map<String, dynamic>?;
     final status = ticket['payout'] != null ? 'PAID' : ticket['_displayStatus'] ?? ticket['status'];
-    final needsWinningReview = status == 'WINNER' && ((double.tryParse('${winning?['winningAmount']}') ?? 0) <= 0 || !lines.any((line) => line['isWinner'] == true));
+    final needsWinningReview = status == 'WINNER' && ((double.tryParse('${winning?['winningAmount']}') ?? 0) <= 0 || !lines.any(ticketLineWon));
     final drawLabel = _ticketDrawLabel(ticket);
     return Card(margin: const EdgeInsets.only(top: 16), clipBehavior: Clip.antiAlias, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(color: statusColor(context, status), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(statusLabel(status)))])),
@@ -184,11 +190,12 @@ class TicketDetails extends StatelessWidget {
   }
 
   Widget _winningLine(Map<String, dynamic> line) {
-    final won = line['isWinner'] == true;
-    final decided = line['isWinner'] != null;
+    final winCount = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
+    final won = ticketLineWon(line);
+    final decided = line['isWinner'] != null || winCount > 0;
     final key = '${line['selectionKey'] ?? ''}'.split('@');
     final selection = key.first.replaceAll('-', ' × ');
-    final winCount = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
+    final lineWinningAmount = (double.tryParse('${line['potentialWin'] ?? 0}') ?? 0) * (winCount > 0 ? winCount : won ? 1 : 0);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -198,18 +205,18 @@ class TicketDetails extends StatelessWidget {
         border: Border.all(color: won ? Colors.green : Colors.grey.shade300),
       ),
       child: Row(children: [
-        Icon(won ? Icons.emoji_events : Icons.circle_outlined, color: won ? Colors.green : Colors.grey),
+        Icon(won ? Icons.check_circle : Icons.circle_outlined, color: won ? Colors.green : Colors.grey),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
           Text('${line['draw']?['game']?['name'] ?? ''}${line['draw']?['game']?['name'] == null ? '' : ' · '}${line['betType']?['name'] ?? 'Jwèt'}', style: const TextStyle(fontWeight: FontWeight.bold)),
           Text(selection, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
           if (key.length > 1) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text('OP ${key[1]}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff2451c7)))),
-          if (winCount > 0) Text('GEN × $winCount · ${_money((double.tryParse('${line['potentialWin']}') ?? 0) * winCount)}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
+          if (won) Text('✓ GENYEN${lineWinningAmount > 0 ? ' · ${_money(lineWinningAmount)}' : ''}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
           if (line['isPromotional'] == true) const Text('GRATIS', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
           Text('Pri: ${_money(line['stake'])} · Kòt: ${line['odds']}'),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text(won ? 'GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
+          Text(won ? '✓ GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),
         ]),
       ]),
     );
