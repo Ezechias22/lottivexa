@@ -5,6 +5,7 @@ import MerchantReports from './merchant-reports';
 import ManualMaryajDialog from './manual-maryaj-dialog';
 import FreeMaryajDialog from './free-maryaj-dialog';
 import {useMerchantLanguage,statusLabel} from './language-switcher';
+import {ticketDisplayStatus,ticketNeedsWinningReview,ticketWinningAmount} from './ticket-status';
 import {drawLabel} from './draw-label';
 import {buildAutomaticBoulPe,buildAutomaticLoto4,buildAutomaticMaryaj,collectAutomaticNumbers} from './sell-tools';
 import {downloadTicketImage,downloadTicketPdf,shareTicket} from './receipt-export';
@@ -60,28 +61,13 @@ function Dashboard({state:s,reload,onNavigate,selectTicket}:any){
  </div>
 }
 function More({onNavigate}:{onNavigate:(screen:Screen)=>void}){const{t}=useMerchantLanguage();return <section className="panel more-menu"><span className="eyebrow">{t('more')}</span><h2>{t('moreTools')}</h2><div>{([['check',t('check')],['results',t('results')],['cash',t('cash')],['printer',t('printer')]] as [Screen,string][]).map(([screen,label])=><button key={screen} onClick={()=>onNavigate(screen)}>{label}<span>›</span></button>)}</div></section>}
-function ticketDisplayStatus(ticket:Row){
- const raw=String(ticket?.status??'VALID');
- if(ticket?.payout)return 'PAID';
- if(['CANCELLED','VOID','WINNER','LOSER','PAID'].includes(raw))return raw;
- const draws=Array.isArray(ticket?.draws)&&ticket.draws.length?ticket.draws:(ticket?.draw?[ticket.draw]:[]);
- const resolved=draws.length>0&&draws.every((draw:Row)=>draw.status==='RESULT_PUBLISHED'||Boolean(draw.result));
- if(!resolved)return 'PENDING';
- return (ticket?.lines??[]).some((line:Row)=>line.isWinner===true)||Number(ticket?.winning?.winningAmount??0)>0?'WINNER':'LOSER';
-}
-function ticketWinningAmount(ticket:Row){
-  const stored=Number(ticket?.winning?.winningAmount??0);
-  if(stored>0)return stored;
-  return (ticket?.lines??[]).reduce((sum:number,line:Row)=>{
-    if(line.isWinner!==true)return sum;
-    const count=Math.max(1,Number(line.winCount??1));
-    return sum+Number(line.potentialWin??0)*count;
-  },0);
-}
 function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadImage,share,replay,can}:any){
  const{t:tr,language}=useMerchantLanguage();
  const winningAmount=ticketWinningAmount(t);
- const verified=ticketDisplayStatus(t)==='WINNER'&&winningAmount>0;
+ const displayStatus=ticketDisplayStatus(t);
+ const needsWinningReview=ticketNeedsWinningReview(t);
+ const storedWinningAmount=Number(t?.winning?.winningAmount??0);
+ const verified=displayStatus==='WINNER'&&storedWinningAmount>0&&winningAmount>0&&!needsWinningReview;
  const currency=t?.currency??'USD';
  return <>
   <section className="panel">
@@ -89,7 +75,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
    <form className="lookup" onSubmit={lookup}><input name="reference" placeholder={tr('ticketNumber')} autoFocus required/><button>{tr('search')}</button></form>
   </section>
   {t&&<section className="ticket">
-   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={String(t.status).toLowerCase()}>{t.status==='WINNER'&&!verified?(language==='fr'?'En attente':'An atant'):statusLabel(ticketDisplayStatus(t),language)}</b></div>
+   <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={displayStatus.toLowerCase()}>{statusLabel(displayStatus,language)}</b></div>
    <p>{t.draw?drawLabel(t.draw,language):t.game?.name}</p>
    {(t.lines??[]).map((line:Row)=>{
     const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0);
@@ -99,12 +85,13 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
     </div>;
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span></div>
-   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gany konfime'}: {currencyMark(currency)}{cash(winningAmount)}</p>}
+   {displayStatus==='WINNER'&&winningAmount>0&&<p className={verified?'winner':'winner pending'}>{language==='fr'?(verified?'Gain confirmé':'Gain calculé'):(verified?'Gany konfime':'Gany estime')}: {currencyMark(currency)}{cash(winningAmount)}</p>}
+   {needsWinningReview&&<p className="status-warning">{language==='fr'?'Gagnant · montant non confirmé dans le système. Le paiement reste bloqué jusqu’à confirmation.':'Gayan · montan an poko konfime nan sistèm nan. Peman an rete bloke jiskaske sistèm nan konfime li.'}</p>}
    <div className="buttons receipt-actions">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={downloadPdf}>{tr('downloadTicketPdf')}</button><button className="secondary" onClick={downloadImage}>{tr('downloadTicketImage')}</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}<details className="share-menu"><summary className="button secondary">{tr('share')}</summary><div><button type="button" onClick={()=>share('pdf')}>{tr('sharePdf')}</button><button type="button" onClick={()=>share('image')}>{tr('shareImage')}</button></div></details></div>
   </section>}
  </>;
 }
-function History({rows,select}:{rows:Row[];select:(x:Row)=>void}){const{t,language}=useMerchantLanguage();return <div className="history">{rows.length?rows.map(x=><button key={x.id} onClick={()=>select(x)}><span><b>{x.ticketNumber}</b><small>{new Date(x.createdAt).toLocaleString()}</small></span><span><b>${cash(x.amount)}</b><small>{x.status==='WINNER'&&(!(Number(x.winning?.winningAmount)>0)||!(x.lines??[]).some((line:Row)=>line.isWinner===true))?(language==='fr'?'À vérifier':'Pou verifye'):statusLabel(ticketDisplayStatus(x),language)}</small></span></button>):<p>{t('none')}</p>}</div>}
+function History({rows,select}:{rows:Row[];select:(x:Row)=>void}){const{t,language}=useMerchantLanguage();return <div className="history">{rows.length?rows.map(x=>{const status=ticketDisplayStatus(x);const review=status==='WINNER'&&ticketNeedsWinningReview(x);return <button key={x.id} onClick={()=>select(x)}><span><b>{x.ticketNumber}</b><small>{new Date(x.createdAt).toLocaleString()}</small></span><span><b>${cash(x.amount)}</b><small>{statusLabel(status,language)}{review?(language==='fr'?' · gain à calculer':' · montan pou kalkile'):''}</small></span></button>}):<p>{t('none')}</p>}</div>}
 function Cash({session,mutate,can}:any){const{t,language}=useMerchantLanguage();if(!can('finance.view'))return <section className="panel"><h2>{t('cash')}</h2><p>{t('permissionCash')}</p></section>;return <section className="panel"><h2>{t('cash')}</h2>{session?<><div className="stats"><article><span>{t('status')}</span><strong>{statusLabel(session.status,language)}</strong></article><article><span>{t('opening')}</span><strong>${cash(session.openingCash)}</strong></article><article><span>{t('movements')}</span><strong>{session.movements?.length??0}</strong></article></div>{can('finance.adjust')&&<form className="form-grid" onSubmit={e=>{e.preventDefault();const x=form(e.currentTarget);void mutate(`/cash/session/${session.id}/movements`,{...x,idempotencyKey:id()},'Cash movement saved.');e.currentTarget.reset()}}><label>{t('type')}<select name="type"><option>CASH_IN</option><option>CASH_OUT</option><option>EXPENSE</option><option>DEPOSIT</option><option>WITHDRAWAL</option><option>ADJUSTMENT</option></select></label><label>{t('amount')}<input name="amount" type="number" min=".01" step=".01" required/></label><label>{t('reason')}<input name="reason" required/></label><button>{t('addMovement')}</button></form>}<form className="lookup" onSubmit={e=>{e.preventDefault();void mutate(`/cash/session/${session.id}/close`,form(e.currentTarget),'Shift closed; final difference calculated.')}}><input name="actualCash" type="number" step=".01" min="0" placeholder={t("actualCash")} required/><button className="danger">{t('closeShift')}</button></form></>:<form className="lookup" onSubmit={e=>{e.preventDefault();void mutate('/cash/session/open',form(e.currentTarget),'Shift opened.')}}><input name="openingCash" type="number" min="0" step=".01" placeholder="Opening cash" required/><button>{t('openShift')}</button></form>}</section>}
 function Printer({state:s,reload}:any){const{t,language}=useMerchantLanguage();return <><div className="stats">{s.printers?.map((x:Row)=><article key={x.id}><span>{x.connectionType}</span><strong>{x.name}</strong><small>{statusLabel(ticketDisplayStatus(x),language)}{x.isDefault?' · DEFAULT':''}</small></article>)}</div><section className="panel"><div className="title"><h2>{t('printerQueue')}</h2><button onClick={reload}>{t('refresh')}</button></div><div className="history">{s.jobs?.map((x:Row)=><button key={x.id}><span><b>{x.ticket?.ticketNumber}</b><small>{x.printer?.name}</small></span><span><b>{statusLabel(ticketDisplayStatus(x),language)}</b><small>{t('attempts')} {x.attempts}/{x.maxAttempts}</small></span></button>)}</div></section></>}
 

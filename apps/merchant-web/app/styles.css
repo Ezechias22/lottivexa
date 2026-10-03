@@ -260,6 +260,18 @@ button:disabled {
   font-weight: 900;
   border-radius: 9px;
 }
+.winner.pending {
+  background: #fffbeb;
+  color: #92400e;
+}
+.status-warning {
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-weight: 700;
+  text-align: center;
+}
 @media (max-width: 720px) {
   .pos > header small {
     display: none;

@@ -60,6 +60,49 @@ class _TicketState extends State<TicketSearchScreen> {
 
   String statusLabel(dynamic value) => const {'PENDING':'ANNATANT','VALID':'VALID','WINNER':'GENYEN','LOSER':'PÈDI','CANCELLED':'ANILE','VOID':'ANILE NÈT','PAID':'PEYE','EXPIRED':'EKSPIRE'}['$value'] ?? '$value';
   String _money(dynamic value) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
+  String _displayTicketStatus(Map<String, dynamic> value) {
+    final raw = '${value['status'] ?? 'VALID'}';
+    if (value['payout'] != null || raw == 'PAID') return 'PAID';
+    if (['CANCELLED', 'VOID', 'EXPIRED'].contains(raw)) return raw;
+    final linkedDraws = value['ticketDraws'] as List<dynamic>? ?? [];
+    final draws = linkedDraws.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
+    final drawRows = draws.isNotEmpty
+        ? draws
+        : value['draws'] is List && (value['draws'] as List).isNotEmpty
+            ? (value['draws'] as List).whereType<Map>().toList()
+            : value['draw'] is Map ? [value['draw'] as Map] : <Map>[];
+    final allResolved = drawRows.isNotEmpty && drawRows.every((draw) {
+      final result = draw['result'];
+      final keys = result is Map ? result['winningKeys'] : null;
+      return draw['status'] == 'RESULT_PUBLISHED' || (keys is List && keys.isNotEmpty);
+    });
+    if (drawRows.isNotEmpty && !allResolved) return 'PENDING';
+    final lines = value['lines'] as List<dynamic>? ?? [];
+    if (allResolved && lines.isNotEmpty && lines.every((line) => line['isWinner'] is bool)) {
+      return lines.any((line) => line['isWinner'] == true) ? 'WINNER' : 'LOSER';
+    }
+    if (lines.any((line) => line['isWinner'] == true) || (double.tryParse('${value['winning']?['winningAmount']}') ?? 0) > 0) return 'WINNER';
+    if (raw == 'WINNER' || raw == 'LOSER') return raw;
+    return 'PENDING';
+  }
+  bool _needsWinningReview(Map<String, dynamic> value) {
+    if (_displayTicketStatus(value) != 'WINNER') return false;
+    final lines = value['lines'] as List<dynamic>? ?? [];
+    final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
+    return stored <= 0 || _winningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
+  }
+  double _winningAmount(Map<String, dynamic> value) {
+    final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
+    if (stored > 0) return stored;
+    final lines = value['lines'] as List<dynamic>? ?? [];
+    return lines.fold<double>(0, (sum, raw) {
+      final line = raw as Map<String, dynamic>;
+      if (line['isWinner'] != true) return sum;
+      final count = int.tryParse('${line['winCount'] ?? 1}') ?? 1;
+      final potential = double.tryParse('${line['potentialWin'] ?? 0}') ?? 0;
+      return count > 0 ? sum + potential * count : sum;
+    });
+  }
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
     'PAID' => Colors.blue.shade700,
@@ -74,9 +117,9 @@ class _TicketState extends State<TicketSearchScreen> {
       const SizedBox(height: 12),
       TextField(controller: reference, onSubmitted: search, decoration: InputDecoration(labelText: 'Nimewo tikè / barcode / QR', border: const OutlineInputBorder(), prefixIcon: IconButton(tooltip: 'Eskane QR', onPressed: busy ? null : scan, icon: const Icon(Icons.qr_code_scanner)), suffixIcon: IconButton(onPressed: busy ? null : search, icon: const Icon(Icons.search)))),
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
-      if (ticket != null) TicketDetails(ticket: ticket!, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: ticket!['status'] == 'WINNER' && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
+      if (ticket != null) TicketDetails(ticket: {...ticket!, '_displayStatus': _displayTicketStatus(ticket!)}, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: _displayTicketStatus(ticket!) == 'WINNER' && ticket!['payout'] == null && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true) ? pay : null),
       const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
-      ...rows.map((row) => Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, row['status'])), title: Text('${row['ticketNumber']}'), subtitle: Text('${row['status'] == 'WINNER' && ((double.tryParse('${row['winning']?['winningAmount']}') ?? 0) <= 0 || !(row['lines'] as List<dynamic>? ?? []).any((line) => line['isWinner'] == true)) ? 'BEZWEN VERIFIKASYON' : statusLabel(row['status'])} · ${row['createdAt']}'), trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}')))),
+      ...rows.map((row) { final ticketRow = Map<String, dynamic>.from(row as Map); final displayStatus = _displayTicketStatus(ticketRow); final label = '${statusLabel(displayStatus)}${_needsWinningReview(ticketRow) ? ' · MONTAN POKO KONFIME' : ''}'; return Card(child: ListTile(leading: Icon(Icons.confirmation_number, color: statusColor(context, displayStatus)), title: Text('${row['ticketNumber']}'), subtitle: Text('$label · ${row['createdAt']}'), trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)), onTap: () => search('${row['ticketNumber']}'))); }),
       if (rows.isEmpty && !busy) const Padding(padding: EdgeInsets.all(24), child: Text('Pa gen tikè.')),
     ]),
   );
@@ -96,8 +139,10 @@ class TicketDetails extends StatelessWidget {
   @override Widget build(BuildContext context) {
     final lines = ticket['lines'] as List<dynamic>? ?? [];
     final winning = ticket['winning'] as Map<String, dynamic>?;
+    final status = ticket['payout'] != null ? 'PAID' : ticket['_displayStatus'] ?? ticket['status'];
+    final needsWinningReview = status == 'WINNER' && ((double.tryParse('${winning?['winningAmount']}') ?? 0) <= 0 || !lines.any((line) => line['isWinner'] == true));
     return Card(margin: const EdgeInsets.only(top: 16), clipBehavior: Clip.antiAlias, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Container(color: statusColor(context, ticket['status']), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(ticket['status'] == 'WINNER' && onPay == null ? 'BEZWEN VERIFIKASYON' : statusLabel(ticket['status'])))])),
+      Container(color: statusColor(context, status), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(statusLabel(status)))])),
       Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${ticket['draw']?['game']?['name'] ?? ticket['game']?['name'] ?? ''}', style: Theme.of(context).textTheme.titleLarge),
         Text('Tiraj: ${merchantDrawLabel(Map<String, dynamic>.from(ticket['draw'] as Map? ?? const {}))}'),
@@ -107,9 +152,10 @@ class TicketDetails extends StatelessWidget {
         for (final raw in lines) _winningLine(raw as Map<String, dynamic>),
         const Divider(height: 28),
         _total('Total jwe', _money(ticket['amount'])),
-        if (onPay != null || ticket['status'] == 'PAID') _total('TOTAL GENYEN', _money(winning?['winningAmount'] ?? 0), winner: true),
+        if (status == 'WINNER' || status == 'PAID') _total('TOTAL GENYEN', _money(_winningAmount(ticket)), winner: true),
+        if (needsWinningReview) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('GENYEN · Montan gany la poko kalkile. Peman an rete bloke jiskaske sistèm nan konfime montan an.', textAlign: TextAlign.center, style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold))),
         if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
-        const Text('Tikè sa a dwe verifye nan sistèm nan anvan peman. Kenbe tikè orijinal la. Yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+        const Text('Kenbe tikè orijinal la. Peman fèt nan sistèm nan epi yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [FilledButton.tonalIcon(onPressed: onReplay, icon: const Icon(Icons.copy), label: const Text('Kopye / Rejwe')), OutlinedButton.icon(onPressed: onPrint, icon: const Icon(Icons.print), label: const Text('Enprime ankò')), FilledButton.icon(onPressed: onPay, icon: const Icon(Icons.payments), label: const Text('Peye gayan'))]),
       ])),
