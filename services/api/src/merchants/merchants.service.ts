@@ -8,6 +8,7 @@ import * as argon2 from "argon2";
 import type { Principal } from "../common/guards/jwt-auth.guard";
 import { merchantUpdate, MerchantUpdate } from "./merchant-update-policy";
 import { reportRange } from "../reports/report-policy";
+import { presentTicketLines } from "../tickets/ticket-line-flags";
 export const merchantPermissions = [
   "tickets.view",
   "tickets.create",
@@ -88,7 +89,7 @@ export class MerchantsService {
           where: { tenantId: merchant.tenantId, merchantId: merchant.id },
           orderBy: { createdAt: "desc" },
           take: 12,
-          include: { winning: true, lines: { select: { isWinner: true } }, ticketDraws: { include: { draw: { include: { game: true } } } } },
+          include: { winning: true, events: { select: { type: true, metadata: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }, lines: { select: { id: true, isWinner: true } }, ticketDraws: { include: { draw: { include: { game: true } } } } },
         }),
         prisma.tenantSetting.findUnique({
           where: { tenantId: merchant.tenantId },
@@ -113,7 +114,7 @@ export class MerchantsService {
       payouts: payouts._sum.amount?.toString() ?? "0",
       payoutCount: payouts._count._all,
       session,
-      recent,
+      recent: recent.map(presentTicketLines),
     };
   }
   list(u: Principal) {

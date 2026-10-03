@@ -20,4 +20,23 @@ describe('ticket line flags from ticket events', () => {
     expect(ticket.lines[0]).toMatchObject({ isPromotional: true, winCount: 0 });
     expect(ticket.lines[1]).toMatchObject({ isPromotional: false, winCount: 2 });
   });
+
+  it('uses a newer result check to clear a line that an earlier result marked as a winner', () => {
+    const ticket = presentTicketLines({
+      events: [
+        { type: 'MARKED_WINNER', metadata: { lineWinCounts: [{ lineId: 'bet-1', drawId: 'draw-1', winCount: 2 }] }, createdAt: '2026-10-01T12:00:00Z' },
+        { type: 'RESULT_CHECKED', metadata: { lineWinCounts: [{ lineId: 'bet-1', drawId: 'draw-1', winCount: 0 }] }, createdAt: '2026-10-01T13:00:00Z' },
+      ],
+      lines: [{ id: 'bet-1', isWinner: false }],
+    });
+
+    expect(ticket.lines[0]).toMatchObject({ isWinner: false, winCount: 0 });
+  });
+
+  it('keeps a result count of zero authoritative instead of reviving an old winner flag', () => {
+    expect(ticketLineFlags([
+      { type: 'RESULT_CHECKED', metadata: { lineWinCounts: [{ lineId: 'bet-1', drawId: 'draw-1', winCount: null }] } },
+      { type: 'MARKED_WINNER', metadata: { lineWinCounts: [{ lineId: 'bet-1', drawId: 'draw-1', winCount: 2 }] } },
+    ], 'bet-1')).toMatchObject({ winCount: 0 });
+  });
 });

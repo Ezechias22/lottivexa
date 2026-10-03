@@ -25,7 +25,7 @@ assert.match(resource, /value:'unblock'/);
 assert.match(resource, /widget\.api\.dio\.patch\('\/api\/v1\/merchants\/\$\{row\['id'\]\}'/);
 assert.match(resource, /widget\.api\.dio\.patch\('\/api\/v1\/users\/\$\{row\['id'\]\}'/);
 for (const value of ["2 => 'BOLET'", "3 => 'LOTO3'", "4 => 'LOTO4'", "5 => 'LOTO5'", 'Tout opsyon', 'resultPosition', 'addMaryaj', 'addAutoLoto4', 'addBoulPe', "_betForCode('BOUL_PE')"]) assert.ok(sell.includes(value));
-assert.match(drawLabels, /Nòmal · /);
+assert.match(drawLabels, /Sesyon pou verifye/);
 assert.match(sell, /sourceIds\.contains\(line\.betTypeId\)/);
 assert.doesNotMatch(sell, /Boul Pè pa konte kòm Bolet|Chwazi pozisyon Bolet oswa Loto yo|Chanje pri tout liy yo|Maryaj nòmal/);
 for (const value of ['/api/v1/tickets', 'Kopye / Rejwe']) assert.ok(tickets.includes(value));
