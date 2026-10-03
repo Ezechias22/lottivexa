@@ -14,14 +14,13 @@ class EscPosEncoder {
     final branch = _map(ticket['merchant']?['branch']);
     final date = _date(ticket['createdAt']);
     final winning = _map(ticket['winning']);
-    final out = StringBuffer()
-      ..writeln(name)
-      ..writeln(tr('FICH BOLET', 'TICKET DE LOTERIE'))
-      ..writeln('--------------------------------')
-      ..writeln('${tr('TIKÈ', 'TICKET')}: $ticketNumber')
-      ..writeln('${tr('LOTRI', 'LOTERIE')}: $game')
-      ..writeln('${tr('TIRAJ', 'TIRAGE')}: ${_drawName(ticket)}')
-      ..writeln('${tr('BIWO', 'SUCCURSALE')}: ${branch['name'] ?? ticket['branchName'] ?? '—'}');
+    final out = StringBuffer();
+    if (_showBusinessName(name)) out.writeln(name);
+    out.writeln('--------------------------------');
+    out.writeln('${tr('TIKÈ', 'TICKET')}: $ticketNumber');
+    out.writeln('${tr('LOTRI', 'LOTERIE')}: $game');
+    out.writeln('${tr('TIRAJ', 'TIRAGE')}: ${_drawName(ticket)}');
+    out.writeln('${tr('BIWO', 'SUCCURSALE')}: ${branch['name'] ?? ticket['branchName'] ?? '—'}');
     final address = branch['address'] ?? ticket['branchAddress'];
     final phone = branch['phone'] ?? ticket['branchPhone'];
     if (address != null && '$address'.trim().isNotEmpty) out.writeln('${tr('ADRÈS', 'ADRESSE')}: $address');
@@ -29,15 +28,14 @@ class EscPosEncoder {
     out
       ..writeln('${tr('DAT / LÈ', 'DATE / HEURE')}: $date')
       ..writeln('--------------------------------')
-      ..writeln(tr('JWÈT / NIMEWO                 PRI', 'JEU / NUMÉRO                 MISE'));
+      ..writeln(tr('JWÈT / NIMEWO       PRI', 'JEU / NUMÉRO       MISE'));
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = Map<String, dynamic>.from(raw as Map);
       final parts = '${line['selectionKey'] ?? line['selection'] ?? ''}'.split('@');
       final selection = parts.first.replaceAll('-', ' × ');
-      out.writeln(_compactLine(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
+      out.writeln(_receiptRow(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
       final winCount = _winCount(line);
       if (winCount > 1) out.writeln('${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
-      if (line['isPromotional'] == true) out.writeln(tr('MARYAJ GRATIS', 'MARYAJ GRATUIT'));
     }
     out
       ..writeln('--------------------------------')
@@ -58,10 +56,10 @@ class EscPosEncoder {
     final currency = _currency(ticket['currency']);
     final ticketNumber = ticket['ticketNumber'] ?? ticket['id'] ?? '';
     out.add([0x1b, 0x40, 0x1b, 0x61, 1, 0x1b, 0x45, 1]);
-    _line(out, _requiredName(ticket));
+    final businessName = _requiredName(ticket);
+    if (_showBusinessName(businessName)) _line(out, businessName);
     final french = ticket['language'] == 'fr';
     String tr(String ht, String fr) => french ? fr : ht;
-    _line(out, tr('FICH BOLET', 'TICKET DE LOTERIE'));
     _line(out, '--------------------------------');
     out.add([0x1b, 0x45, 0]);
     _line(out, '${tr('TIKÈ', 'TICKET')} ${ticket['ticketNumber'] ?? ticket['id'] ?? ''}');
@@ -72,19 +70,16 @@ class EscPosEncoder {
     _line(out, '${tr('BIWO', 'SUCCURSALE')}: ${branch['name'] ?? ticket['branchName'] ?? '—'}');
     _line(out, '${tr('DAT / LÈ', 'DATE / HEURE')}: ${_date(ticket['createdAt'])}');
     _line(out, '--------------------------------');
-    _line(out, tr('JWÈT / NIMEWO                 PRI', 'JEU / NUMÉRO                 MISE'));
+    _line(out, tr('JWÈT / NIMEWO       PRI', 'JEU / NUMÉRO       MISE'));
     for (final raw in ticket['lines'] as List<dynamic>? ?? const []) {
       final line = Map<String, dynamic>.from(raw as Map);
       final parts = '${line['selectionKey'] ?? line['selection'] ?? ''}'.split('@');
       final selection = parts.first.replaceAll('-', ' × ');
       final won = line['isWinner'] == true;
-      _line(out, '${won ? (french ? '*GAGNANT* ' : '*GENYEN* ') : ''}${_compactLine(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT'))}');
+      _line(out, _receiptRow(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
+      if (won) _line(out, french ? '  GAGNANT' : '  GENYEN');
       final winCount = _winCount(line);
       if (winCount > 1) _line(out, '${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
-      _line(out, line['isPromotional'] == true
-          ? tr('  GRATIS', '  GRATUIT')
-          : '  $currency${line['stake'] ?? ''}');
-      if (line['isPromotional'] == true) _line(out, tr('BONIS GRATIS', 'BONUS GRATUIT'));
     }
     _line(out, '--------------------------------');
     _line(out, 'TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
@@ -105,7 +100,7 @@ class EscPosEncoder {
       _qr(out, ticketNumber.toString());
     }
     _line(out, ticket['footer']?.toString() ?? tr('Kenbe tikè orijinal la. Verifye avan peman. Tikè ki peye pa ka peye ankò.', 'Conservez le ticket original. Vérifiez le résultat avant paiement. Un ticket déjà payé ne peut pas l’être une seconde fois.'));
-    out.add([0x1b, 0x64, 4, 0x1d, 0x56, 0]);
+    out.add([0x1b, 0x64, 6, 0x1d, 0x56, 0]);
     return out.takeBytes();
   }
 
@@ -123,10 +118,10 @@ class EscPosEncoder {
     final linked = ticket['ticketDraws'] as List<dynamic>? ?? [];
     final draws = linked.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
     if (draws.isNotEmpty) {
-      return draws.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw), french: ticket['language'] == 'fr')).where((label) => label.isNotEmpty).toSet().join(' / ');
+      return draws.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw), french: ticket['language'] == 'fr').replaceFirst(RegExp(r'\s+\d{2}:\d{2}$'), '')).where((label) => label.isNotEmpty).toSet().join(' / ');
     }
     final explicit = ticket['drawName']?.toString().trim();
-    if (explicit != null && explicit.isNotEmpty) return explicit;
+    if (explicit != null && explicit.isNotEmpty) return explicit.replaceFirst(RegExp(r'\s+\d{2}:\d{2}$'), '');
     final draw = _map(ticket['draw']);
     if (draw.isEmpty) return 'Sesyon pou verifye';
     final game = draw['game'] is Map ? '${draw['game']['name'] ?? ''}' : '${ticket['gameName'] ?? ''}';
@@ -134,18 +129,29 @@ class EscPosEncoder {
     final dateValue = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'] ?? draw['drawDate'];
     final parsed = dateValue == null ? null : DateTime.tryParse('$dateValue');
     final date = parsed == null ? '' : _date(parsed);
-    return [if (game.trim().isNotEmpty) game, session, if (date.isNotEmpty) date].join(' · ');
+    return [if (game.trim().isNotEmpty) game, session, if (date.isNotEmpty) date.replaceFirst(RegExp(r'\s+\d{2}:\d{2}$'), '')].join(' · ');
   }
 
   Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
   String _currency(dynamic _) => r'$';
-  String _compactLine(Map<String, dynamic> line, String selection, String option, String currency, String free) {
+  String _compactLine(Map<String, dynamic> line, String selection, String option) {
     final betType = line['betType'];
     final raw = (betType is Map ? betType['code'] : line['betTypeName'] ?? betType ?? '').toString().toUpperCase();
     final code = raw.contains('LOTO3') ? 'LT3' : raw.contains('LOTO4') ? 'LT4' : raw.contains('LOTO5') ? 'LT5' : raw.contains('MARYAJ') ? 'MJ' : 'BL';
-    final price = line['isPromotional'] == true ? free : '$currency${line['stake'] ?? ''}';
-    return '${option.isEmpty ? '' : 'OP$option '}$code $selection $price';
+    return (option.isEmpty ? '' : 'OP' + option + ' ') + code + '  ' + selection;
   }
+
+  String _receiptRow(Map<String, dynamic> line, String selection, String option, String currency, String free) {
+    final left = _compactLine(line, selection, option);
+    final price = line['isPromotional'] == true ? free : currency + (line['stake'] ?? '').toString();
+    const width = 32;
+    final leftWidth = width - price.length;
+    if (left.length <= leftWidth) return left.padRight(leftWidth) + price;
+    return left + '\n' + price.padLeft(width);
+  }
+
+  bool _showBusinessName(String name) => !const {'bolet', 'lottivexa'}.contains(name.trim().toLowerCase());
+
   int _winCount(Map<String, dynamic> line) => int.tryParse('${line['winCount'] ?? 0}') ?? 0;
   String _status(dynamic raw, bool french) => (french
       ? const {'VALID':'Valide','WINNER':'Gagnant','LOSER':'Perdant','PAID':'Payé','CANCELLED':'Annulé','VOID':'Annulé','PENDING':'En attente'}

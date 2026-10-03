@@ -3,89 +3,277 @@ import { jsPDF } from 'jspdf';
 
 type Ticket = Record<string, any>;
 type Language = 'ht' | 'fr';
+type ReceiptLine = { label: string; number: string; price: string; extra?: string };
+type PdfBlock =
+  | { kind: 'text'; lines: string[]; size: number; bold: boolean; gap: number }
+  | { kind: 'heading' }
+  | { kind: 'row'; line: ReceiptLine }
+  | { kind: 'rule'; gap: number };
 
 const money = (value: unknown) => Number(value ?? 0).toFixed(2);
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[char] ?? char));
-const code = (line: Ticket) => {
-  const raw = String(line.betType?.code ?? line.betType?.name ?? '').toUpperCase();
-  if (raw.includes('MARYAJ') || raw.includes('MARIAGE')) return 'MJ';
-  if (raw.includes('LOTO3') || raw.includes('LOTO 3')) return 'LT3';
-  if (raw.includes('LOTO4') || raw.includes('LOTO 4')) return 'LT4';
-  if (raw.includes('LOTO5') || raw.includes('LOTO 5')) return 'LT5';
-  return 'BL';
-};
-const rows = (ticket: Ticket, language: Language): string[] => (ticket.lines ?? []).map((line: Ticket) => {
-  const parts = String(line.selectionKey ?? line.selection ?? '').split('@');
-  const position = parts[1] ? ` OP${parts[1]}` : '';
-  const number = parts[0].replaceAll('-', ' × ');
-  const free = line.isPromotional ? (language === 'fr' ? 'GRATUIT' : 'GRATIS') : `$${money(line.stake)}`;
-  return `${position} ${code(line)} ${number} ${free}`.trim();
-});
-const drawNames = (ticket: Ticket, language: Language) => ticketDrawLabels(ticket, language) || (language === 'fr' ? 'Tirage' : 'Tiraj');
+const genericBrand = /^(bolet|lottivexa)$/i;
+
+export function receiptBrandName(ticket: Ticket) {
+  const name = String(ticket.businessName ?? '').trim();
+  return name && !genericBrand.test(name) ? name : '';
+}
+
+export function receiptDrawName(ticket: Ticket, language: Language) {
+  const fallback = language === 'fr' ? 'Tirage' : 'Tiraj';
+  return (ticketDrawLabels(ticket, language) || fallback)
+    .replace(/\s+\d{1,2}:\d{2}(?=\s*(?:\/|$))/g, '')
+    .trim();
+}
+
+export function receiptStatus(status: unknown, language: Language) {
+  const labels: Record<string, { ht: string; fr: string }> = {
+    VALID: { ht: 'VALAB', fr: 'VALIDE' },
+    WINNER: { ht: 'GENYEN', fr: 'GAGNANT' },
+    LOSER: { ht: 'PÈDAN', fr: 'PERDANT' },
+    PAID: { ht: 'PEYE', fr: 'PAYÉ' },
+    PENDING: { ht: 'AN ATANT', fr: 'EN ATTENTE' },
+    CANCELLED: { ht: 'ANILE', fr: 'ANNULÉ' },
+    VOID: { ht: 'ANILE', fr: 'ANNULÉ' },
+  };
+  const key = String(status ?? 'VALID').toUpperCase();
+  return labels[key]?.[language] ?? key;
+}
+
+export function receiptLineRows(ticket: Ticket, language: Language): ReceiptLine[] {
+  const currency = String(ticket.currency ?? 'USD').toUpperCase();
+  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
+  return (ticket.lines ?? []).map((line: Ticket) => {
+    const raw = String(line.betType?.code ?? line.betType?.name ?? line.betTypeName ?? line.betType ?? '').toUpperCase();
+    const code = raw.includes('MARYAJ') || raw.includes('MARIAGE') ? 'MJ'
+      : raw.includes('LOTO3') || raw.includes('LOTO 3') ? 'LT3'
+      : raw.includes('LOTO4') || raw.includes('LOTO 4') ? 'LT4'
+      : raw.includes('LOTO5') || raw.includes('LOTO 5') ? 'LT5' : 'BL';
+    const parts = String(line.selectionKey ?? line.selection ?? '').split('@');
+    const number = parts[0].replaceAll('-', ' × ');
+    const label = (parts[1] ? 'OP' + parts[1] + ' ' : '') + code;
+    const price = line.isPromotional
+      ? (language === 'fr' ? 'GRATUIT' : 'GRATIS')
+      : prefix + money(line.stake);
+    const winCount = Number(line.winCount ?? 0);
+    const extra = [
+      winCount > 1 ? (language === 'fr' ? 'DÉKABÈS × ' : 'DEKABÈS × ') + winCount : '',
+      line.isWinner === true ? (language === 'fr' ? 'GAGNANT' : 'GENYEN') : '',
+    ].filter(Boolean).join(' · ');
+    return { label, number, price, extra };
+  });
+}
+
+function saleDate(ticket: Ticket, language: Language) {
+  const value = ticket.createdAt ? new Date(ticket.createdAt) : null;
+  if (!value || Number.isNaN(value.getTime())) return '';
+  return value.toLocaleString(language === 'fr' ? 'fr-FR' : 'fr-HT', {
+    timeZone: 'America/Port-au-Prince', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function receiptBranch(ticket: Ticket) {
+  return String(ticket.branchName ?? ticket.merchant?.branch?.name ?? '').trim();
+}
+
+function receiptCode(ticket: Ticket) {
+  return String(ticket.barcode ?? ticket.ticketNumber ?? ticket.id ?? '');
+}
+
+function wrapText(value: string, limit: number) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (word.length > limit) {
+      if (current) { lines.push(current); current = ''; }
+      for (let offset = 0; offset < word.length; offset += limit) lines.push(word.slice(offset, offset + limit));
+      continue;
+    }
+    const next = current ? current + ' ' + word : word;
+    if (next.length > limit && current) { lines.push(current); current = word; }
+    else current = next;
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [''];
+}
+
+function pdfBlocks(ticket: Ticket, language: Language) {
+  const blocks: PdfBlock[] = [];
+  let bodyHeight = 0;
+  const addText = (value: string, size = 8, bold = false, gap = 1.2) => {
+    if (!value) return;
+    const lines = wrapText(value, Math.max(12, Math.floor(50 / (size * 0.21))));
+    blocks.push({ kind: 'text', lines, size, bold, gap });
+    bodyHeight += lines.length * (size * 0.45 + 1.5) + gap;
+  };
+  const addRule = (gap = 1.7) => {
+    blocks.push({ kind: 'rule', gap });
+    bodyHeight += gap * 2 + 0.7;
+  };
+  const addRow = (line: ReceiptLine) => {
+    blocks.push({ kind: 'row', line });
+    bodyHeight += 6.1 + (line.extra ? wrapText(line.extra, 38).length * 4.2 : 0);
+  };
+  const addHeading = () => {
+    blocks.push({ kind: 'heading' });
+    bodyHeight += 6.1;
+  };
+
+  addText(receiptBrandName(ticket), 12, true, 1.2);
+  addText((language === 'fr' ? 'TICKET: ' : 'TIKÈ: ') + String(ticket.ticketNumber ?? ticket.id ?? ''), 8, true);
+  addText((language === 'fr' ? 'TIRAGE: ' : 'TIRAJ: ') + receiptDrawName(ticket, language), 8, true);
+  const branch = receiptBranch(ticket);
+  if (branch) addText((language === 'fr' ? 'SUCCURSALE: ' : 'BIWO: ') + branch, 7.5);
+  const date = saleDate(ticket, language);
+  if (date) addText((language === 'fr' ? 'DATE / HEURE: ' : 'DAT / LÈ: ') + date, 7.5);
+  addRule();
+  addHeading();
+  for (const line of receiptLineRows(ticket, language)) addRow(line);
+  addRule(2);
+
+  const currency = String(ticket.currency ?? 'USD').toUpperCase();
+  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
+  addText('TOTAL: ' + prefix + money(ticket.amount ?? ticket.totalAmount), 11, true, 1);
+  addText((language === 'fr' ? 'STATUT: ' : 'ESTATI: ') + receiptStatus(ticket.status, language), 8, true);
+  const winningAmount = Number(ticket.winning?.winningAmount ?? ticket.winningAmount ?? 0);
+  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + prefix + money(winningAmount), 8, true);
+  addText((language === 'fr' ? 'VÉRIFICATION: ' : 'VERIFYE: ') + receiptCode(ticket), 7.5);
+  addText(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 7, false, 0);
+  return { blocks, height: Math.ceil(6 + bodyHeight + 5) };
+}
 
 export function makeTicketPdf(ticket: Ticket, language: Language) {
-  const lineRows = rows(ticket, language);
-  const height = Math.max(90, 42 + lineRows.length * 6.2 + 35);
-  const pdf = new jsPDF({ unit: 'mm', format: [58, height], compress: true });
-  let y = 7;
-  const write = (text: string, size = 8, bold = false) => { pdf.setFont('courier', bold ? 'bold' : 'normal'); pdf.setFontSize(size); pdf.text(text.slice(0, 31), 4, y); y += size * 0.45 + 2.3; };
-  pdf.setTextColor(20, 43, 75);
-  write(String(ticket.businessName ?? 'Bolet'), 13, true);
-  write(language === 'fr' ? 'TICKET DE LOTERIE' : 'TIKÈ BOLET', 8, true);
-  pdf.setDrawColor(130, 145, 165); pdf.line(4, y, 54, y); y += 4;
-  pdf.setTextColor(20, 32, 51);
-  write(`${language === 'fr' ? 'TICKET' : 'TIKÈ'}: ${ticket.ticketNumber ?? ticket.id}`, 8, true);
-  write(`${language === 'fr' ? 'TIRAGE' : 'TIRAJ'}: ${drawNames(ticket, language)}`, 8, true);
-  pdf.line(4, y, 54, y); y += 4;
-  lineRows.forEach(line => write(line, 8, true));
-  pdf.line(4, y, 54, y); y += 5;
-  write(`TOTAL: $${money(ticket.amount)}`, 11, true);
-  if (ticket.status && ticket.status !== 'VALID') write(`${language === 'fr' ? 'STATUT' : 'ESTATI'}: ${ticket.status}`, 8, true);
-  y += 2; write(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 7);
+  const layout = pdfBlocks(ticket, language);
+  const pdf = new jsPDF({ unit: 'mm', format: [58, Math.max(65, layout.height)], compress: true });
+  const left = 4;
+  const numberX = 17;
+  const right = 54;
+  let y = 6;
+  for (const block of layout.blocks) {
+    if (block.kind === 'rule') {
+      pdf.setDrawColor(130, 145, 165);
+      pdf.line(left, y, right, y);
+      y += block.gap * 2 + 0.7;
+      continue;
+    }
+    if (block.kind === 'row') {
+      pdf.setFont('courier', 'bold');
+      pdf.setFontSize(8);
+      pdf.text(block.line.label.slice(0, 12), left, y);
+      pdf.text(block.line.number, numberX, y);
+      pdf.text(block.line.price, right, y, { align: 'right' });
+      y += 6.1;
+      if (block.line.extra) {
+        pdf.setFont('courier', 'normal');
+        pdf.setFontSize(7);
+        const extraLines = wrapText(block.line.extra, 38);
+        pdf.text(extraLines, left, y, { lineHeightFactor: 1.7 });
+        y += extraLines.length * 4.2;
+      }
+      continue;
+    }
+    if (block.kind === 'heading') {
+      pdf.setFont('courier', 'bold');
+      pdf.setFontSize(7);
+      pdf.text(language === 'fr' ? 'JEU' : 'JWÈT', left, y);
+      pdf.text(language === 'fr' ? 'NUMÉRO' : 'NIMEWO', numberX, y);
+      pdf.text(language === 'fr' ? 'MISE' : 'PRI', right, y, { align: 'right' });
+      y += 6.1;
+      continue;
+    }
+    pdf.setFont('courier', block.bold ? 'bold' : 'normal');
+    pdf.setFontSize(block.size);
+    pdf.text(block.lines, left, y, { lineHeightFactor: 1.8 });
+    y += block.lines.length * (block.size * 0.45 + 1.5) + block.gap;
+  }
   return pdf;
 }
 
 export function downloadTicketPdf(ticket: Ticket, language: Language) {
-  makeTicketPdf(ticket, language).save(`lottivexa-ticket-${ticket.ticketNumber ?? ticket.id}.pdf`);
+  makeTicketPdf(ticket, language).save('lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.pdf');
 }
 
-function ticketSvg(ticket: Ticket, language: Language) {
-  const lineRows = rows(ticket, language);
-  const height = Math.max(420, 150 + lineRows.length * 30);
-  const text = (value: string, x: number, y: number, size: number, weight = 400) => `<text x="${x}" y="${y}" font-family="Arial,sans-serif" font-size="${size}px" font-weight="${weight}" fill="#142b4b">${esc(value)}</text>`;
-  let y = 42;
-  const body = [text(String(ticket.businessName ?? 'Bolet'), 24, y, 25, 800), text(language === 'fr' ? 'TICKET DE LOTERIE' : 'TIKÈ BOLET', 24, y + 30, 15, 700), `<line x1="24" y1="${y + 48}" x2="456" y2="${y + 48}" stroke="#9aaabd"/>`];
-  y += 78;
-  body.push(text(`${language === 'fr' ? 'TICKET' : 'TIKÈ'}: ${ticket.ticketNumber ?? ticket.id}`, 24, y, 15, 700)); y += 28;
-  body.push(text(`${language === 'fr' ? 'TIRAGE' : 'TIRAJ'}: ${drawNames(ticket, language)}`, 24, y, 15, 700)); y += 28;
-  y += 7;
-  body.push(`<line x1="24" y1="${y}" x2="456" y2="${y}" stroke="#9aaabd"/>`); y += 30;
-  lineRows.forEach(line => { body.push(text(line, 24, y, 16, 700)); y += 28; });
-  body.push(`<line x1="24" y1="${y}" x2="456" y2="${y}" stroke="#16365f"/>`); y += 38;
-  body.push(text(`TOTAL: $${money(ticket.amount)}`, 24, y, 22, 800)); y += 40;
-  body.push(text(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 24, y, 13));
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="${height}" viewBox="0 0 480 ${height}"><rect width="480" height="${height}" fill="white"/>${body.join('')}</svg>`;
+export function ticketSvg(ticket: Ticket, language: Language) {
+  const text = (value: string, x: number, y: number, size: number, weight = 400, anchor = 'start') =>
+    '<text x="' + x + '" y="' + y + '" text-anchor="' + anchor + '" font-family="Arial,sans-serif" font-size="' + size + 'px" font-weight="' + weight + '" fill="#142b4b">' + esc(value) + '</text>';
+  const rule = (y: number) => '<line x1="24" y1="' + y + '" x2="456" y2="' + y + '" stroke="#9aaabd"/>';
+  const lines: string[] = [];
+  let y = 40;
+  const addText = (value: string, size: number, weight = 700, gap = 12) => {
+    if (!value) return;
+    const wrapped = wrapText(value, Math.max(12, Math.floor(430 / (size * 0.62))));
+    for (const row of wrapped) {
+      lines.push(text(row, 24, y, size, weight));
+      y += size * 1.45 + 5;
+    }
+    y += gap;
+  };
+  const addRule = (gap = 12) => { lines.push(rule(y)); y += gap; };
+
+  addText(receiptBrandName(ticket), 24, 800, 8);
+  addText((language === 'fr' ? 'TICKET: ' : 'TIKÈ: ') + String(ticket.ticketNumber ?? ticket.id ?? ''), 17, 700, 5);
+  addText((language === 'fr' ? 'TIRAGE: ' : 'TIRAJ: ') + receiptDrawName(ticket, language), 16, 700, 5);
+  const branch = receiptBranch(ticket);
+  if (branch) addText((language === 'fr' ? 'SUCCURSALE: ' : 'BIWO: ') + branch, 14, 400, 3);
+  const date = saleDate(ticket, language);
+  if (date) addText((language === 'fr' ? 'DATE / HEURE: ' : 'DAT / LÈ: ') + date, 14, 400, 5);
+  addRule(22);
+  lines.push(text(language === 'fr' ? 'JEU' : 'JWÈT', 24, y, 14, 700));
+  lines.push(text(language === 'fr' ? 'NUMÉRO' : 'NIMEWO', 150, y, 14, 700));
+  lines.push(text(language === 'fr' ? 'MISE' : 'PRI', 456, y, 14, 700, 'end'));
+  y += 24;
+  for (const line of receiptLineRows(ticket, language)) {
+    lines.push(text(line.label, 24, y, 16, 700));
+    lines.push(text(line.number, 150, y, 16, 700));
+    lines.push(text(line.price, 456, y, 16, 700, 'end'));
+    y += 28;
+    if (line.extra) {
+      lines.push(text(line.extra, 36, y, 12, 500));
+      y += 21;
+    }
+  }
+  addRule(28);
+  const currency = String(ticket.currency ?? 'USD').toUpperCase();
+  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
+  addText('TOTAL: ' + prefix + money(ticket.amount ?? ticket.totalAmount), 22, 800, 7);
+  addText((language === 'fr' ? 'STATUT: ' : 'ESTATI: ') + receiptStatus(ticket.status, language), 16, 700, 5);
+  const winningAmount = Number(ticket.winning?.winningAmount ?? ticket.winningAmount ?? 0);
+  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + prefix + money(winningAmount), 16, 700, 5);
+  addText((language === 'fr' ? 'VÉRIFICATION: ' : 'VERIFYE: ') + receiptCode(ticket), 14, 400, 4);
+  addText(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 13, 400, 0);
+  const height = Math.ceil(y + 18);
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="' + height + '" viewBox="0 0 480 ' + height + '"><rect width="480" height="' + height + '" fill="white"/>' + lines.join('') + '</svg>';
 }
 
 export async function ticketImageBlob(ticket: Ticket, language: Language): Promise<Blob> {
   const svg = ticketSvg(ticket, language);
   const image = new Image();
-  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('IMAGE_EXPORT_FAILED')); });
-  const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
   canvas.getContext('2d')?.drawImage(image, 0, 0);
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('IMAGE_EXPORT_FAILED')), 'image/png'));
 }
 
 export async function downloadTicketImage(ticket: Ticket, language: Language) {
   const blob = await ticketImageBlob(ticket, language);
-  const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `lottivexa-ticket-${ticket.ticketNumber ?? ticket.id}.png`; link.click(); URL.revokeObjectURL(url);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.png';
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function shareTicket(ticket: Ticket, language: Language, format: 'pdf' | 'image') {
   const blob = format === 'pdf' ? makeTicketPdf(ticket, language).output('blob') : await ticketImageBlob(ticket, language);
-  const extension = format === 'pdf' ? 'pdf' : 'png'; const mime = format === 'pdf' ? 'application/pdf' : 'image/png';
-  const file = new File([blob], `lottivexa-ticket-${ticket.ticketNumber ?? ticket.id}.${extension}`, { type: mime });
+  const extension = format === 'pdf' ? 'pdf' : 'png';
+  const mime = format === 'pdf' ? 'application/pdf' : 'image/png';
+  const file = new File([blob], 'lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.' + extension, { type: mime });
   if (!navigator.share || !navigator.canShare?.({ files: [file] })) throw new Error('SHARE_NOT_SUPPORTED');
-  await navigator.share({ title: `Ticket ${ticket.ticketNumber ?? ticket.id}`, files: [file] });
+  await navigator.share({ title: 'Ticket ' + (ticket.ticketNumber ?? ticket.id), files: [file] });
 }
