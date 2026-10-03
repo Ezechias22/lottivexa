@@ -155,11 +155,16 @@ export class ReportsService {
 
   async pdf(u: Principal, from?: string, to?: string) {
     const tenantId = this.tenant(u);
-    const [report, tenant] = await Promise.all([
+    const [report, drawReport, tenant] = await Promise.all([
       this.sales(u, from, to),
+      this.draws(u, from, to),
       prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { legalName: true, branding: { select: { businessName: true } }, settings: { select: { currency: true } } } }),
     ]);
-    return buildSalesPdf(report, tenant.branding?.businessName ?? tenant.legalName, tenant.settings?.currency ?? 'USD');
+    return buildSalesPdf(
+      { ...report, byDraw: drawReport.byDraw },
+      tenant.branding?.businessName ?? tenant.legalName,
+      tenant.settings?.currency ?? 'USD',
+    );
   }
 
   private salesByDay(tenantId: string, merchantId: string | undefined, range: { gte: Date; lte: Date }) {

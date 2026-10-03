@@ -417,7 +417,7 @@ export default function TenantReports({
           <div className="tenant-report-kpi-icon icon-coral"><span>↙</span></div>
           <span className="tenant-report-kpi-label">{text.payouts}</span>
           <strong>{currencyValue(report.payouts?.amount, currency, language)}</strong>
-          <small>{Number(report.payouts?.count ?? 0).toLocaleString(french ? "fr-HT" : "fr-HT")} {text.ticketsCount}</small>
+          <small>{Number(report.payouts?.count ?? 0).toLocaleString(french ? "fr-FR" : "fr-HT")} {text.ticketsCount}</small>
         </article>
         <article className="tenant-report-kpi">
           <div className="tenant-report-kpi-icon icon-amber"><span>%</span></div>

@@ -318,6 +318,7 @@ export default function TenantConsole() {
       const endpoints: Record<Tab, string[]> = {
         dashboard: [
           `/reports/sales?from=${haitiToday()}&to=${haitiToday()}`,
+          "/reports/sales?from=" + shiftDate(haitiToday(), -6) + "&to=" + haitiToday(),
           "/tickets",
           "/branches",
           "/merchants",
@@ -551,7 +552,9 @@ export default function TenantConsole() {
           <button className="secondary logout-button" onClick={logout}>Logout</button>
         </header>
         {message && <p className="message">{message}</p>}
-        {tab === "dashboard" && <Dashboard data={current} />}{" "}
+        {tab === "dashboard" && (
+          <Dashboard data={current} onViewReports={() => navigateTab("reports")} />
+        )}{" "}
         {tab === "branches" && (
           <Branches data={current} submit={submit} can={can} />
         )}{" "}
@@ -620,77 +623,227 @@ export default function TenantConsole() {
     </div>
   );
 }
-function Dashboard({ data: d }: { data: any[] }) {
+function Dashboard({
+  data: d,
+  onViewReports,
+}: {
+  data: any[];
+  onViewReports: () => void;
+}) {
   const { t, language } = useI18n();
-  const [r = {}, tickets = [], branches = [], merchants = [], notes = []] = d;
-  const today = new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "fr-HT", {
+  const [r = {}, trend = {}, tickets = [], branches = [], merchants = [], notes = []] = d;
+  const french = language === "fr";
+  const copy = french
+    ? {
+        eyebrow: "VUE D’ENSEMBLE",
+        title: "Tableau de bord",
+        subtitle: "Suivez les ventes, les paiements et l’activité de votre réseau.",
+        period: "Aujourd’hui en Haïti",
+        weekly: "Activité des 7 derniers jours",
+        weeklyHint: "Ventes quotidiennes de tickets",
+        report: "Voir les rapports",
+        operations: "Votre réseau",
+        recent: "Tickets récents",
+        ticket: "Ticket",
+        status: "Statut",
+        amount: "Montant",
+        date: "Date",
+        empty: "Aucun ticket récent.",
+        weekTotal: "Ventes sur 7 jours",
+        active: "actifs",
+      }
+    : {
+        eyebrow: "REZIME JENERAL",
+        title: "Tablo de bò",
+        subtitle: "Swiv lavant, peman ak aktivite tout rezo biznis ou a.",
+        period: "Jodi a ann Ayiti",
+        weekly: "Aktivite 7 dènye jou yo",
+        weeklyHint: "Lavant tikè chak jou",
+        report: "Gade rapò detaye",
+        operations: "Rezo biznis la",
+        recent: "Dènye tikè yo",
+        ticket: "Tikè",
+        status: "Estati",
+        amount: "Montan",
+        date: "Dat",
+        empty: "Pa gen nouvo tikè.",
+        weekTotal: "Vant nan 7 jou",
+        active: "aktif",
+      };
+  const today = new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", {
     timeZone: "America/Port-au-Prince",
     dateStyle: "full",
   }).format(new Date());
+  const currency = String(r.currency ?? trend.currency ?? "USD");
+  const formatAmount = (value: unknown) => {
+    try {
+      return new Intl.NumberFormat(french ? "fr-FR" : "fr-HT", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+      }).format(Number(value ?? 0));
+    } catch {
+      return money(value);
+    }
+  };
+  const days = (trend.byDay ?? []) as Array<{ day: string; count: number; amount: string }>;
+  const maximum = Math.max(1, ...days.map((row) => Number(row.amount ?? 0)));
+  const weeklyTotal = days.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const sales = Number(r.tickets?.sales ?? 0);
+  const net = Number(r.accounting?.netSales ?? (
+    sales - Number(r.payouts?.amount ?? 0) - Number(r.commission ?? 0)
+  ));
+  const activeMerchants = merchants.filter((merchant: Row) => merchant.status === "ACTIVE").length;
+  const statusLabel = (value: string) => {
+    const labels: Record<string, { ht: string; fr: string }> = {
+      VALID: { ht: "Valab", fr: "Valide" },
+      WINNER: { ht: "Gayan", fr: "Gagnant" },
+      WON: { ht: "Gayan", fr: "Gagnant" },
+      PAID: { ht: "Peye", fr: "Payé" },
+      LOST: { ht: "Pedi", fr: "Perdu" },
+      PENDING: { ht: "An atant", fr: "En attente" },
+      CANCELLED: { ht: "Anile", fr: "Annulé" },
+      VOID: { ht: "Anile", fr: "Annulé" },
+    };
+    return labels[value.toUpperCase()]?.[french ? "fr" : "ht"] ?? value.replace(/_/g, " ");
+  };
+  const formatTicketDate = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "—"
+      : new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", {
+          timeZone: "America/Port-au-Prince",
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).format(date);
+  };
+
   return (
-    <>
-      <section className="dashboard-welcome">
-        <div>
-          <span className="eyebrow">{t("dashboard.today")}</span>
-          <h2>{today}</h2>
-          <p>{t("report.fromToday")}</p>
+    <div className="tenant-dashboard">
+      <section className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <span className="dashboard-eyebrow"><i />{copy.eyebrow}</span>
+          <h2>{copy.title}</h2>
+          <p>{copy.subtitle}</p>
+          <div className="dashboard-hero-meta">
+            <span className="dashboard-date-mark"><b />{copy.period}</span>
+            <span>{today}</span>
+          </div>
         </div>
-        <span className="today-mark">{t("dashboard.today")}</span>
+        <div className="dashboard-hero-side">
+          <div className="dashboard-hero-total">
+            <span>{t("dashboard.today")}</span>
+            <strong>{formatAmount(sales)}</strong>
+            <small>{r.tickets?.count ?? tickets.length} {t("dashboard.tickets").toLowerCase()}</small>
+          </div>
+          <button type="button" className="dashboard-report-link" onClick={onViewReports}>
+            {copy.report}<span aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div className="dashboard-hero-glow" aria-hidden="true" />
       </section>
-      <div className="cards">
-        <article className="metric-sales">
-          <span>{t("dashboard.today")}</span>
-          <strong>{money(r.tickets?.sales)}</strong>
-          <small>
-            {r.tickets?.count ?? tickets.length}{" "}
-            {t("dashboard.tickets").toLowerCase()}
-          </small>
+
+      <section className="dashboard-metrics" aria-label={copy.title}>
+        <article className="dashboard-metric metric-blue">
+          <span className="dashboard-metric-icon">↗</span>
+          <span className="dashboard-metric-label">{t("dashboard.today")}</span>
+          <strong>{formatAmount(sales)}</strong>
+          <small>{r.tickets?.count ?? tickets.length} {t("dashboard.tickets").toLowerCase()}</small>
         </article>
-        <article>
-          <span>{t("dashboard.payouts")}</span>
-          <strong>{money(r.payouts?.amount)}</strong>
-          <small>
-            {r.payouts?.count ?? 0} {t("report.tickets").toLowerCase()}
-          </small>
+        <article className="dashboard-metric metric-green">
+          <span className="dashboard-metric-icon">◎</span>
+          <span className="dashboard-metric-label">{t("dashboard.net")}</span>
+          <strong>{formatAmount(net)}</strong>
+          <small>{french ? "Après les paiements et commissions" : "Apre peman ak komisyon"}</small>
         </article>
-        <article>
-          <span>{t("dashboard.net")}</span>
-          <strong>
-            {money(
-              Number(r.tickets?.sales ?? 0) - Number(r.payouts?.amount ?? 0),
-            )}
-          </strong>
+        <article className="dashboard-metric metric-amber">
+          <span className="dashboard-metric-icon">↙</span>
+          <span className="dashboard-metric-label">{t("dashboard.payouts")}</span>
+          <strong>{formatAmount(r.payouts?.amount)}</strong>
+          <small>{r.payouts?.count ?? 0} {french ? "paiement(s)" : "peman"}</small>
         </article>
-        <article>
-          <span>{t("dashboard.tickets")}</span>
-          <strong>{r.tickets?.count ?? 0}</strong>
+        <article className="dashboard-metric metric-violet">
+          <span className="dashboard-metric-icon">▦</span>
+          <span className="dashboard-metric-label">{t("dashboard.tickets")}</span>
+          <strong>{Number(r.tickets?.count ?? tickets.length).toLocaleString(french ? "fr-FR" : "fr-HT")}</strong>
+          <small>{french ? "Tickets enregistrés aujourd’hui" : "Tikè anrejistre jodi a"}</small>
         </article>
-        <article>
-          <span>{t("dashboard.branches")}</span>
-          <strong>{branches.length}</strong>
-        </article>
-        <article>
-          <span>{t("dashboard.merchants")}</span>
-          <strong>{merchants.length}</strong>
-        </article>
-        <article>
-          <span>{t("dashboard.alerts")}</span>
-          <strong>{notes.length}</strong>
-        </article>
+      </section>
+
+      <section className="dashboard-network-strip">
+        <div className="dashboard-network-heading">
+          <span className="dashboard-eyebrow">{copy.operations}</span>
+          <p>{french ? "État actuel de vos points de vente" : "Eta aktyèl pwen lavant ou yo"}</p>
+        </div>
+        <div className="dashboard-network-item"><span className="network-icon network-blue">⌂</span><div><strong>{branches.length}</strong><small>{t("dashboard.branches")}</small></div></div>
+        <div className="dashboard-network-item"><span className="network-icon network-green">◉</span><div><strong>{activeMerchants} <i>{copy.active}</i></strong><small>{t("dashboard.merchants")}</small></div></div>
+        <div className="dashboard-network-item"><span className="network-icon network-amber">!</span><div><strong>{notes.length}</strong><small>{t("dashboard.alerts")}</small></div></div>
+      </section>
+
+      <div className="dashboard-content-grid">
+        <section className="dashboard-card dashboard-sales-card">
+          <div className="dashboard-card-heading">
+            <div><span className="dashboard-eyebrow">{copy.weekly}</span><h3>{copy.weeklyHint}</h3></div>
+            <div className="dashboard-week-total"><small>{copy.weekTotal}</small><strong>{formatAmount(weeklyTotal)}</strong></div>
+          </div>
+          {days.length ? (
+            <div className="dashboard-chart" role="img" aria-label={copy.weekly}>
+              {days.map((row) => {
+                const value = Number(row.amount ?? 0);
+                const height = Math.max(5, Math.round((value / maximum) * 100));
+                const day = new Date(row.day + "T12:00:00.000Z");
+                const label = new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", {
+                  timeZone: "America/Port-au-Prince",
+                  weekday: "short",
+                }).format(day).replace(".", "");
+                return (
+                  <div className="dashboard-chart-column" key={row.day} title={formatAmount(value)}>
+                    <strong>{formatAmount(value)}</strong>
+                    <div className="dashboard-chart-track"><span style={{ height: height + "%" }} /></div>
+                    <small>{label}</small>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <div className="dashboard-chart-empty">{t("table.empty")}</div>}
+        </section>
+
+        <section className="dashboard-card dashboard-highlights">
+          <div className="dashboard-card-heading">
+            <div><span className="dashboard-eyebrow">{french ? "EN UN COUP D’ŒIL" : "YON GAD"}</span><h3>{french ? "Indicateurs du jour" : "Chif kle jodi a"}</h3></div>
+          </div>
+          <div className="dashboard-highlight-row"><span>{french ? "Tickets émis" : "Tikè ki sòti"}</span><strong>{Number(r.tickets?.count ?? tickets.length).toLocaleString(french ? "fr-FR" : "fr-HT")}</strong></div>
+          <div className="dashboard-highlight-row"><span>{french ? "Tickets annulés" : "Tikè anile"}</span><strong>{Number(r.accounting?.cancelledCount ?? 0).toLocaleString(french ? "fr-FR" : "fr-HT")}</strong></div>
+          <div className="dashboard-highlight-row"><span>{french ? "Commissions" : "Komisyon"}</span><strong>{formatAmount(r.commission)}</strong></div>
+          <div className="dashboard-highlight-note"><span />{t("report.fromToday")}</div>
+        </section>
       </div>
-      <section className="panel">
-        <h2>{t("dashboard.recent")}</h2>
-        <Table
-          rows={tickets.slice(0, 12)}
-          columns={[
-            ["ticketNumber", "Ticket"],
-            ["status", "Status"],
-            ["amount", "Amount"],
-            ["createdAt", "Date"],
-          ]}
-        />
+
+      <section className="dashboard-card dashboard-recent-card">
+        <div className="dashboard-card-heading">
+          <div><span className="dashboard-eyebrow">{copy.recent}</span><h3>{french ? "Dernière activité des tickets" : "Dènye aktivite sou tikè yo"}</h3></div>
+          <span className="dashboard-recent-count">{tickets.length} {french ? "tickets" : "tikè"}</span>
+        </div>
+        <div className="dashboard-table-scroll">
+          <table className="dashboard-table">
+            <thead><tr><th>{copy.ticket}</th><th>{copy.status}</th><th>{copy.amount}</th><th>{copy.date}</th></tr></thead>
+            <tbody>
+              {tickets.length ? tickets.slice(0, 8).map((ticket: Row, index: number) => (
+                <tr key={ticket.id ?? ticket.ticketNumber ?? index}>
+                  <td><strong>{ticket.ticketNumber ?? "—"}</strong><small>{ticket.merchant?.displayName ?? ticket.branch?.name ?? ""}</small></td>
+                  <td><span className={"dashboard-ticket-status status-" + String(ticket.status ?? "pending").toLowerCase()}>{statusLabel(String(ticket.status ?? "PENDING"))}</span></td>
+                  <td className="dashboard-table-amount">{formatAmount(ticket.amount)}</td>
+                  <td>{formatTicketDate(ticket.createdAt)}</td>
+                </tr>
+              )) : <tr><td colSpan={4} className="dashboard-table-empty">{copy.empty}</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
-    </>
+    </div>
   );
 }
 function Branches({ data: d, submit, can }: any) {
