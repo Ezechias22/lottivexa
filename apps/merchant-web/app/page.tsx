@@ -69,9 +69,19 @@ function ticketDisplayStatus(ticket:Row){
  if(!resolved)return 'PENDING';
  return (ticket?.lines??[]).some((line:Row)=>line.isWinner===true)||Number(ticket?.winning?.winningAmount??0)>0?'WINNER':'LOSER';
 }
+function ticketWinningAmount(ticket:Row){
+  const stored=Number(ticket?.winning?.winningAmount??0);
+  if(stored>0)return stored;
+  return (ticket?.lines??[]).reduce((sum:number,line:Row)=>{
+    if(line.isWinner!==true)return sum;
+    const count=Math.max(1,Number(line.winCount??1));
+    return sum+Number(line.potentialWin??0)*count;
+  },0);
+}
 function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadImage,share,replay,can}:any){
  const{t:tr,language}=useMerchantLanguage();
- const verified=ticketDisplayStatus(t)==='WINNER';
+ const winningAmount=ticketWinningAmount(t);
+ const verified=ticketDisplayStatus(t)==='WINNER'&&winningAmount>0;
  const currency=t?.currency??'USD';
  return <>
   <section className="panel">
@@ -89,7 +99,7 @@ function Check({selected:t,lookup,pay,cancel,printTicket,downloadPdf,downloadIma
     </div>;
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount)}</b></span></div>
-   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gany konfime'}: {currencyMark(currency)}{cash(t.winning.winningAmount)}</p>}
+   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gany konfime'}: {currencyMark(currency)}{cash(winningAmount)}</p>}
    <div className="buttons receipt-actions">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&t.status==='VALID'&&<button className="danger" onClick={cancel}>{tr('cancel')}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={downloadPdf}>{tr('downloadTicketPdf')}</button><button className="secondary" onClick={downloadImage}>{tr('downloadTicketImage')}</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}<details className="share-menu"><summary className="button secondary">{tr('share')}</summary><div><button type="button" onClick={()=>share('pdf')}>{tr('sharePdf')}</button><button type="button" onClick={()=>share('image')}>{tr('shareImage')}</button></div></details></div>
   </section>}
  </>;
