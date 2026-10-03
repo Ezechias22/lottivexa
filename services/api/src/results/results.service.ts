@@ -4,7 +4,7 @@ import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
 import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
 import {evaluateTicketResults} from './results-policy';
-import {hasCurrentResultCheck} from './results-reconciliation-policy';
+import {hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
 
 @Injectable()
 export class ResultsService implements OnModuleInit{
@@ -35,7 +35,7 @@ export class ResultsService implements OnModuleInit{
     let cursor:string|undefined,rechecked=0;
     for(;;){
       const tickets=await prisma.ticket.findMany({
-        where:{tenantId:draw.tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null},...(cursor?{id:{gt:cursor}}:{}),OR:[{drawId:draw.id},{ticketDraws:{some:{drawId:draw.id}}}],events:{none:{type:'RESULT_CHECKED',metadata:{path:['checkedDrawVersions'],array_contains:[{drawId:draw.id,publishedAt:draw.publishedAt!.toISOString()}]}}}},
+        where:{tenantId:draw.tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null},...(cursor?{id:{gt:cursor}}:{}),AND:[{OR:[{drawId:draw.id},{ticketDraws:{some:{drawId:draw.id}}}]},{OR:[{events:{none:{type:'RESULT_CHECKED',metadata:{path:['checkedDrawVersions'],array_contains:[{drawId:draw.id,publishedAt:draw.publishedAt!.toISOString()}]}}}},{status:'WINNER',winning:{is:null}},{status:'WINNER',winning:{is:{winningAmount:{lte:0}}}},{status:'WINNER',lines:{none:{isWinner:true}}}]}]},
         select:{id:true},
         orderBy:{id:'asc'},take:100,
       });
@@ -54,6 +54,7 @@ export class ResultsService implements OnModuleInit{
             where:{id:ticketId,tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null}},
             include:{
               lines:{include:{betType:{select:{code:true}}}},
+              winning:true,
               merchant:{select:{userId:true}},
               draw:{select:{id:true,status:true,result:true,publishedAt:true}},
               ticketDraws:{include:{draw:{select:{id:true,status:true,result:true,publishedAt:true}}}},
@@ -63,7 +64,11 @@ export class ResultsService implements OnModuleInit{
           if(!ticket)return false;
           const drawRows=[ticket.draw,...(ticket.ticketDraws??[]).map((item:any)=>item.draw)].filter(Boolean);
           const targetDraw=drawRows.find((item:any)=>item.id===drawId);
-          if(!targetDraw||targetDraw.status!=='RESULT_PUBLISHED'||!targetDraw.publishedAt||hasCurrentResultCheck(ticket.events,drawId,targetDraw.publishedAt))return false;
+          if(!targetDraw||targetDraw.status!=='RESULT_PUBLISHED'||!targetDraw.publishedAt)return false;
+          const checked=hasCurrentResultCheck(ticket.events,drawId,targetDraw.publishedAt);
+          const hasWinningLine=ticket.lines.some((line:any)=>line.isWinner===true);
+          const winningAmount=Number(ticket.winning?.winningAmount??0);
+          if(checked&&!needsWinnerRepair(ticket.status,winningAmount,hasWinningLine))return false;
           await this.recalculateTicket(tx,ticket,null,drawId,false);
           return true;
         },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});

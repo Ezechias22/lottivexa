@@ -1,3 +1,4 @@
+import { ticketDrawLabels } from './draw-label';
 import { jsPDF } from 'jspdf';
 
 type Ticket = Record<string, any>;
@@ -20,11 +21,7 @@ const rows = (ticket: Ticket, language: Language): string[] => (ticket.lines ?? 
   const free = line.isPromotional ? (language === 'fr' ? 'GRATUIT' : 'GRATIS') : `$${money(line.stake)}`;
   return `${position} ${code(line)} ${number} ${free}`.trim();
 });
-const drawNames = (ticket: Ticket, language: Language) => {
-  const draws = Array.isArray(ticket.draws) ? ticket.draws : ticket.draw ? [ticket.draw] : [];
-  const names = draws.map((draw: Ticket) => String(draw.game?.name ?? draw.gameName ?? draw.name ?? '')).filter(Boolean);
-  return names.length ? names.join(' · ') : (language === 'fr' ? 'Tirage' : 'Tiraj');
-};
+const drawNames = (ticket: Ticket, language: Language) => ticketDrawLabels(ticket, language) || (language === 'fr' ? 'Tirage' : 'Tiraj');
 
 export function makeTicketPdf(ticket: Ticket, language: Language) {
   const lineRows = rows(ticket, language);

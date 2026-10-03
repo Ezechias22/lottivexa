@@ -21,6 +21,13 @@ double ticketWinningAmount(Map<String, dynamic> value) {
   });
 }
 
+String _ticketDrawLabel(Map<String, dynamic> value) {
+  final linked = value['ticketDraws'] as List<dynamic>? ?? [];
+  final draws = linked.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
+  final rows = draws.isNotEmpty ? draws : value['draw'] is Map ? [value['draw'] as Map] : <Map>[];
+  return rows.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw))).where((label) => label.isNotEmpty).toSet().join(' / ');
+}
+
 class TicketSearchScreen extends StatefulWidget {
   const TicketSearchScreen({super.key, required this.runtime});
   final MobileRuntime runtime;
@@ -104,12 +111,6 @@ class _TicketState extends State<TicketSearchScreen> {
     final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
     return stored <= 0 || ticketWinningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
   }
-  String _ticketDrawLabel(Map<String, dynamic> value) {
-    final linked = value['ticketDraws'] as List<dynamic>? ?? [];
-    final draws = linked.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
-    final rows = draws.isNotEmpty ? draws : value['draw'] is Map ? [value['draw'] as Map] : <Map>[];
-    return rows.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw))).where((label) => label.isNotEmpty).toSet().join(' / ');
-  }
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
     'PAID' => Colors.blue.shade700,
@@ -160,11 +161,12 @@ class TicketDetails extends StatelessWidget {
     final winning = ticket['winning'] as Map<String, dynamic>?;
     final status = ticket['payout'] != null ? 'PAID' : ticket['_displayStatus'] ?? ticket['status'];
     final needsWinningReview = status == 'WINNER' && ((double.tryParse('${winning?['winningAmount']}') ?? 0) <= 0 || !lines.any((line) => line['isWinner'] == true));
+    final drawLabel = _ticketDrawLabel(ticket);
     return Card(margin: const EdgeInsets.only(top: 16), clipBehavior: Clip.antiAlias, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(color: statusColor(context, status), padding: const EdgeInsets.all(16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text('${ticket['ticketNumber']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))), Chip(label: Text(statusLabel(status)))])),
       Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${ticket['draw']?['game']?['name'] ?? ticket['game']?['name'] ?? ''}', style: Theme.of(context).textTheme.titleLarge),
-        Text('Tiraj: ${merchantDrawLabel(Map<String, dynamic>.from(ticket['draw'] as Map? ?? const {}))}'),
+        Text('Tiraj: ${drawLabel.isEmpty ? merchantDrawLabel(Map<String, dynamic>.from(ticket['draw'] as Map? ?? const {})) : drawLabel}'),
         Text('Machann: ${ticket['merchant']?['displayName'] ?? ''} · ${ticket['merchant']?['branch']?['name'] ?? ''}'),
         Text('Dat: ${ticket['createdAt'] ?? ''}'),
         const Divider(height: 28),

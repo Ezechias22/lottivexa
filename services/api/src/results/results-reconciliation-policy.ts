@@ -3,6 +3,10 @@ type ResultCheckEvent = {
   metadata?: unknown;
 };
 
+export function needsWinnerRepair(status: string, winningAmount: number, hasWinningLine: boolean): boolean {
+  return status === 'WINNER' && (!(winningAmount > 0) || !hasWinningLine);
+}
+
 export function hasCurrentResultCheck(
   events: readonly ResultCheckEvent[],
   drawId: string,

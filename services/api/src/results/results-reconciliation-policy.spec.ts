@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasCurrentResultCheck } from './results-reconciliation-policy';
+import { hasCurrentResultCheck, needsWinnerRepair } from './results-reconciliation-policy';
 
 describe('automatic ticket result reconciliation policy', () => {
   const publishedAt = new Date('2026-10-02T18:30:00.000Z');
@@ -24,5 +24,12 @@ describe('automatic ticket result reconciliation policy', () => {
     const events = [{ type: 'RESULT_CHECKED', metadata: { checkedDrawVersions: [{ drawId: 'draw-2', publishedAt: publishedAt.toISOString() }] } }];
     expect(hasCurrentResultCheck(events, 'draw-1', publishedAt)).toBe(false);
     expect(hasCurrentResultCheck(events, 'draw-2', new Date('2026-10-02T18:31:00.000Z'))).toBe(false);
+  });
+
+  it('repairs a winner whose result check exists but whose payout amount or winning line is missing', () => {
+    expect(needsWinnerRepair('WINNER', 0, true)).toBe(true);
+    expect(needsWinnerRepair('WINNER', 25, false)).toBe(true);
+    expect(needsWinnerRepair('WINNER', 25, true)).toBe(false);
+    expect(needsWinnerRepair('PENDING', 0, false)).toBe(false);
   });
 });

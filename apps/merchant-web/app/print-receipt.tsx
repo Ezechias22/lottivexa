@@ -1,7 +1,7 @@
 'use client';
 
 import { useMerchantLanguage } from './language-switcher';
-import { compactDrawLabel } from './draw-label';
+import { ticketDrawLabels } from './draw-label';
 
 type Ticket = Record<string, any>;
 const amount = (value: unknown) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
@@ -14,7 +14,7 @@ const shortCode = (line: Ticket) => {
   if (raw.includes('MARYAJ') || raw.includes('MARIAGE')) return 'MJ';
   return 'BL';
 };
-const drawTime = (ticket: Ticket) => ticket.draw ? compactDrawLabel(ticket.draw, 'ht') : ticket.game?.name ?? ticket.gameName ?? 'Lotri';
+const drawTime = (ticket: Ticket, language: 'ht' | 'fr') => ticketDrawLabels(ticket, language) || ticket.game?.name || ticket.gameName || (language === 'fr' ? 'Loterie' : 'Lotri');
 const lineText = (line: Ticket, free: string) => {
   const parts = String(line.selectionKey ?? line.selection ?? '').split('@');
   const number = parts[0].replaceAll('-', '×');
@@ -24,7 +24,7 @@ const lineText = (line: Ticket, free: string) => {
   return `${op ? `${op} ` : ''}${code} ${number} ${price}`;
 };
 
-export default function PrintReceipt({ ticket, businessName, branchName, currency: _currency }: { ticket: Ticket | null; businessName: string; branchName?: string; currency?: string }) {
+export default function PrintReceipt({ ticket, businessName, logoUrl, branchName, currency: _currency }: { ticket: Ticket | null; businessName: string; logoUrl?: string; branchName?: string; currency?: string }) {
   const { language } = useMerchantLanguage();
   if (!ticket) return null;
   const code = String(ticket.qrCode ?? ticket.ticketNumber ?? ticket.id ?? '');
@@ -32,9 +32,9 @@ export default function PrintReceipt({ ticket, businessName, branchName, currenc
   const status = String(ticket.status ?? 'VALID');
   const winners = (ticket.lines ?? []).filter((line: Ticket) => line.isWinner === true).map((line: Ticket) => String(line.selectionKey ?? line.selection ?? '').split('@')[0].replaceAll('-', '×'));
   return <article className="print-receipt" aria-hidden="true" lang={language}>
-    <header><h1>{businessName || 'Bolet'}</h1><strong>{language === 'fr' ? 'TICKET DE LOTERIE' : 'TIKÈ BOLET'}</strong></header>
+    <header>{logoUrl&&<img className="receipt-tenant-logo" src={logoUrl} alt=""/>}<h1>{businessName || 'Bolet'}</h1><strong>{language === 'fr' ? 'TICKET DE LOTERIE' : 'TIKÈ BOLET'}</strong></header>
     <div className="receipt-ticket"><span>{language === 'fr' ? 'TICKET' : 'TIKÈ'}</span><strong>{ticket.ticketNumber ?? ticket.id}</strong></div>
-    <div className="receipt-draw"><span>{language === 'fr' ? 'TIRAGE' : 'TIRAJ'}</span><strong>{drawTime(ticket)}</strong></div>
+    <div className="receipt-draw"><span>{language === 'fr' ? 'TIRAGE' : 'TIRAJ'}</span><strong>{drawTime(ticket, language)}</strong></div>
     <div className="receipt-meta"><span>{language === 'fr' ? 'DATE / HEURE' : 'DAT / LÈ'}</span><strong>{new Date(ticket.createdAt ?? Date.now()).toLocaleString(language === 'fr' ? 'fr-FR' : 'fr-HT', { timeZone: 'America/Port-au-Prince' })}</strong></div>
     <div className="receipt-table"><div className="receipt-row receipt-heading"><span>{language === 'fr' ? 'JEU / NUMÉRO' : 'JWÈT / NIMEWO'}</span><span>{language === 'fr' ? 'MISE' : 'PRI'}</span></div>
       {(ticket.lines ?? []).map((line: Ticket, index: number) => <div className="receipt-row receipt-bet" key={line.id ?? index}><strong className="receipt-number">{lineText(line, free)}</strong>{Number(line.winCount ?? 0) > 1 && <small className="receipt-dekabes">DEKABÈS ×{line.winCount}</small>}{line.isWinner === true && <small className="receipt-line-win">{language === 'fr' ? 'GAGNANT' : 'GENYEN'}</small>}</div>)}

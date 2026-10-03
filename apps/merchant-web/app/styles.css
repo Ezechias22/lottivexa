@@ -678,6 +678,15 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     border-bottom: 1px dashed #8795a6;
     padding-bottom: 3mm;
   }
+  .print-receipt .receipt-tenant-logo {
+    display: block;
+    width: auto;
+    max-width: 28mm;
+    height: auto;
+    max-height: 12mm;
+    margin: 0 auto 2mm;
+    object-fit: contain;
+  }
   .print-receipt h1 {
     color: #132b4b;
     font-size: 14pt;

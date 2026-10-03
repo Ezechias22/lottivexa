@@ -3,7 +3,7 @@ import { prisma, Prisma } from '@lottivexa/database';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Principal } from '../common/guards/jwt-auth.guard';
 import { isBettingOpen } from '../lottery/lottery-policy';
-import { chooseOdds, normalizeSelection, priceLines, validateHaitianBetType } from './ticket-policy';
+import { chooseOdds, deriveFreeMaryajSelections, normalizeSelection, priceLines, validateHaitianBetType } from './ticket-policy';
 import { presentTicketLines } from './ticket-line-flags';
 
 /** Creates one physical ticket containing lines for several lottery draws. */
@@ -46,13 +46,51 @@ export class MultiTicketService {
         validateHaitianBetType(bet.code, selection);
         const odd: any = chooseOdds(odds as any[], line.betTypeId, position);
         if (!odd) throw new BadRequestException('ODDS_NOT_CONFIGURED');
-        return { ...line, selection, resultPosition: position, odds: odd.multiplier.toString(), selectionCount: bet.selectionCount, numberMin: bet.numberMin, numberMax: bet.numberMax, allowRepeats: bet.allowRepeats, isPromotional: false, drawId: draw.id, id: randomUUID() };
+        return { ...line, selection, resultPosition: position, odds: odd.multiplier.toString(), selectionCount: bet.selectionCount, numberMin: bet.numberMin, numberMax: bet.numberMax, allowRepeats: bet.allowRepeats, isPromotional: false, drawId: draw.id, code: bet.code, id: randomUUID() };
       })).map(line => ({ ...line, drawId: draw.id }));
       await this.checkLimits(tenantId, draw.id, draw.gameId, merchant.id, priced);
       allLines.push(...priced);
     }
     if (!allLines.length) throw new BadRequestException('TICKET_EMPTY');
-    const amount = allLines.reduce((sum, line) => sum.add(line.stake), new Prisma.Decimal(0));
+    let amount: Prisma.Decimal;
+    try { amount = allLines.reduce((sum, line) => sum.add(new Prisma.Decimal(line.stake)), new Prisma.Decimal(0)); }
+    catch { throw new BadRequestException('INVALID_AMOUNT'); }
+    if (dto.freeMaryaj?.length && amount.lt(100)) throw new BadRequestException('FREE_MARYAJ_MINIMUM_NOT_REACHED');
+    if (dto.freeMaryaj?.length && dto.freeMaryaj.length !== 2) throw new BadRequestException('FREE_MARYAJ_REQUIRES_TWO_LINES');
+    const maryaj = dto.freeMaryaj?.length || amount.gte(100)
+      ? await db.betType.findFirst({ where: { tenantId, code: 'MARYAJ' } })
+      : null;
+    if (dto.freeMaryaj?.length && !maryaj) throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
+    let freeLines: any[] = [];
+    if (amount.gte(100)) {
+      if (!maryaj) throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
+      const maryajConfig = await db.gameBetType.findFirst({
+        where: { gameId: firstDraw.gameId, betTypeId: maryaj.id, active: true },
+        include: { betType: true },
+      });
+      if (!maryajConfig) throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
+      const freeOdds = await db.oddsRule.findMany({
+        where: { tenantId, gameId: firstDraw.gameId, betTypeId: maryaj.id, active: true, startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+        orderBy: { startsAt: 'desc' },
+      });
+      const selections = dto.freeMaryaj?.map((item: any) => item.selection)
+        ?? deriveFreeMaryajSelections(allLines.map(line => ({ code: line.code, selection: line.selection })));
+      if (selections.length !== 2) throw new BadRequestException('FREE_MARYAJ_NUMBERS_REQUIRED');
+      freeLines = priceLines(selections.map((selectionInput: any) => {
+        const selection = normalizeSelection('MARYAJ', selectionInput);
+        validateHaitianBetType('MARYAJ', selection);
+        const odd: any = chooseOdds(freeOdds as any[], maryaj.id);
+        if (!odd) throw new BadRequestException('ODDS_NOT_CONFIGURED');
+        return {
+          betTypeId: maryaj.id, selection, resultPosition: undefined, stake: '1', odds: odd.multiplier.toString(),
+          selectionCount: maryajConfig.betType.selectionCount, numberMin: maryajConfig.betType.numberMin,
+          numberMax: maryajConfig.betType.numberMax, allowRepeats: maryajConfig.betType.allowRepeats,
+          isPromotional: true, drawId: firstDraw.id, code: 'MARYAJ', id: randomUUID(),
+        };
+      })).map(line => ({ ...line, drawId: firstDraw.id }));
+      await this.checkLimits(tenantId, firstDraw.id, firstDraw.gameId, merchant.id, freeLines);
+      allLines.push(...freeLines);
+    }
     const potentialWin = allLines.reduce((sum, line) => sum.add(line.potentialWin), new Prisma.Decimal(0));
     const token = randomBytes(12).toString('hex').toUpperCase();
     const date = new Date();
@@ -68,7 +106,7 @@ export class MultiTicketService {
         gameId: firstDraw.gameId, drawId: firstDraw.id, amount, potentialWin, barcode: token, qrCode: `LV1:${tenantId}:${token}`,
         ticketDraws: { create: ticketDraws },
         lines: { create: allLines.map(line => ({ id: line.id, tenantId, drawId: line.drawId, betTypeId: line.betTypeId, selection: line.selection, selectionKey: line.selectionKey, stake: line.stake, odds: line.odds, potentialWin: line.potentialWin })) },
-        events: { create: { tenantId, type: 'CREATED', userId: u.sub, deviceId: dto.deviceId, metadata: { multiLottery: true, drawIds: ticketDraws.map(item => item.drawId) } } },
+        events: { create: { tenantId, type: 'CREATED', userId: u.sub, deviceId: dto.deviceId, metadata: { multiLottery: true, drawIds: ticketDraws.map(item => item.drawId), ...(freeLines.length ? { freeMaryajLineIds: freeLines.map(line => line.id) } : {}) } } },
       } });
       const cash = await tx.ledgerAccount.upsert({ where: { tenantId_code: { tenantId, code: 'MERCHANT_CASH' } }, update: {}, create: { tenantId, code: 'MERCHANT_CASH', name: 'Merchant cash', type: 'ASSET' } });
       const sales = await tx.ledgerAccount.upsert({ where: { tenantId_code: { tenantId, code: 'TICKET_SALES' } }, update: {}, create: { tenantId, code: 'TICKET_SALES', name: 'Ticket sales', type: 'REVENUE' } });

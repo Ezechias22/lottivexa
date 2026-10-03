@@ -120,6 +120,11 @@ class EscPosEncoder {
   }
 
   String _drawName(Map<String, dynamic> ticket) {
+    final linked = ticket['ticketDraws'] as List<dynamic>? ?? [];
+    final draws = linked.map((item) => item is Map ? item['draw'] : null).whereType<Map>().toList();
+    if (draws.isNotEmpty) {
+      return draws.map((draw) => merchantDrawLabel(Map<String, dynamic>.from(draw), french: ticket['language'] == 'fr')).where((label) => label.isNotEmpty).toSet().join(' / ');
+    }
     final explicit = ticket['drawName']?.toString().trim();
     if (explicit != null && explicit.isNotEmpty) return explicit;
     final draw = _map(ticket['draw']);

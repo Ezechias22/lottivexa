@@ -279,12 +279,17 @@ class _NewTicketState extends State<NewTicketScreen> {
       final key = line.drawId ?? drawId!;
       (grouped[key] ??= []).add({'betTypeId': line.betTypeId, 'selection': line.number.split('-').toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position});
     }
-    if (usingOfflineCatalog && grouped.length > 1) { setState(() => message = 'Plizyè lotri sou yon sèl fich mande koneksyon ak sèvè a. Rekonekte anvan vant lan.'); return; }
+    if (usingOfflineCatalog && grouped.length > 1) { setState(() { busy = false; message = 'Plizyè lotri sou yon sèl fich mande koneksyon ak sèvè a. Rekonekte anvan vant lan.'; }); return; }
     final payload = lines.map((line) => {'betTypeId': line.betTypeId, 'selection': line.number.split('-').toList(), 'stake': line.stake, if (line.position!=null) 'resultPosition': line.position}).toList();
     try {
       final requestData = <String,dynamic>{'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId};
       if (grouped.length > 1) {
-        requestData['draws'] = grouped.entries.map((entry) => {'drawId': entry.key, 'lines': entry.value}).toList();
+        final drawGroups = grouped.entries.toList();
+        if (freeMaryaj.isNotEmpty && grouped.containsKey(drawId)) {
+          drawGroups.sort((left, right) => left.key == drawId ? -1 : right.key == drawId ? 1 : 0);
+        }
+        requestData['draws'] = drawGroups.map((entry) => {'drawId': entry.key, 'lines': entry.value}).toList();
+        if (freeMaryaj.isNotEmpty) requestData['freeMaryaj'] = freeMaryaj.map((selection) => {'selection': selection}).toList();
       } else {
         requestData.addAll({'drawId': drawId, 'lines': payload, if (freeMaryaj.isNotEmpty) 'freeMaryaj': freeMaryaj.map((selection) => {'selection': selection}).toList()});
       }
@@ -323,7 +328,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     }),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('Zouti otomatik · ${_boletNumbers.length} boul Bolet ak Boul Pè sou fich la',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[FilledButton.tonal(onPressed:addManualMaryaj,child:const Text('MARYAJ PEYE MANYÈL')),FilledButton.tonal(onPressed:addMaryaj,child:const Text('MARYAJ OTOMATIK')),FilledButton.tonal(onPressed:addAutoLoto4,child:const Text('LOTO OTOMATIK')),FilledButton.tonal(onPressed:addBoulPe,child:const Text('BOUL PÈ 00–99'))]),const Text('Pri ak opsyon Loto yo ap parèt nan ti fenèt yo. Ou ka ajiste pri chak liy apre sa.')]))),
     const SizedBox(height: 16),
-    ...lines.asMap().entries.map((entry){final index=entry.key,line=entry.value;return Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[SizedBox(width:88,child:Text(line.number,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900))),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${line.betName}${line.position==null?'':' · Opsyon ${line.position}'}'),TextFormField(key:ValueKey('${line.number}-${line.position}-${line.stake}'),initialValue:line.stake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri liy sa a',isDense:true),onChanged:(value){line.stake=value;setState((){});})])),IconButton(onPressed:()=>setState(()=>lines.removeAt(index)),icon:const Icon(Icons.delete,color:Colors.red))])));}),
+    ...lines.asMap().entries.map((entry){final index=entry.key,line=entry.value;final lineDraw=draws.where((row)=>'${row['id']}'==line.drawId).firstOrNull;final lineDrawLabel=lineDraw==null?(line.drawId??'—'):drawLabel(lineDraw);return Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[SizedBox(width:88,child:Text(line.number,style:const TextStyle(fontSize:22,fontWeight:FontWeight.w900))),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('${line.betName}${line.position==null?'':' · Opsyon ${line.position}'}'),Text('Tiraj: $lineDrawLabel',style:Theme.of(context).textTheme.bodySmall),TextFormField(key:ValueKey('${line.number}-${line.position}-${line.stake}'),initialValue:line.stake,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Pri liy sa a',isDense:true),onChanged:(value){line.stake=value;setState((){});})])),IconButton(onPressed:()=>setState(()=>lines.removeAt(index)),icon:const Icon(Icons.delete,color:Colors.red))])));}),
     if (message != null) Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(message!, style: const TextStyle(fontWeight: FontWeight.w600))),
     ]),
     bottomNavigationBar: SafeArea(top: false, child: Container(
