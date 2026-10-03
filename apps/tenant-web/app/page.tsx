@@ -8,6 +8,10 @@ import ManualResults from "./manual-results";
 import { LotteryCompact, LotterySchedules, ManualResultsPage, PublishedResults } from "./lottery-pages";
 import { localizedColumn, useI18n } from "./i18n";
 import { describeDraw, drawSessionLabel } from "./draw-label";
+import {
+  formatTenantApiError,
+  normalizeMerchantCreateForm,
+} from "./tenant-api-feedback";
 const RAW_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const API = RAW_API.replace(/\/$/, "").endsWith("/api/v1")
   ? RAW_API.replace(/\/$/, "")
@@ -168,6 +172,7 @@ function Table({
   );
 }
 export default function TenantConsole() {
+  const { language } = useI18n();
   const [token, setToken] = useState(""),
     [refresh, setRefresh] = useState(""),
     [force, setForce] = useState(false),
@@ -251,10 +256,10 @@ export default function TenantConsole() {
       }
       const body = await response.json().catch(() => ({}));
       if (!response.ok)
-        throw new Error(body.code ?? body.message ?? `HTTP_${response.status}`);
+        throw new Error(formatTenantApiError(body, response.status, language));
       return body;
     },
-    [token, refresh, logout],
+    [token, refresh, logout, language],
   );
   const run = useCallback(
     async (action: () => Promise<any>, success?: string) => {
@@ -711,7 +716,12 @@ function Merchants({ data: d, submit, request, load, can }: any) {
           Merchant la pa ka enskri tèt li; admin lan kreye login sa a.
         </p>
         {can("merchants.create") && (
-          <form className="form" onSubmit={(e) => submit(e, "/merchants")}>
+          <form
+            className="form"
+            onSubmit={(e) =>
+              submit(e, "/merchants", normalizeMerchantCreateForm)
+            }
+          >
             <label>
               Display name
               <input name="displayName" required />

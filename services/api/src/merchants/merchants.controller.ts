@@ -10,11 +10,11 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/access.decorators";
 import type { Principal } from "../common/guards/jwt-auth.guard";
 import { MerchantsService } from "./merchants.service";
-class CreateMerchantDto {
+export class CreateMerchantDto {
   @IsString() displayName!: string;
   @IsString() merchantNumber!: string;
   @IsString() username!: string;
-  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @ValidateIf((_, value) => value !== "") @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
   @MinLength(12) temporaryPassword!: string;
   @IsString() branchId!: string;
