@@ -8,6 +8,19 @@ import 'package:uuid/uuid.dart';
 import '../../core/draw_label.dart';
 import '../../core/mobile_runtime.dart';
 
+double ticketWinningAmount(Map<String, dynamic> value) {
+  final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
+  if (stored > 0) return stored;
+  final lines = value['lines'] as List<dynamic>? ?? [];
+  return lines.fold<double>(0, (sum, raw) {
+    final line = raw as Map<String, dynamic>;
+    if (line['isWinner'] != true) return sum;
+    final count = int.tryParse('${line['winCount'] ?? 1}') ?? 1;
+    final potential = double.tryParse('${line['potentialWin'] ?? 0}') ?? 0;
+    return count > 0 ? sum + potential * count : sum;
+  });
+}
+
 class TicketSearchScreen extends StatefulWidget {
   const TicketSearchScreen({super.key, required this.runtime});
   final MobileRuntime runtime;
@@ -89,19 +102,7 @@ class _TicketState extends State<TicketSearchScreen> {
     if (_displayTicketStatus(value) != 'WINNER') return false;
     final lines = value['lines'] as List<dynamic>? ?? [];
     final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
-    return stored <= 0 || _winningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
-  }
-  double _winningAmount(Map<String, dynamic> value) {
-    final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
-    if (stored > 0) return stored;
-    final lines = value['lines'] as List<dynamic>? ?? [];
-    return lines.fold<double>(0, (sum, raw) {
-      final line = raw as Map<String, dynamic>;
-      if (line['isWinner'] != true) return sum;
-      final count = int.tryParse('${line['winCount'] ?? 1}') ?? 1;
-      final potential = double.tryParse('${line['potentialWin'] ?? 0}') ?? 0;
-      return count > 0 ? sum + potential * count : sum;
-    });
+    return stored <= 0 || ticketWinningAmount(value) <= 0 || !lines.any((line) => line['isWinner'] == true);
   }
   Color statusColor(BuildContext context, dynamic value) => switch ('$value') {
     'WINNER' => Colors.green.shade700,
@@ -152,7 +153,7 @@ class TicketDetails extends StatelessWidget {
         for (final raw in lines) _winningLine(raw as Map<String, dynamic>),
         const Divider(height: 28),
         _total('Total jwe', _money(ticket['amount'])),
-        if (status == 'WINNER' || status == 'PAID') _total('TOTAL GENYEN', _money(_winningAmount(ticket)), winner: true),
+        if (status == 'WINNER' || status == 'PAID') _total('TOTAL GENYEN', _money(ticketWinningAmount(ticket)), winner: true),
         if (needsWinningReview) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('GENYEN · Montan gany la poko kalkile. Peman an rete bloke jiskaske sistèm nan konfime montan an.', textAlign: TextAlign.center, style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold))),
         if ('${ticket['qrCode'] ?? ''}'.isNotEmpty) Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: QrImageView(data: '${ticket['qrCode']}', size: 170))),
         const Text('Kenbe tikè orijinal la. Peman fèt nan sistèm nan epi yon tikè ki deja peye pa kapab peye ankò.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),

@@ -32,6 +32,9 @@ for (const value of ['/api/v1/tickets', 'Kopye / Rejwe']) assert.ok(tickets.incl
 assert.match(tickets, /statusLabel\(displayStatus\)/);
 assert.match(tickets, /_displayTicketStatus/);
 assert.match(tickets, /MONTAN POKO KONFIME/);
+assert.match(tickets, /double ticketWinningAmount\(/);
+assert.match(tickets, /ticketWinningAmount\(ticket\)/);
+assert.doesNotMatch(tickets, /_winningAmount\(ticket\)/);
 assert.doesNotMatch(tickets, /BEZWEN VERIFIKASYON/);
 assert.ok(results.includes('/api/v1/lottery/draws'));
 assert.ok(reports.includes('/api/v1/reports/sales.pdf'));

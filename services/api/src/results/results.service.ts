@@ -1,13 +1,79 @@
-import {ConflictException,ForbiddenException,Injectable} from '@nestjs/common';
+import {ConflictException,ForbiddenException,Injectable,Logger,OnModuleInit} from '@nestjs/common';
 import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
 import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
 import {evaluateTicketResults} from './results-policy';
+import {hasCurrentResultCheck} from './results-reconciliation-policy';
 
 @Injectable()
-export class ResultsService{
+export class ResultsService implements OnModuleInit{
   private lastProviderPoll=0;
+  private readonly logger=new Logger(ResultsService.name);
+
+  onModuleInit(){void this.reconcilePublishedTicketResults().catch(error=>this.retryPublishedTicketReconciliation(error))}
+
+  private retryPublishedTicketReconciliation(error:unknown){
+    this.logger.error(`Automatic ticket result reconciliation failed: ${error instanceof Error?error.message:String(error)}; retrying in 60 seconds.`);
+    const timer=setTimeout(()=>void this.reconcilePublishedTicketResults().catch(nextError=>this.retryPublishedTicketReconciliation(nextError)),60000);
+    timer.unref();
+  }
+
+  async reconcilePublishedTicketResults(){
+    let drawCursor:string|undefined,drawsProcessed=0,ticketsRechecked=0;
+    for(;;){
+      const draws=await prisma.draw.findMany({where:{status:'RESULT_PUBLISHED',publishedAt:{not:null},...(drawCursor?{id:{gt:drawCursor}}:{})},select:{id:true,tenantId:true,publishedAt:true},orderBy:{id:'asc'},take:100});
+      if(!draws.length)break;
+      for(const draw of draws){drawsProcessed++;ticketsRechecked+=await this.reconcileDrawTickets(draw)}
+      drawCursor=draws[draws.length-1].id;
+    }
+    this.logger.log(`Automatic ticket result reconciliation complete: ${drawsProcessed} published draws, ${ticketsRechecked} tickets recalculated.`);
+    return{drawsProcessed,ticketsRechecked};
+  }
+
+  private async reconcileDrawTickets(draw:{id:string;tenantId:string;publishedAt:Date|null}){
+    let cursor:string|undefined,rechecked=0;
+    for(;;){
+      const tickets=await prisma.ticket.findMany({
+        where:{tenantId:draw.tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null},...(cursor?{id:{gt:cursor}}:{}),OR:[{drawId:draw.id},{ticketDraws:{some:{drawId:draw.id}}}],events:{none:{type:'RESULT_CHECKED',metadata:{path:['checkedDrawVersions'],array_contains:[{drawId:draw.id,publishedAt:draw.publishedAt!.toISOString()}]}}}},
+        select:{id:true},
+        orderBy:{id:'asc'},take:100,
+      });
+      if(!tickets.length)break;
+      cursor=tickets[tickets.length-1].id;
+      for(const ticket of tickets)if(await this.reconcileOneTicket(draw.tenantId,draw.id,ticket.id))rechecked++;
+    }
+    return rechecked;
+  }
+
+  private async reconcileOneTicket(tenantId:string,drawId:string,ticketId:string){
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        return await prisma.$transaction(async tx=>{
+          const ticket=await tx.ticket.findFirst({
+            where:{id:ticketId,tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null}},
+            include:{
+              lines:{include:{betType:{select:{code:true}}}},
+              merchant:{select:{userId:true}},
+              draw:{select:{id:true,status:true,result:true,publishedAt:true}},
+              ticketDraws:{include:{draw:{select:{id:true,status:true,result:true,publishedAt:true}}}},
+              events:{where:{type:'RESULT_CHECKED'},select:{type:true,metadata:true}},
+            },
+          });
+          if(!ticket)return false;
+          const drawRows=[ticket.draw,...(ticket.ticketDraws??[]).map((item:any)=>item.draw)].filter(Boolean);
+          const targetDraw=drawRows.find((item:any)=>item.id===drawId);
+          if(!targetDraw||targetDraw.status!=='RESULT_PUBLISHED'||!targetDraw.publishedAt||hasCurrentResultCheck(ticket.events,drawId,targetDraw.publishedAt))return false;
+          await this.recalculateTicket(tx,ticket,null,drawId,false);
+          return true;
+        },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+      }catch(error){
+        const code=error&&typeof error==='object'&&'code' in error?String((error as {code:unknown}).code):'';
+        if(code!=='P2034'||attempt===2)throw error;
+      }
+    }
+    return false;
+  }
 
   providerStatus(){let bindingCount=0,bindingsValid=true;try{bindingCount=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS).length}catch{bindingsValid=false}return{pollEnabled:process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED==='true',tokenConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_TOKEN),bindingCount,bindingsValid,lastPollAt:this.lastProviderPoll?new Date(this.lastProviderPoll).toISOString():null,webhookConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_WEBHOOK_SECRET)}}
 
@@ -140,13 +206,13 @@ export class ResultsService{
       include:{
         lines:{include:{betType:{select:{code:true}}}},
         merchant:{select:{userId:true}},
-        draw:{select:{id:true,status:true,result:true}},
-        ticketDraws:{include:{draw:{select:{id:true,status:true,result:true}}}},
+        draw:{select:{id:true,status:true,result:true,publishedAt:true}},
+        ticketDraws:{include:{draw:{select:{id:true,status:true,result:true,publishedAt:true}}}},
       },
     });
   }
 
-  private async recalculateTicket(tx:Prisma.TransactionClient,ticket:any,actorId:string,changedDrawId:string,notifyWinner:boolean){
+  private async recalculateTicket(tx:Prisma.TransactionClient,ticket:any,actorId:string|null,changedDrawId:string,notifyWinner:boolean){
     const drawRows=[ticket.draw,...(ticket.ticketDraws??[]).map((item:any)=>item.draw)].filter(Boolean);
     const drawById=new Map<string,any>(drawRows.map((draw:any)=>[draw.id,draw]));
     const ticketDrawIds=ticket.ticketDraws?.length?ticket.ticketDraws.map((item:any)=>item.drawId):[ticket.drawId];
@@ -166,7 +232,8 @@ export class ResultsService{
     const allLinesResolved=evaluation.lineResults.every(item=>item.isWinner!==null);
     const allDrawsResolved=evaluation.allDrawsResolved&&allLinesResolved&&evaluation.drawIds.every(id=>drawById.has(id));
     const lineWinCounts=evaluation.lineResults.map(item=>({lineId:item.lineId,drawId:item.drawId,winCount:item.winCount}));
-    await tx.ticketEvent.create({data:{tenantId:ticket.tenantId,ticketId:ticket.id,type:'RESULT_CHECKED',userId:actorId,metadata:{drawId:changedDrawId,lineWinCounts}}});
+    const checkedDrawVersions=[...resultKeysByDraw.keys()].map(id=>({drawId:id,publishedAt:drawById.get(id)?.publishedAt?.toISOString()??null}));
+    await tx.ticketEvent.create({data:{tenantId:ticket.tenantId,ticketId:ticket.id,type:'RESULT_CHECKED',userId:actorId,metadata:{drawId:changedDrawId,checkedDrawVersions,lineWinCounts}}});
 
     if(!allDrawsResolved){
       await tx.ticket.update({where:{id:ticket.id},data:{status:'PENDING'}});
