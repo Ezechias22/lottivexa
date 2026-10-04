@@ -294,7 +294,7 @@ class _NewTicketState extends State<NewTicketScreen> {
         requestData.addAll({'drawId': drawId, 'lines': payload, if (freeMaryaj.isNotEmpty) 'freeMaryaj': freeMaryaj.map((selection) => {'selection': selection}).toList()});
       }
       final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: requestData);
-      final ticket=<String,dynamic>{...response.data!,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
+      final ticket=<String,dynamic>{...response.data!,'currency':currency,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
       catch (_) { printWarning = 'Tikè a vann, men fich la pa enprime. Verifye non biznis la epi itilize Re-enprime; pa vann li ankò.'; }

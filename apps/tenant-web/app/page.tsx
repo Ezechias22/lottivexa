@@ -15,6 +15,57 @@ import {
 import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
 import TenantReports from "./tenant-reports";
 import TenantLotterySettings from "./tenant-lottery-settings";
+const COUNTRIES: [string, string][] = [
+  ["HT", "Haiti · HTG"],
+  ["US", "United States · USD"],
+  ["CA", "Canada · CAD"],
+  ["DO", "Dominican Republic · DOP"],
+  ["JM", "Jamaica · JMD"],
+  ["BS", "Bahamas · BSD"],
+  ["BB", "Barbados · BBD"],
+  ["BZ", "Belize · BZD"],
+  ["TT", "Trinidad and Tobago · TTD"],
+  ["GY", "Guyana · GYD"],
+  ["SR", "Suriname · SRD"],
+  ["MX", "Mexico · MXN"],
+  ["BR", "Brazil · BRL"],
+  ["AR", "Argentina · ARS"],
+  ["BO", "Bolivia · BOB"],
+  ["CL", "Chile · CLP"],
+  ["CO", "Colombia · COP"],
+  ["CR", "Costa Rica · CRC"],
+  ["CU", "Cuba · CUP"],
+  ["EC", "Ecuador · USD"],
+  ["SV", "El Salvador · USD"],
+  ["GT", "Guatemala · GTQ"],
+  ["HN", "Honduras · HNL"],
+  ["NI", "Nicaragua · NIO"],
+  ["PA", "Panama · USD"],
+  ["PY", "Paraguay · PYG"],
+  ["PE", "Peru · PEN"],
+  ["UY", "Uruguay · UYU"],
+  ["VE", "Venezuela · VES"],
+  ["PR", "Puerto Rico · USD"],
+  ["GB", "United Kingdom · GBP"],
+  ["FR", "France · EUR"],
+  ["ES", "Spain · EUR"],
+  ["DE", "Germany · EUR"],
+  ["PT", "Portugal · EUR"],
+  ["IT", "Italy · EUR"],
+  ["NL", "Netherlands · EUR"],
+  ["BE", "Belgium · EUR"],
+  ["CH", "Switzerland · CHF"],
+  ["IE", "Ireland · EUR"],
+  ["AU", "Australia · AUD"],
+  ["NZ", "New Zealand · NZD"],
+  ["JP", "Japan · JPY"],
+  ["CN", "China · CNY"],
+  ["IN", "India · INR"],
+  ["PH", "Philippines · PHP"],
+  ["NG", "Nigeria · NGN"],
+  ["GH", "Ghana · GHS"],
+  ["ZA", "South Africa · ZAR"],
+];
 const RAW_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const API = RAW_API.replace(/\/$/, "").endsWith("/api/v1")
   ? RAW_API.replace(/\/$/, "")
@@ -325,12 +376,19 @@ export default function TenantConsole() {
         if (success) setMessage(success);
         return result;
       } catch (e) {
-        setMessage(e instanceof Error ? e.message : String(e));
+        const code = e instanceof Error ? e.message : String(e);
+        setMessage(code === "TENANT_COUNTRY_LOCKED_AFTER_FIRST_TICKET"
+          ? language === "fr"
+            ? "Le pays et la devise ne peuvent plus changer après la première vente, car cela modifierait l’historique financier."
+            : "Peyi ak lajan an pa ka chanje apre premye tikè a, paske sa ta chanje valè tranzaksyon ki deja anrejistre yo."
+          : code === "UNSUPPORTED_COUNTRY"
+            ? language === "fr" ? "Ce pays n’est pas encore pris en charge. Choisissez un pays dans la liste." : "Peyi sa a poko sipòte. Chwazi yon peyi nan lis la."
+            : code);
       } finally {
         setBusy(false);
       }
     },
-    [],
+    [language],
   );
   const load = useCallback(
     async (current: Tab = tab) => {
@@ -940,7 +998,7 @@ function Merchants({ data: d, submit, request, load, can }: any) {
       <section className="panel">
         <h2>Create merchant account</h2>
         <p className="muted">
-          Merchant la pa ka enskri tèt li; admin lan kreye login sa a.
+          Merchant la pa ka enskri tèt li; admin lan kreye login sa a. Machann lan eritye peyi ak lajan tenant la pou tout vant, kès ak rapò rete nan menm lajan.
         </p>
         {can("merchants.create") && (
           <form
@@ -1432,7 +1490,7 @@ function TicketDetailsDialog({
         <section className="ticket-detail-section">
           <h3>{french ? "Lignes du ticket" : "Liy tikè a"}</h3>
           <div className="table-wrap"><table><thead><tr><th>{french ? "Type" : "Kalite"}</th><th>{french ? "Sélection" : "Chwa"}</th><th>{french ? "Mise" : "Miz"}</th><th>{french ? "Résultat" : "Rezilta"}</th></tr></thead><tbody>
-            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? (french ? "Gratuit" : "Gratis") : money(line.stake, currency)}</td><td>{line.isWinner ? (french ? "Gagnant" : "Gayan") : (french ? "En attente" : "An atant")}</td></tr>)}
+            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? <>{french ? "Gratuit" : "Gratis"}<small className="ticket-detail-promo-note">{french ? `Gain fixe ${money(line.potentialWin, currency)} si gagnant` : `Peye ${money(line.potentialWin, currency)} si li genyen`}</small></> : money(line.stake, currency)}</td><td>{line.isWinner ? (french ? "Gagnant" : "Gayan") : (french ? "En attente" : "An atant")}</td></tr>)}
             {!(ticket.lines ?? []).length && <tr><td colSpan={4}>—</td></tr>}
           </tbody></table></div>
         </section>
@@ -1881,25 +1939,19 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               submit(
                 e,
                 "/settings",
-                (x: Row) => ({ ...x, currency: String(x.currency ?? "USD").trim().toUpperCase() }),
+                (x: Row) => ({ ...x, countryCode: String(x.countryCode ?? "").trim().toUpperCase() }),
                 "PUT",
                 "Settings sove.",
               )
             }
           >
             <label>
-              Currency
-              <input
-                name="currency"
-                defaultValue={s.settings?.currency ?? "USD"}
-                maxLength={3}
-                minLength={3}
-                pattern="[A-Za-z]{3}"
-                title="Antre kòd lajan ISO 4217 la, pa egzanp USD, HTG, EUR oswa CAD."
-                onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }}
-                required
-              />
-              <small>Antre kòd ISO 4217 la: USD, HTG, EUR, CAD, DOP, oswa yon lòt kòd 3 lèt.</small>
+              Country · account currency
+              <select name="countryCode" defaultValue={s.countryCode ?? ""} required>
+                <option value="" disabled>Select country</option>
+                {COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}
+              </select>
+              <small>Currency is selected automatically from the country. Country and currency are locked after the first ticket sale.</small>
             </label>
             <label>
               Timezone

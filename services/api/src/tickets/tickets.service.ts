@@ -1,4 +1,4 @@
-import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{chooseOdds,cancellationDeadline,deriveFreeMaryajSelections,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';
+import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{chooseOdds,cancellationDeadline,deriveFreeMaryajSelections,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{freeMaryajOdds}from'../tenants/country-currency-policy';
 @Injectable()export class TicketsService{async create(u:Principal,dto:{drawId:string;idempotencyKey:string;deviceId?:string;lines:{betTypeId:string;selection:Array<number|string>;stake:string;resultPosition?:number}[];freeMaryaj?:{selection:Array<number|string>}[]}){
   const tenantId=this.tenant(u);
   const existing=await prisma.ticket.findUnique({where:{tenantId_idempotencyKey:{tenantId,idempotencyKey:dto.idempotencyKey}},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
@@ -15,6 +15,7 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
   try{declaredAmount=dto.lines.reduce((sum,line)=>sum.add(new Prisma.Decimal(line.stake)),new Prisma.Decimal(0))}catch{throw new BadRequestException('INVALID_AMOUNT')}
   if(dto.freeMaryaj?.length&&declaredAmount.lt(100))throw new BadRequestException('FREE_MARYAJ_MINIMUM_NOT_REACHED');
   if(dto.freeMaryaj?.length&&dto.freeMaryaj.length!==2)throw new BadRequestException('FREE_MARYAJ_REQUIRES_TWO_LINES');
+  const tenantCountry=declaredAmount.gte(100)?await prisma.tenant.findUnique({where:{id:tenantId},select:{jurisdictionCode:true}}):null;
   const maryaj= dto.freeMaryaj?.length||declaredAmount.gte(100) ? await prisma.betType.findFirst({where:{tenantId,code:'MARYAJ'}}) : null;
   if(dto.freeMaryaj?.length&&!maryaj)throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
   const betIds=[...new Set([...dto.lines.map(line=>line.betTypeId),...(maryaj?[maryaj.id]:[])])];
@@ -46,7 +47,7 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
       const odd=chooseOdds(odds,maryaj!.id);
       if(!odd)throw new BadRequestException('ODDS_NOT_CONFIGURED');
       validateHaitianBetType('MARYAJ',selection);
-      return{betTypeId:maryaj!.id,selection,resultPosition:undefined,stake:'1',odds:odd.multiplier.toString(),selectionCount:maryajConfig.selectionCount,numberMin:maryajConfig.numberMin,numberMax:maryajConfig.numberMax,allowRepeats:maryajConfig.allowRepeats,isPromotional:true};
+      return{betTypeId:maryaj!.id,selection,resultPosition:undefined,stake:'1',odds:freeMaryajOdds(tenantCountry?.jurisdictionCode,odd.multiplier.toString()),selectionCount:maryajConfig.selectionCount,numberMin:maryajConfig.numberMin,numberMax:maryajConfig.numberMax,allowRepeats:maryajConfig.allowRepeats,isPromotional:true};
     })).map(line=>({...line,id:randomUUID()}));
   }
   const priced=[...paid,...free];

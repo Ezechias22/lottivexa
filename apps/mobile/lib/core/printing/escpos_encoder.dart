@@ -35,6 +35,7 @@ class EscPosEncoder {
       final parts = '${line['selectionKey'] ?? line['selection'] ?? ''}'.split('@');
       final selection = parts.first.replaceAll('-', ' × ');
       out.writeln(_receiptRow(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
+      if (line['isPromotional'] == true) out.writeln('  Peye ${formatCurrency(line['potentialWin'], currency)} si li genyen');
       final winCount = _winCount(line);
       if (winCount > 1) out.writeln('${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
     }
@@ -78,6 +79,7 @@ class EscPosEncoder {
       final selection = parts.first.replaceAll('-', ' × ');
       final won = line['isWinner'] == true;
       _line(out, _receiptRow(line, selection, parts.length > 1 ? parts[1] : '', currency, tr('GRATIS', 'GRATUIT')));
+      if (line['isPromotional'] == true) _line(out, '  ${tr('Peye', 'Gain fixe')} ${formatCurrency(line['potentialWin'], currency)} ${tr('si li genyen', 'si gagnant')}');
       if (won) _line(out, french ? '  GAGNANT' : '  GENYEN');
       final winCount = _winCount(line);
       if (winCount > 1) _line(out, '${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');

@@ -55,13 +55,20 @@ export function receiptLineRows(ticket: Ticket, language: Language): ReceiptLine
     const price = line.isPromotional
       ? (language === 'fr' ? 'GRATUIT' : 'GRATIS')
       : prefix + money(line.stake);
-    const winCount = Math.max(0, Number(line.winCount ?? 0));
-    const won = line.isWinner === true || winCount > 0;
-    const lineWinningAmount = Number(line.potentialWin ?? 0) * (winCount > 0 ? winCount : won ? 1 : 0);
-    const winLabel = language === 'fr' ? 'GAGNANT' : 'GENYEN';
+    const winCount = Number(line.winCount ?? 0);
+    const potentialWin = Number(line.potentialWin ?? 0);
+    const promotionalPayout = line.isPromotional && Number.isFinite(potentialWin) && potentialWin > 0
+      ? (language === 'fr' ? `Gain fixe : ${prefix}${money(potentialWin)} si gagnant` : `Peye ${prefix}${money(potentialWin)} si li genyen`)
+      : '';
+    const payoutPerHit = Number(line.potentialWin ?? line.winningAmount ?? line.payoutAmount ?? 0);
+    const payoutHitCount = Number.isFinite(winCount) && winCount > 0 ? winCount : 1;
+    const linePayout = payoutPerHit * payoutHitCount;
+    const isWinner = line.isWinner === true || winCount > 0;
     const extra = [
+      promotionalPayout,
       winCount > 1 ? (language === 'fr' ? 'DÉKABÈS × ' : 'DEKABÈS × ') + winCount : '',
-      won ? `${winLabel} ✓${lineWinningAmount > 0 ? ' · ' + prefix + money(lineWinningAmount) : ''}` : '',
+      isWinner ? (language === 'fr' ? 'GAGNANT ✓' : 'GENYEN ✓') : '',
+      isWinner && Number.isFinite(linePayout) && linePayout > 0 ? prefix + money(linePayout) : '',
     ].filter(Boolean).join(' · ');
     return { label, number, price, extra };
   });

@@ -49,7 +49,13 @@ describe('ESC/POS', () => {
     }));
     expect(text).toContain('DEKABÈS × 2');
     expect(text).toContain('GRATIS');
+    expect(text).toContain('Peye $100.00 si li genyen');
     expect(text).toContain('genEN: $100.00');
+  });
+
+  it('formats receipt values in the tenant currency', () => {
+    const text = new TextDecoder().decode(renderTicket({ paperWidth: 58, showBarcode: false, showQr: false }, { ...data, currency: 'JPY' }));
+    expect(text).toContain('¥10');
   });
 
   it('rejects missing or platform branding', () => {

@@ -5,6 +5,7 @@ import type { Principal } from '../common/guards/jwt-auth.guard';
 import { isBettingOpen } from '../lottery/lottery-policy';
 import { chooseOdds, deriveFreeMaryajSelections, normalizeSelection, priceLines, validateHaitianBetType } from './ticket-policy';
 import { presentTicketLines } from './ticket-line-flags';
+import { freeMaryajOdds } from '../tenants/country-currency-policy';
 
 /** Creates one physical ticket containing lines for several lottery draws. */
 @Injectable()
@@ -63,6 +64,7 @@ export class MultiTicketService {
     if (dto.freeMaryaj?.length && !maryaj) throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
     let freeLines: any[] = [];
     if (amount.gte(100)) {
+      const tenantCountry = await db.tenant.findUnique({ where: { id: tenantId }, select: { jurisdictionCode: true } });
       if (!maryaj) throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
       const maryajConfig = await db.gameBetType.findFirst({
         where: { gameId: firstDraw.gameId, betTypeId: maryaj.id, active: true },
@@ -82,7 +84,7 @@ export class MultiTicketService {
         const odd: any = chooseOdds(freeOdds as any[], maryaj.id);
         if (!odd) throw new BadRequestException('ODDS_NOT_CONFIGURED');
         return {
-          betTypeId: maryaj.id, selection, resultPosition: undefined, stake: '1', odds: odd.multiplier.toString(),
+          betTypeId: maryaj.id, selection, resultPosition: undefined, stake: '1', odds: freeMaryajOdds(tenantCountry?.jurisdictionCode, odd.multiplier.toString()),
           selectionCount: maryajConfig.betType.selectionCount, numberMin: maryajConfig.betType.numberMin,
           numberMax: maryajConfig.betType.numberMax, allowRepeats: maryajConfig.betType.allowRepeats,
           isPromotional: true, drawId: firstDraw.id, code: 'MARYAJ', id: randomUUID(),

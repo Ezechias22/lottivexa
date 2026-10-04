@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { IsHexColor, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsHexColor, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequireFeature, RequirePermissions } from '../common/decorators/access.decorators';
 import type { Principal } from '../common/guards/jwt-auth.guard';
 import { SettingsService } from './settings.service';
+import { SUPPORTED_COUNTRY_CODES } from '../tenants/country-currency-policy';
 
 class SettingsDto {
-  @Length(3, 3) @Matches(/^[A-Za-z]{3}$/) currency!: string;
+  @IsIn(SUPPORTED_COUNTRY_CODES) countryCode!: string;
   @IsString() timezone!: string;
   @IsString() locale!: string;
   @IsString() dateFormat!: string;

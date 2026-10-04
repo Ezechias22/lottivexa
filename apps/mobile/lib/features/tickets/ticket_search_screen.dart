@@ -219,7 +219,7 @@ class TicketDetails extends StatelessWidget {
           Text(selection, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
           if (key.length > 1) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text('OP ${key[1]}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff2451c7)))),
           if (won) Text('✓ GENYEN${lineWinningAmount > 0 ? ' · ${_money(lineWinningAmount)}' : ''}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          if (line['isPromotional'] == true) const Text('GRATIS', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
+          if (line['isPromotional'] == true) Text('GRATIS · Peye ${_money(line['potentialWin'])} si li genyen', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
           Text('Pri: ${_money(line['stake'])} · Kòt: ${line['odds']}'),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
