@@ -103,7 +103,6 @@ class MainActivity : FlutterActivity() {
         raw.startsWith("BIWO:") || raw.startsWith("SUCCURSALE:") -> "branch"
         raw.startsWith("MACHANN:") || raw.startsWith("VENDEUR:") -> "merchant"
         raw.startsWith("TOTAL:") -> "total"
-        raw.startsWith("gen POSIB:") -> "potential"
         raw.startsWith("ESTATI:") -> "status"
         raw.startsWith("OP ") -> "op"
         raw.startsWith("genEN:") || raw.startsWith("GAGNANT:") -> "winning"
@@ -117,8 +116,8 @@ class MainActivity : FlutterActivity() {
     val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       @page{size:58mm ${pageHeightCss}mm;margin:0}*{box-sizing:border-box}html,body{width:58mm;margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,sans-serif}
       .receipt{width:58mm;padding:3mm 2.5mm 3mm}.brand{text-align:center;color:#132b4b;font-size:15pt;font-weight:900;line-height:1.08;overflow-wrap:anywhere}
-      .kind{text-align:center;color:#a46b09;font-size:7.5pt;letter-spacing:1.5px;font-weight:800;margin:1.5mm 0 2mm}.line,.draw,.branch,.merchant,.ticket-number,.column-heading,.total,.potential,.status,.op,.winning{font-size:8.5pt;line-height:1.12;white-space:pre-wrap;overflow-wrap:anywhere}.op{text-align:center;color:#173b68;font-weight:900;letter-spacing:.1em}.winning{color:#168046;font-weight:900}
-      .ticket-number{font-weight:800;padding:1.4mm 0}.draw,.branch,.merchant{font-size:8pt}.column-heading{border-top:1px dashed #789;padding-top:1mm;margin-top:1mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:1mm;padding-top:1.5mm;font-size:10pt;font-weight:900}.potential{font-weight:700}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:.7mm 1.5mm;border-radius:2mm;margin:1mm 0}.line{padding:.25mm 0}.qr{text-align:center;padding:2mm 0}.qr img{width:27mm;height:27mm;image-rendering:pixelated}
+      .kind{text-align:center;color:#a46b09;font-size:7.5pt;letter-spacing:1.5px;font-weight:800;margin:1.5mm 0 2mm}.line,.draw,.branch,.merchant,.ticket-number,.column-heading,.total,.status,.op,.winning{font-size:8.5pt;line-height:1.12;white-space:pre-wrap;overflow-wrap:anywhere}.op{text-align:center;color:#173b68;font-weight:900;letter-spacing:.1em}.winning{color:#168046;font-weight:900}
+      .ticket-number{font-weight:800;padding:1.4mm 0}.draw,.branch,.merchant{font-size:8pt}.column-heading{border-top:1px dashed #789;padding-top:1mm;margin-top:1mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:1mm;padding-top:1.5mm;font-size:10pt;font-weight:900}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:.7mm 1.5mm;border-radius:2mm;margin:1mm 0}.line{padding:.25mm 0}.qr{text-align:center;padding:2mm 0}.qr img{width:27mm;height:27mm;image-rendering:pixelated}
       </style></head><body><main class="receipt"><header><div class="brand">$brand</div><div class="kind">$kind</div></header>$body$qr</main></body></html>"""
     web.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
   }

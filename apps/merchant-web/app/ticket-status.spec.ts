@@ -2,21 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { ticketDisplayStatus, ticketNeedsWinningReview, ticketWinningAmount } from './ticket-status';
 
 describe('ticket result status presentation', () => {
-  it('keeps Gagnant visible and derives a provisional amount from winning lines', () => {
-    const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: true, winCount: 2, potentialWin: '25' }] };
+  it('keeps Gagnant visible without displaying an unconfirmed amount', () => {
+    const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: true, winCount: 2 }] };
     expect(ticketDisplayStatus(ticket)).toBe('WINNER');
-    expect(ticketWinningAmount(ticket)).toBe(50);
+    expect(ticketWinningAmount(ticket)).toBe(0);
     expect(ticketNeedsWinningReview(ticket)).toBe(true);
   });
 
-  it('treats a positive win count as a winning line even when its old flag says false', () => {
-    const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: false, winCount: 2, potentialWin: '25' }] };
-    expect(ticketDisplayStatus(ticket)).toBe('WINNER');
-    expect(ticketWinningAmount(ticket)).toBe(50);
-    expect(ticketNeedsWinningReview(ticket)).toBe(true);
-  });
-
-  it('signals an uncalculated winning amount without changing the status', () => {
+  it('signals an unconfirmed winning amount without changing the status', () => {
     const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: false }] };
     expect(ticketDisplayStatus(ticket)).toBe('WINNER');
     expect(ticketNeedsWinningReview(ticket)).toBe(true);

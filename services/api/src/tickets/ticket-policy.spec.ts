@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { cancellationDeadline, deriveFreeMaryajSelections, isTenantCancellationEligible, isTicketCancellationAllowed, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
+import { blockedNumberMatches, cancellationDeadline, deriveFreeMaryajSelections, isNumberBlocked, isTenantCancellationEligible, isTicketCancellationAllowed, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
 
 const line = { betTypeId: 'bet-1', selection: ['12'], stake: '1.25', odds: '20.5', selectionCount: 1, numberMin: 0, numberMax: 99, allowRepeats: true };
 
 describe('ticket pricing', () => {
+  it('matches tenant-blocked selections and their Maryaj reverse order', () => {
+    expect(blockedNumberMatches('23', '23@1', 'BOLET')).toBe(true);
+    expect(blockedNumberMatches('23@2', '23@1', 'BOLET')).toBe(false);
+    expect(blockedNumberMatches('23@1', '23@1', 'BOLET')).toBe(true);
+    expect(blockedNumberMatches('00-11', '11-00', 'MARYAJ')).toBe(true);
+    expect(blockedNumberMatches('11', '11-00', 'MARYAJ')).toBe(true);
+    expect(blockedNumberMatches('11@1', '11-00', 'MARYAJ')).toBe(true);
+    expect(blockedNumberMatches('00-11', '11-00', 'LOTO4')).toBe(false);
+  });
+
+  it('rejects a blocked number for merchant sales only in its configured game, draw, and bet type', () => {
+    const rules = [
+      { scope: 'NUMBER', gameId: 'game-1', drawId: null, betTypeId: 'bolet', numberKey: '45', maxStake: { eq: (value: number) => value === 0 } },
+    ];
+    const line = { betTypeId: 'bolet', selectionKey: '45@1', betTypeCode: 'BOLET' };
+
+    expect(isNumberBlocked(rules, { gameId: 'game-1', drawId: 'draw-1' }, line)).toBe(true);
+    expect(isNumberBlocked(rules, { gameId: 'game-2', drawId: 'draw-1' }, line)).toBe(false);
+    expect(isNumberBlocked(rules, { gameId: 'game-1', drawId: 'draw-1' }, { ...line, betTypeId: 'loto4' })).toBe(false);
+  });
+
   it('uses exact decimal math', () => {
     const priced = priceLines([{ ...line, stake: '1.25' }]);
     expect(priced[0].potentialWin.toFixed(4)).toBe('25.6250');

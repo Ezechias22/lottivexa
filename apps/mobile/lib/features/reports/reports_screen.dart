@@ -72,7 +72,10 @@ class _ReportsState extends State<ReportsScreen> {
     final report = summary ?? {};
     final tickets = report['tickets'] as Map<String, dynamic>? ?? {};
     final payouts = report['payouts'] as Map<String, dynamic>? ?? {};
-    final currency = '${report['currency'] ?? 'USD'}';
+    final currencyTotals = (report['currencyTotals'] as List<dynamic>? ?? [])
+        .whereType<Map>().map((row) => Map<String, dynamic>.from(row)).toList();
+    final multiCurrency = currencyTotals.length > 1;
+    final currency = '${report['currency'] ?? (currencyTotals.length == 1 ? currencyTotals.first['currencyCode'] : 'USD')}';
     final accounting = report['accounting'] as Map<String, dynamic>? ?? {};
     final net = double.tryParse('${accounting['netSales'] ?? ''}') ??
         (double.tryParse('${tickets['sales'] ?? 0}') ?? 0) -
@@ -83,15 +86,25 @@ class _ReportsState extends State<ReportsScreen> {
     for (final raw in byDay) {
       if (raw is Map) {
         final row = Map<String, dynamic>.from(raw);
-        dailyMap['${row['day']}'] = row;
+        if (!multiCurrency) dailyMap['${row['day']}'] = row;
       }
     }
     final visibleDays = (to.difference(from).inDays + 1).clamp(1, 14).toInt();
     final chartRows = <Map<String, dynamic>>[];
-    for (var i = visibleDays - 1; i >= 0; i--) {
+    for (var i = visibleDays - 1; i >= 0 && !multiCurrency; i--) {
       final day = _date(to.subtract(Duration(days: i)));
       chartRows.add(dailyMap[day] ?? {'day': day, 'amount': '0', 'count': 0});
     }
+    List<Map<String, dynamic>> trendFor(String code) => List.generate(visibleDays, (index) {
+      final day = _date(to.subtract(Duration(days: visibleDays - index - 1)));
+      for (final raw in byDay) {
+        if (raw is Map) {
+          final row = Map<String, dynamic>.from(raw);
+          if (row['day'] == day && row['currencyCode'] == code) return row;
+        }
+      }
+      return {'day': day, 'amount': '0', 'count': 0, 'currencyCode': code};
+    });
     return Scaffold(
       appBar: AppBar(title: Text(AppLanguage.tr('Rapò')), actions: [IconButton(onPressed: loading ? null : load, icon: const Icon(Icons.refresh))]),
       body: RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.all(14), children: [
@@ -117,17 +130,36 @@ class _ReportsState extends State<ReportsScreen> {
         if (loading) const LinearProgressIndicator(),
         if (error != null) Card(child: ListTile(leading: const Icon(Icons.error_outline), title: Text(error!))),
         if (summary != null) ...[
-          GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), childAspectRatio: 1.65, mainAxisSpacing: 8, crossAxisSpacing: 8, children: [
-            _metric(AppLanguage.tr('Vant total'), _money(tickets['sales'], currency), Icons.account_balance_wallet_outlined, const Color(0xffe9f7ef)),
-            _metric(AppLanguage.tr('Tikè'), '${tickets['count'] ?? 0}', Icons.confirmation_number_outlined, const Color(0xffedf3ff)),
-            _metric(AppLanguage.tr('Peman gayan'), _money(payouts['amount'], currency), Icons.emoji_events_outlined, const Color(0xfffff5e5)),
-            _metric(AppLanguage.tr('Komisyon'), _money(report['commission'], currency), Icons.percent, const Color(0xfff2edff)),
-          ]),
-          Card(child: ListTile(title: Text(AppLanguage.tr('Vant nèt')), trailing: Text(_money(net, currency), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)))),
+          if (multiCurrency) ...[
+            GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), childAspectRatio: 1.65, mainAxisSpacing: 8, crossAxisSpacing: 8, children: [
+              _metric(AppLanguage.tr('Tikè'), '${tickets['count'] ?? 0}', Icons.confirmation_number_outlined, const Color(0xffedf3ff)),
+              _metric(AppLanguage.tr('Lajan diferan'), '${currencyTotals.length}', Icons.currency_exchange, const Color(0xfff2edff)),
+            ]),
+            for (final total in currencyTotals) Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${total['currencyCode'] ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 8),
+              Text('${AppLanguage.tr('Vant total')}: ${_money(total['sales'], '${total['currencyCode']}')}'),
+              Text('${AppLanguage.tr('Peman gayan')}: ${_money(total['payouts'], '${total['currencyCode']}')}'),
+              Text('${AppLanguage.tr('Komisyon')}: ${_money(total['commission'], '${total['currencyCode']}')}'),
+              Text('${AppLanguage.tr('Vant nèt')}: ${_money(total['netSales'], '${total['currencyCode']}')}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            ]))),
+          ] else ...[
+            GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), childAspectRatio: 1.65, mainAxisSpacing: 8, crossAxisSpacing: 8, children: [
+              _metric(AppLanguage.tr('Vant total'), _money(tickets['sales'], currency), Icons.account_balance_wallet_outlined, const Color(0xffe9f7ef)),
+              _metric(AppLanguage.tr('Tikè'), '${tickets['count'] ?? 0}', Icons.confirmation_number_outlined, const Color(0xffedf3ff)),
+              _metric(AppLanguage.tr('Peman gayan'), _money(payouts['amount'], currency), Icons.emoji_events_outlined, const Color(0xfffff5e5)),
+              _metric(AppLanguage.tr('Komisyon'), _money(report['commission'], currency), Icons.percent, const Color(0xfff2edff)),
+            ]),
+            Card(child: ListTile(title: Text(AppLanguage.tr('Vant nèt')), trailing: Text(_money(net, currency), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)))),
+          ],
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(AppLanguage.tr('Vant pa jou'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (byDay.isEmpty) Text(AppLanguage.tr('Pa gen lavant pou dat sa yo.')) else _chart(chartRows, currency),
+            if (byDay.isEmpty) Text(AppLanguage.tr('Pa gen lavant pou dat sa yo.'))
+            else if (multiCurrency) for (final total in currencyTotals) ...[
+              Text('${total['currencyCode'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              _chart(trendFor('${total['currencyCode']}'), '${total['currencyCode']}'),
+            ] else _chart(chartRows, currency),
           ]))),
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(AppLanguage.tr('Vant pa lotri'), style: Theme.of(context).textTheme.titleMedium),
@@ -137,7 +169,7 @@ class _ReportsState extends State<ReportsScreen> {
               return ListTile(dense: true, leading: const Icon(Icons.circle, color: Color(0xff2451c7), size: 13),
                 title: Text('${row['gameName'] ?? ''}'),
                 subtitle: Text('${row['count'] ?? 0}' + ' ' + AppLanguage.tr('tikè')),
-                trailing: Text(_money(row['amount'], currency), style: const TextStyle(fontWeight: FontWeight.bold)));
+                trailing: Text(_money(row['amount'], '${row['currencyCode'] ?? currency}'), style: const TextStyle(fontWeight: FontWeight.bold)));
             }),
           ]))),
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -148,7 +180,7 @@ class _ReportsState extends State<ReportsScreen> {
               final draw = <String, dynamic>{'gameName': row['gameName'], 'drawNumber': row['drawNumber'], 'drawDate': row['drawDate'], 'resultAt': row['drawTime'], 'session': row['session']};
               return ListTile(dense: true, title: Text(merchantDrawLabel(draw, french: AppLanguage.current.value.languageCode == 'fr')),
                 subtitle: Text('${row['count'] ?? 0}' + ' ' + AppLanguage.tr('tikè')),
-                trailing: Text(_money(row['amount'], currency), style: const TextStyle(fontWeight: FontWeight.bold)));
+                trailing: Text(_money(row['amount'], '${row['currencyCode'] ?? currency}'), style: const TextStyle(fontWeight: FontWeight.bold)));
             }),
           ]))),
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -163,7 +195,7 @@ class _ReportsState extends State<ReportsScreen> {
               }).join(' | ');
               return ListTile(dense: true, leading: const Icon(Icons.emoji_events, color: Colors.orange),
                 title: Text('${row['ticketNumber'] ?? ''} · ${row['gameName'] ?? ''}'), subtitle: Text(detail),
-                trailing: Text(_money(row['amount'], currency), style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)));
+                trailing: Text(_money(row['amount'], '${row['currencyCode'] ?? currency}'), style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)));
             }),
           ]))),
         ],

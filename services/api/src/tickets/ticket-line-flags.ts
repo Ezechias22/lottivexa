@@ -44,19 +44,43 @@ export function ticketLineFlags(events: readonly EventRecord[], lineId: string) 
   };
 }
 
+export function confirmedLineWinningAmount(
+  storedPayout: unknown,
+  winCount: number,
+  hasConfirmedTicketWin: boolean,
+): string | undefined {
+  if (!hasConfirmedTicketWin) return undefined;
+  const payout = storedPayout as {
+    mul?: (value: number) => { toString: () => string };
+  } | undefined;
+  if (!payout?.mul) return undefined;
+  const count = Number.isInteger(winCount) && winCount > 0 ? winCount : 1;
+  return payout.mul(count).toString();
+}
+
 export function presentTicketLines<T extends {
   events: EventRecord[];
-  lines: Array<{ id: string; isWinner?: boolean | null }>;
+  lines: Array<{ id: string; isWinner?: boolean | null; potentialWin?: unknown }>;
+  currencyCode?: string;
+  potentialWin?: unknown;
+  winning?: { winningAmount?: unknown } | null;
 }>(ticket: T) {
+  const { potentialWin: _ticketPotentialWin, ...visibleTicket } = ticket;
+  const hasConfirmedWinnings = Number((ticket.winning as { winningAmount?: unknown } | null)?.winningAmount ?? 0) > 0;
   return {
-    ...ticket,
+    ...visibleTicket,
+    ...(ticket.currencyCode ? { currency: ticket.currencyCode } : {}),
     lines: ticket.lines.map(line => {
       const flags = ticketLineFlags(ticket.events, line.id);
+      const { potentialWin: _linePotentialWin, ...visibleLine } = line;
+      const isWinner = line.isWinner === true || flags.winCount > 0;
+      const winningAmount = confirmedLineWinningAmount(line.potentialWin, flags.winCount, hasConfirmedWinnings && isWinner);
       // Rehydrate winner flags from the authoritative result event.
       return {
-        ...line,
+        ...visibleLine,
         ...flags,
-        ...(line.isWinner == null && flags.winCount > 0 ? { isWinner: true } : {}),
+        ...(isWinner ? { isWinner: true } : {}),
+        ...(winningAmount ? { winningAmount } : {}),
       };
     }),
   };

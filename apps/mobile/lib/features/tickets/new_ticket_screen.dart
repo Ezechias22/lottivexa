@@ -208,41 +208,6 @@ class _NewTicketState extends State<NewTicketScreen> {
     setState(() { lines.add(PosLine(number: result[0] + '-' + result[1], betTypeId: '${bet['id']}', betName: '${bet['name']}', stake: result[2], drawId: drawId)); message = 'Maryaj peye a ajoute sou tikè a.'; });
   }
 
-  List<List<String>> _freeMaryajSuggestions() {
-    final values = <String>[..._boletNumbers];
-    for (final line in lines) {
-      final code = betTypes.where((bet) => '${bet['id']}' == line.betTypeId).firstOrNull?['code'];
-      if (code == 'MARYAJ') {
-        final pair = line.number.split('-');
-        if (pair.length == 2 && pair.every((value) => RegExp(r'^\d{2}$').hasMatch(value))) values.addAll(pair);
-      } else if (code == 'LOTO3' || code == 'LOTO4' || code == 'LOTO5') {
-        final digits = line.number.replaceAll(RegExp(r'\D'), '');
-        values.addAll(RegExp(r'\d{2}').allMatches(digits).map((match) => match.group(0)!));
-        if (digits.length.isOdd && digits.length >= 3) values.add(digits.substring(digits.length - 2));
-      }
-    }
-    final unique = values.toSet().toList();
-    if (unique.length < 2) return [];
-    final firstPair = [unique[0], unique[1]];
-    final secondPair = unique.length > 2 ? [unique[0], unique[2]] : firstPair;
-    return [firstPair, secondPair];
-  }
-
-  Future<List<List<String>>?> _askFreeMaryaj() {
-    final fields = List.generate(4, (_) => TextEditingController());
-    return showDialog<List<List<String>>>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, refreshDialog) {
-      final values = fields.map((field) => field.text.trim()).toList();
-      final valid = values.every((value) => RegExp(r'^\d{2}$').hasMatch(value)) && values[0] != values[1] && values[2] != values[3];
-      return AlertDialog(scrollable: true, title: const Text('2 MARYAJ GRATIS'), content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('Vant sa a rive 100 goud. Chwazi nimewo pou de liy Maryaj gratis yo.'),
-        for (var i = 0; i < fields.length; i++) TextField(controller: fields[i], maxLength: 2, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.isEven ? 'Nimewo Maryaj 1' : 'Nimewo Maryaj 2'), onChanged: (_) => refreshDialog(() {})),
-      ]), actions: [
-        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('ANILE')),
-        FilledButton(onPressed: valid ? () => Navigator.pop(dialogContext, [[values[0], values[1]], [values[2], values[3]]]) : null, child: const Text('KONTINYE')),
-      ]);
-    })).whenComplete(() { for (final field in fields) { field.dispose(); } });
-  }
-
   Future<void> addNumber() async {
     final value = number.text.replaceAll(RegExp(r'\D'), ''), bet = _betForDigits(number.text.replaceAll(RegExp(r'\D'), '').length);
     if (bet == null) { setState(() => message = value.length < 2 || value.length > 5 ? 'Antre 2, 3, 4 oswa 5 chif.' : 'Jwèt sa a pa aktive pou tiraj la.'); return; }
@@ -252,17 +217,6 @@ class _NewTicketState extends State<NewTicketScreen> {
 
   Future<void> sell() async {
     if (drawId == null || lines.isEmpty || lines.any((line) => (double.tryParse(line.stake) ?? 0) <= 0)) { setState(() => message = 'Chwazi tiraj, ajoute boul epi mete yon pri ki pi gran pase 0.'); return; }
-    var freeMaryaj = <List<String>>[];
-    if (total >= 100) {
-      if (_betForCode('MARYAJ') == null) { setState(() => message = 'Maryaj pa aktive pou tiraj sa a; pa ka mete de Maryaj gratis yo.'); return; }
-      freeMaryaj = _freeMaryajSuggestions();
-      if (freeMaryaj.length != 2) {
-        final chosen = await _askFreeMaryaj();
-        if (chosen == null || !mounted) return;
-        freeMaryaj = chosen;
-      }
-      if (usingOfflineCatalog) { setState(() => message = 'Pou de Maryaj gratis yo rete sou tikè a, konekte ak sèvè a anvan vant sa a.'); return; }
-    }
     if (usingOfflineCatalog) {
       final draw = selectedDraw;
       final closes = DateTime.tryParse('${draw?['closesAt']}')?.toUtc();
@@ -284,28 +238,23 @@ class _NewTicketState extends State<NewTicketScreen> {
     try {
       final requestData = <String,dynamic>{'idempotencyKey': mutationId, if (widget.runtime.deviceId?.isNotEmpty == true) 'deviceId': widget.runtime.deviceId};
       if (grouped.length > 1) {
-        final drawGroups = grouped.entries.toList();
-        if (freeMaryaj.isNotEmpty && grouped.containsKey(drawId)) {
-          drawGroups.sort((left, right) => left.key == drawId ? -1 : right.key == drawId ? 1 : 0);
-        }
-        requestData['draws'] = drawGroups.map((entry) => {'drawId': entry.key, 'lines': entry.value}).toList();
-        if (freeMaryaj.isNotEmpty) requestData['freeMaryaj'] = freeMaryaj.map((selection) => {'selection': selection}).toList();
+        requestData['draws'] = grouped.entries.map((entry) => {'drawId': entry.key, 'lines': entry.value}).toList();
       } else {
-        requestData.addAll({'drawId': drawId, 'lines': payload, if (freeMaryaj.isNotEmpty) 'freeMaryaj': freeMaryaj.map((selection) => {'selection': selection}).toList()});
+        requestData.addAll({'drawId': drawId, 'lines': payload});
       }
       final response = await widget.runtime.api.dio.post<Map<String, dynamic>>('/api/v1/tickets', data: requestData);
-      final ticket=<String,dynamic>{...response.data!,'currency':currency,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
+      final ticket=<String,dynamic>{...response.data!,'currency':response.data?['currency']??response.data?['currencyCode']??currency,'gameName':selectedDraw?['game']?['name'],'drawName':selectedDraw==null?'':drawLabel(selectedDraw)};
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
       catch (_) { printWarning = 'Tikè a vann, men fich la pa enprime. Verifye non biznis la epi itilize Re-enprime; pa vann li ankò.'; }
-      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ${formatCurrency(ticket['amount'], currency)}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
+      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ${formatCurrency(ticket['amount'], ticket['currency'] ?? currency)}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
     } on DioException catch (error) {
       if (error.response == null && !usingOfflineCatalog) _restoreOfflineCatalog();
-      if (error.response == null && freeMaryaj.isEmpty && widget.runtime.deviceId?.isNotEmpty == true && widget.runtime.session.tenantId != null && widget.runtime.session.hasPermission('tickets.create') && usingOfflineCatalog) {
+      if (error.response == null && widget.runtime.deviceId?.isNotEmpty == true && widget.runtime.session.tenantId != null && widget.runtime.session.hasPermission('tickets.create') && usingOfflineCatalog) {
         final id = await widget.runtime.offlineTickets.queueTicket(drawId: drawId!, lines: payload, idempotencyKey: mutationId);
         if (mounted) setState(() { lines.clear(); message = 'Tikè $id sove AN ATANT. Pa peye gayan sou li; sèvè a dwe valide l. Pa rekreye lavant sa a.'; });
       } else if (mounted && error.response == null) {
-        setState(() => message = freeMaryaj.isNotEmpty ? 'Koneksyon koupe. Tikè a pa t vann; rekonekte pou Maryaj gratis yo antre sou tikè a.' : 'Koneksyon koupe. Pa rekreye vant sa a; verifye lis tikè a sou sèvè a lè entènèt retounen. Vant offline mande yon katalòg ajou ak yon aparèy otorize.');
+        setState(() => message = 'Koneksyon koupe. Pa rekreye vant sa a; verifye lis tikè a sou sèvè a lè entènèt retounen. Vant offline mande yon katalòg ajou ak yon aparèy otorize.');
       }
       else if (mounted) setState(() => message = 'Server refize tikè a: ${error.response?.data}.');
     } finally { if (mounted) setState(() => busy = false); }

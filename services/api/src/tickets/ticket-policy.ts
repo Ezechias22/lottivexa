@@ -108,6 +108,49 @@ export function deriveFreeMaryajSelections(lines: Array<{ code: string; selectio
   return [first, second];
 }
 
+function cleanBlockedNumber(value: string) {
+  return value.replace(/^0+(?=\d)/, '');
+}
+
+export function blockedNumberMatches(numberKey: string | null | undefined, selectionKey: string, betTypeCode?: string) {
+  if (!numberKey) return true;
+  const [blockedSelection, blockedPosition] = numberKey.split('@');
+  const [lineSelection, linePosition] = selectionKey.split('@');
+  if (betTypeCode !== 'MARYAJ' && blockedPosition && blockedPosition !== linePosition) return false;
+  const canonical = (value: string) => {
+    const parts = value.split('-').map(cleanBlockedNumber);
+    if (betTypeCode === 'MARYAJ') parts.sort((left, right) => Number(left) - Number(right));
+    return parts.join('-');
+  };
+  if (betTypeCode === 'MARYAJ' && !blockedSelection.includes('-')) {
+    return lineSelection.split('-').some(value => cleanBlockedNumber(value) === cleanBlockedNumber(blockedSelection));
+  }
+  return canonical(blockedSelection) === canonical(lineSelection);
+}
+
+type NumberBlockRule = {
+  scope?: string;
+  gameId?: string | null;
+  drawId?: string | null;
+  betTypeId?: string | null;
+  numberKey?: string | null;
+  maxStake?: { eq(value: number): boolean } | null;
+};
+
+export function isNumberBlocked(
+  rules: readonly NumberBlockRule[],
+  context: { gameId: string; drawId: string },
+  line: { betTypeId: string; selectionKey: string; betTypeCode: string },
+) {
+  return rules.some(rule => rule.scope === 'NUMBER'
+    && Boolean(rule.numberKey)
+    && rule.maxStake?.eq(0) === true
+    && (!rule.gameId || rule.gameId === context.gameId)
+    && (!rule.drawId || rule.drawId === context.drawId)
+    && (!rule.betTypeId || rule.betTypeId === line.betTypeId)
+    && blockedNumberMatches(rule.numberKey, line.selectionKey, line.betTypeCode));
+}
+
 export function cancellationDeadline(createdAt: Date, drawClosesAt: Date, seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) throw new BadRequestException('INVALID_CANCELLATION_WINDOW');
   return new Date(Math.min(drawClosesAt.getTime(), createdAt.getTime() + seconds * 1000));

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../apps/mobile/lib/', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
-const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter, reports, merchantDashboard, ticketSearch] = await Promise.all([
+const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, drawLabels, nativePrinter, reports, merchantDashboard, ticketSearch, settings] = await Promise.all([
   read('app/lottivexa_app.dart'), read('core/security/session_store.dart'),
   read('features/admin/admin_dashboard_screen.dart'), read('features/admin/admin_hub_screen.dart'),
   read('features/admin/admin_resource_screen.dart'), read('features/tickets/new_ticket_screen.dart'),
@@ -13,6 +13,7 @@ const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, 
   read('features/reports/reports_screen.dart'),
   readFile(new URL('../services/api/src/merchants/merchants.service.ts', import.meta.url), 'utf8'),
   readFile(new URL('../services/api/src/tickets/tickets.service.ts', import.meta.url), 'utf8'),
+  read('features/settings/settings_screen.dart'),
 ]);
 
 assert.match(session, /isTenantAdmin/);
@@ -42,8 +43,9 @@ assert.match(tickets, /lineWinningAmount/);
 assert.match(tickets, /ticketWinningAmount\(ticket\)/);
 assert.match(tickets, /merchantDrawLabel\(/);
 assert.match(sell, /requestData\['draws'\]/);
-assert.match(sell, /requestData\['freeMaryaj'\]/);
-assert.match(sell, /drawGroups\.sort/);
+assert.doesNotMatch(sell, /requestData\['freeMaryaj'\]/);
+assert.match(ticketSearch, /randomFreeMaryajSelections/);
+assert.match(sell, /grouped\.entries\.map/);
 assert.match(sell, /Tiraj: \$lineDrawLabel/);
 assert.doesNotMatch(tickets, /_winningAmount\(ticket\)/);
 assert.doesNotMatch(tickets, /BEZWEN VERIFIKASYON/);
@@ -62,5 +64,7 @@ assert.match(nativePrinter, /setMediaSize\(receiptMedia\)/);
 assert.match(nativePrinter, /@page\{size:58mm \$\{pageHeightCss\}mm/);
 assert.match(nativePrinter, /pageHeightMils/);
 assert.doesNotMatch(nativePrinter, /500mm/);
+assert.match(settings, /merchants\/me\/dashboard/);
+assert.doesNotMatch(settings, /dio\.put\([^\n]*currency|currencyInput|saveCurrency/);
 assert.doesNotMatch(app + dashboard + hub + resource + sell + tickets + results, /fake|mock data|TODO/i);
 console.log('Mobile Admin source contract: passed');

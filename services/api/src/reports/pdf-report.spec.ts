@@ -50,11 +50,11 @@ describe('sales PDF', () => {
     expect(report.startsWith('%PDF-1.4')).toBe(true);
     expect(report).toContain('Top Lotto');
     expect(report).toContain('/MediaBox [0 0 595 842]');
-    expect(report).toContain('30,50 G');
-    expect(report).toContain('50,00 G');
+    expect(report).toContain('$30,50');
+    expect(report).toContain('$50,00');
     expect(report).toContain('20:00');
     expect(report).not.toContain('HTG 30.50');
-    expect(usdReport).toContain('30,50 $');
+    expect(usdReport).toContain('$30,50');
     expect(usdReport).not.toContain('$US');
     expect(report).toContain('VANT PA TIRAJ');
     expect(report).toContain('KOMISYON PA MACHANN');

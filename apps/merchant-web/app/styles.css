@@ -595,12 +595,6 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   font-size: 8.5pt;
   white-space: nowrap;
 }
-.receipt-potential {
-  display: flex;
-  justify-content: space-between;
-  padding: 2mm 0;
-  font-size: 8.5pt;
-}
 .print-receipt footer {
   line-height: 1.35;
 }
@@ -1095,10 +1089,6 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   display: block;
   color: #168046;
   font-weight: 800;
-}
-.receipt-line-potential {
-  color: #475569;
-  font-size: 7.5pt;
 }
 .receipt-position {
   display: block;

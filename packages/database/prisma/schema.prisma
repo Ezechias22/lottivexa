@@ -767,6 +767,7 @@ model Ticket {
   gameId                String                 @db.Uuid
   drawId                String                 @db.Uuid
   amount                Decimal                @db.Decimal(19, 4)
+  currencyCode          String                 @db.Char(3)
   commission            Decimal                @default(0) @db.Decimal(19, 4)
   potentialWin          Decimal                @db.Decimal(19, 4)
   status                TicketStatus           @default(VALID)
@@ -859,6 +860,7 @@ model Payout {
   tenantId            String            @db.Uuid
   ticketId            String            @unique @db.Uuid
   amount              Decimal           @db.Decimal(19, 4)
+  currencyCode        String            @db.Char(3)
   authorizedById      String            @db.Uuid
   idempotencyKey      String            @db.VarChar(100)
   ledgerTransactionId String            @unique @db.Uuid
@@ -869,6 +871,7 @@ model Payout {
 
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, paidAt(sort: Desc)])
+  @@index([tenantId, currencyCode, paidAt(sort: Desc)])
 }
 
 model LedgerAccount {
@@ -944,6 +947,7 @@ model CommissionTransaction {
   ruleId              String?           @db.Uuid
   baseAmount          Decimal           @db.Decimal(19, 4)
   commissionAmount    Decimal           @db.Decimal(19, 4)
+  currencyCode        String            @db.Char(3)
   ledgerTransactionId String            @unique @db.Uuid
   createdAt           DateTime          @default(now())
   tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
@@ -953,6 +957,7 @@ model CommissionTransaction {
   ledgerTransaction   LedgerTransaction @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, merchantId, createdAt(sort: Desc)])
+  @@index([tenantId, currencyCode, createdAt(sort: Desc)])
 }
 
 model CashSession {

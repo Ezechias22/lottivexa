@@ -1,5 +1,6 @@
-type ReportLine = { status?: string; count?: number; amount?: string };
+type ReportLine = { status?: string; count?: number; amount?: string; currencyCode?: string };
 type DrawLine = {
+  currencyCode?: string;
   drawNumber?: string;
   gameName?: string;
   gameCode?: string;
@@ -11,23 +12,26 @@ type DrawLine = {
 };
 type SalesReport = {
   period: { from: Date | string; to: Date | string };
-  tickets: { count: number; sales: string; commission: string };
-  payouts: { count: number; amount: string };
-  commission: string;
+  currency?: string | null;
+  currencyTotals?: Array<{ currencyCode: string; ticketsCount: number; sales: string; ticketCommission: string; payoutsCount: number; payouts: string; commission: string; cancelledCount: number; cancelledAmount: string; netSales: string; deficit: string }>;
+  tickets: { count: number; sales: string | null; commission: string | null };
+  payouts: { count: number; amount: string | null };
+  commission: string | null;
   accounting?: {
     cancelledCount?: number;
-    cancelledAmount?: string;
-    netSales?: string;
-    deficit?: string;
+    cancelledAmount?: string | null;
+    netSales?: string | null;
+    deficit?: string | null;
   };
   byStatus: ReportLine[];
-  byDay?: Array<{ day: string; count: number; amount: string }>;
-  byGame?: Array<{ gameName: string; gameCode?: string; count: number; amount: string }>;
-  byBranch?: Array<{ branchName: string; branchCode?: string; count: number; amount: string }>;
-  byMerchant?: Array<{ merchantName: string; merchantNumber?: string; commissionRate?: string; count: number; amount: string; commission: string }>;
+  byDay?: Array<{ day: string; currencyCode?: string; count: number; amount: string }>;
+  byGame?: Array<{ gameName: string; gameCode?: string; currencyCode?: string; count: number; amount: string }>;
+  byBranch?: Array<{ branchName: string; branchCode?: string; currencyCode?: string; count: number; amount: string }>;
+  byMerchant?: Array<{ merchantName: string; merchantNumber?: string; commissionRate?: string; currencyCode?: string; count: number; amount: string; commission: string }>;
   byDraw?: DrawLine[];
   biggestWins?: Array<{
     ticketNumber: string;
+    currencyCode?: string;
     merchantName: string;
     gameName: string;
     drawNumber: string;
@@ -163,11 +167,13 @@ function formatGeneratedAt() {
 function amount(value: unknown, currency: string) {
   const number = Number(value ?? 0);
   const code = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
-  return new Intl.NumberFormat('fr-HT', {
-    style: 'currency',
-    currency: code,
-    currencyDisplay: 'narrowSymbol',
-  }).format(Number.isFinite(number) ? number : 0);
+  const safeAmount = Number.isFinite(number) ? number : 0;
+  try {
+    const digits = new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits;
+    return '$' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(safeAmount);
+  } catch {
+    return '$' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount);
+  }
 }
 
 function drawTimeLabel(row: DrawLine) {
@@ -357,14 +363,15 @@ export function buildSalesPdf(report: SalesReport, businessName: string, currenc
   }
 
   beginPage(true);
+  const multiCurrency = (report.currencyTotals?.length ?? 0) > 1;
   const sales = Number(report.tickets.sales ?? 0);
   const payoutAmount = Number(report.payouts.amount ?? 0);
   const net = Number(report.accounting?.netSales ?? (sales - payoutAmount - Number(report.commission ?? 0)));
   const metrics = [
-    ['VANT BRIT', amount(report.tickets.sales, currency), COLORS.blue],
+    ['VANT BRIT', multiCurrency ? 'Gade tablo pa lajan' : amount(report.tickets.sales, currency), COLORS.blue],
     ['TIKÈ VANN', count(report.tickets.count), COLORS.navy],
-    ['PEMAN', amount(report.payouts.amount, currency), COLORS.teal],
-    ['KOMISYON', amount(report.commission, currency), COLORS.amber],
+    ['PEMAN', multiCurrency ? 'Gade tablo pa lajan' : amount(report.payouts.amount, currency), COLORS.teal],
+    ['KOMISYON', multiCurrency ? 'Gade tablo pa lajan' : amount(report.commission, currency), COLORS.amber],
   ];
   const gap = 10;
   const cardWidth = (CONTENT_WIDTH - gap * 3) / 4;
@@ -379,53 +386,55 @@ export function buildSalesPdf(report: SalesReport, businessName: string, currenc
   page.y -= 86;
 
   const deficit = Number(report.accounting?.deficit ?? Math.max(0, payoutAmount + Number(report.commission ?? 0) - sales));
-  table('Rezime finansye', ['Endikatè', 'Kantite'], [
-    Math.round(CONTENT_WIDTH * 0.61),
-    CONTENT_WIDTH - Math.round(CONTENT_WIDTH * 0.61),
-  ], [
-    ['Peman gayan', count(report.payouts.count) + '  |  ' + amount(report.payouts.amount, currency)],
-    ['Komisyon tikè / trete', amount(report.tickets.commission, currency) + '  /  ' + amount(report.commission, currency)],
-    ['Vant nèt apre peman ak komisyon', amount(net, currency)],
-    ['Defisi', amount(deficit, currency)],
-    ['Tikè anile', count(report.accounting?.cancelledCount) + '  |  ' + amount(report.accounting?.cancelledAmount, currency)],
-  ]);
+  if (multiCurrency) {
+    table('Rezime finansye pa lajan', ['Lajan', 'Vant', 'Peman', 'Komisyon', 'Vant nèt', 'Defisi'], [62, 105, 90, 90, 90, CONTENT_WIDTH - 437],
+      (report.currencyTotals ?? []).map(row => [row.currencyCode, amount(row.sales, row.currencyCode), amount(row.payouts, row.currencyCode), amount(row.commission, row.currencyCode), amount(row.netSales, row.currencyCode), amount(row.deficit, row.currencyCode)]));
+  } else {
+    table('Rezime finansye', ['Endikatè', 'Kantite'], [Math.round(CONTENT_WIDTH * 0.61), CONTENT_WIDTH - Math.round(CONTENT_WIDTH * 0.61)], [
+      ['Peman gayan', count(report.payouts.count) + '  |  ' + amount(report.payouts.amount, currency)],
+      ['Komisyon tikè / trete', amount(report.tickets.commission, currency) + '  /  ' + amount(report.commission, currency)],
+      ['Vant nèt apre peman ak komisyon', amount(net, currency)],
+      ['Defisi', amount(deficit, currency)],
+      ['Tikè anile', count(report.accounting?.cancelledCount) + '  |  ' + amount(report.accounting?.cancelledAmount, currency)],
+    ]);
+  }
   table('Rezime pa estati', ['Estati', 'Tikè', 'Montan tikè'], [245, 82, CONTENT_WIDTH - 327],
-    (report.byStatus ?? []).map((row) => [statusName(row.status), count(row.count), amount(row.amount, currency)]));
+    (report.byStatus ?? []).map((row) => [statusName(row.status), count(row.count), amount(row.amount, row.currencyCode ?? currency)]));
   table('Vant pa jou', ['Dat', 'Tikè', 'Vant'], [255, 82, CONTENT_WIDTH - 337],
-    (report.byDay ?? []).map((row) => [formatDay(row.day), count(row.count), amount(row.amount, currency)]));
+    (report.byDay ?? []).map((row) => [formatDay(row.day), count(row.count), amount(row.amount, row.currencyCode ?? currency)]));
   table('Vant pa lotri', ['Lotri', 'Tikè', 'Vant'], [255, 82, CONTENT_WIDTH - 337],
     (report.byGame ?? []).map((row) => [
       (row.gameCode ? row.gameCode + '  ' : '') + row.gameName,
       count(row.count),
-      amount(row.amount, currency),
+      amount(row.amount, row.currencyCode ?? currency),
     ]));
   table('Vant pa biwo', ['Biwo', 'Tikè', 'Vant'], [255, 82, CONTENT_WIDTH - 337],
     (report.byBranch ?? []).map((row) => [
       (row.branchCode ? row.branchCode + '  ' : '') + row.branchName,
       count(row.count),
-      amount(row.amount, currency),
+      amount(row.amount, row.currencyCode ?? currency),
     ]));
   table('Komisyon pa machann', ['Machann', 'Pousantaj', 'Tikè', 'Vant', 'Komisyon'], [125, 72, 45, 120, CONTENT_WIDTH - 362],
     (report.byMerchant ?? []).map((row) => [
       (row.merchantNumber ? row.merchantNumber + '  ' : '') + row.merchantName,
       row.commissionRate ?? '—',
       count(row.count),
-      amount(row.amount, currency),
-      amount(row.commission, currency),
+      amount(row.amount, row.currencyCode ?? currency),
+      amount(row.commission, row.currencyCode ?? currency),
     ]));
   table('Vant pa tiraj', ['Dat / sesyon', 'Lotri ak tiraj', 'Tikè', 'Vant'], [108, 190, 55, CONTENT_WIDTH - 353],
     (report.byDraw ?? []).map((row) => [
       drawDateLabel(row) + ' / ' + sessionName(row.session) + (drawTimeLabel(row) ? ' ' + drawTimeLabel(row) : ''),
       (row.gameCode ? row.gameCode + '  ' : '') + (row.gameName ?? '') + (row.drawNumber ? ' / ' + row.drawNumber : ''),
       count(row.count),
-      amount(row.amount, currency),
+      amount(row.amount, row.currencyCode ?? currency),
     ]));
   table('Pi gwo tikè gayan yo', ['Tikè', 'Lotri / tiraj', 'Machann', 'Gany'], [85, 168, 135, CONTENT_WIDTH - 388],
     (report.biggestWins ?? []).map((row) => [
       row.ticketNumber,
       row.gameName + (row.drawNumber ? ' / ' + row.drawNumber : ''),
       row.merchantName,
-      amount(row.amount, currency),
+      amount(row.amount, row.currencyCode ?? currency),
     ]));
 
   pages.forEach((item, index) => {

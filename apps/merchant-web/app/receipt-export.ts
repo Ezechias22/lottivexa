@@ -1,5 +1,6 @@
 import { ticketDrawLabels } from './draw-label';
 import { jsPDF } from 'jspdf';
+import { qrCodeMatrix, qrCodePath } from './qr-code';
 
 type Ticket = Record<string, any>;
 type Language = 'ht' | 'fr';
@@ -7,10 +8,21 @@ type ReceiptLine = { label: string; number: string; price: string; extra?: strin
 type PdfBlock =
   | { kind: 'text'; lines: string[]; size: number; bold: boolean; gap: number }
   | { kind: 'heading' }
+  | { kind: 'qr' }
   | { kind: 'row'; line: ReceiptLine }
   | { kind: 'rule'; gap: number };
 
-const money = (value: unknown) => Number(value ?? 0).toFixed(2);
+const money = (value: unknown, currency = 'USD') => {
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
+  const amount = Number(value ?? 0);
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  try {
+    const digits = new Intl.NumberFormat('en-US', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits;
+    return '$' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(safeAmount);
+  } catch {
+    return '$' + safeAmount.toFixed(2);
+  }
+};
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[char] ?? char));
 const genericBrand = /^(bolet|lottivexa)$/i;
 
@@ -42,7 +54,6 @@ export function receiptStatus(status: unknown, language: Language) {
 
 export function receiptLineRows(ticket: Ticket, language: Language): ReceiptLine[] {
   const currency = String(ticket.currency ?? 'USD').toUpperCase();
-  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
   return (ticket.lines ?? []).map((line: Ticket) => {
     const raw = String(line.betType?.code ?? line.betType?.name ?? line.betTypeName ?? line.betType ?? '').toUpperCase();
     const code = raw.includes('MARYAJ') || raw.includes('MARIAGE') ? 'MJ'
@@ -54,21 +65,15 @@ export function receiptLineRows(ticket: Ticket, language: Language): ReceiptLine
     const label = (parts[1] ? 'OP' + parts[1] + ' ' : '') + code;
     const price = line.isPromotional
       ? (language === 'fr' ? 'GRATUIT' : 'GRATIS')
-      : prefix + money(line.stake);
+      : money(line.stake, currency);
     const winCount = Number(line.winCount ?? 0);
-    const potentialWin = Number(line.potentialWin ?? 0);
-    const promotionalPayout = line.isPromotional && Number.isFinite(potentialWin) && potentialWin > 0
-      ? (language === 'fr' ? `Gain fixe : ${prefix}${money(potentialWin)} si gagnant` : `Peye ${prefix}${money(potentialWin)} si li genyen`)
-      : '';
-    const payoutPerHit = Number(line.potentialWin ?? line.winningAmount ?? line.payoutAmount ?? 0);
-    const payoutHitCount = Number.isFinite(winCount) && winCount > 0 ? winCount : 1;
-    const linePayout = payoutPerHit * payoutHitCount;
     const isWinner = line.isWinner === true || winCount > 0;
+    // The API returns the confirmed total for this line, including dekabès.
+    const linePayout = Number(line.winningAmount ?? 0);
     const extra = [
-      promotionalPayout,
       winCount > 1 ? (language === 'fr' ? 'DÉKABÈS × ' : 'DEKABÈS × ') + winCount : '',
       isWinner ? (language === 'fr' ? 'GAGNANT ✓' : 'GENYEN ✓') : '',
-      isWinner && Number.isFinite(linePayout) && linePayout > 0 ? prefix + money(linePayout) : '',
+      isWinner && Number.isFinite(linePayout) && linePayout > 0 ? money(linePayout, currency) : '',
     ].filter(Boolean).join(' · ');
     return { label, number, price, extra };
   });
@@ -145,12 +150,13 @@ function pdfBlocks(ticket: Ticket, language: Language) {
   addRule(2);
 
   const currency = String(ticket.currency ?? 'USD').toUpperCase();
-  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
-  addText('TOTAL: ' + prefix + money(ticket.amount ?? ticket.totalAmount), 11, true, 1);
+  addText('TOTAL: ' + money(ticket.amount ?? ticket.totalAmount, currency), 11, true, 1);
   addText((language === 'fr' ? 'STATUT: ' : 'ESTATI: ') + receiptStatus(ticket.status, language), 8, true);
   const winningAmount = Number(ticket.winning?.winningAmount ?? ticket.winningAmount ?? 0);
-  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + prefix + money(winningAmount), 8, true);
+  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + money(winningAmount, currency), 8, true);
   addText((language === 'fr' ? 'VÉRIFICATION: ' : 'VERIFYE: ') + receiptCode(ticket), 7.5);
+  blocks.push({ kind: 'qr' });
+  bodyHeight += 29;
   addText(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 7, false, 0);
   return { blocks, height: Math.ceil(6 + bodyHeight + 5) };
 }
@@ -158,6 +164,9 @@ function pdfBlocks(ticket: Ticket, language: Language) {
 export function makeTicketPdf(ticket: Ticket, language: Language) {
   const layout = pdfBlocks(ticket, language);
   const pdf = new jsPDF({ unit: 'mm', format: [58, Math.max(65, layout.height)], compress: true });
+  pdf.setFileId(stablePdfFileId(ticket));
+  const createdAt = ticket.createdAt ? new Date(ticket.createdAt) : new Date('2000-01-01T00:00:00.000Z');
+  pdf.setCreationDate(Number.isNaN(createdAt.getTime()) ? new Date('2000-01-01T00:00:00.000Z') : createdAt);
   const left = 4;
   const numberX = 17;
   const right = 54;
@@ -167,6 +176,20 @@ export function makeTicketPdf(ticket: Ticket, language: Language) {
       pdf.setDrawColor(130, 145, 165);
       pdf.line(left, y, right, y);
       y += block.gap * 2 + 0.7;
+      continue;
+    }
+    if (block.kind === 'qr') {
+      const matrix = qrCodeMatrix(String(ticket.qrCode ?? receiptCode(ticket)));
+      const quiet = 4;
+      const dimension = matrix.length + quiet * 2;
+      const qrSize = 27;
+      const module = qrSize / dimension;
+      const startX = (58 - qrSize) / 2;
+      pdf.setFillColor(0, 0, 0);
+      matrix.forEach((row, rowIndex) => row.forEach((dark, columnIndex) => {
+        if (dark) pdf.rect(startX + (columnIndex + quiet) * module, y + (rowIndex + quiet) * module, module + 0.015, module + 0.015, 'F');
+      }));
+      y += qrSize + 2;
       continue;
     }
     if (block.kind === 'row') {
@@ -204,7 +227,25 @@ export function makeTicketPdf(ticket: Ticket, language: Language) {
 }
 
 export function downloadTicketPdf(ticket: Ticket, language: Language) {
-  makeTicketPdf(ticket, language).save('lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.pdf');
+  const blob = ticketPdfBlob(ticket, language);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.pdf';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Both PDF actions share one renderer so their receipt bytes and QR are identical. */
+export function ticketPdfBlob(ticket: Ticket, language: Language): Blob {
+  return makeTicketPdf(ticket, language).output('blob');
+}
+
+function stablePdfFileId(ticket: Ticket) {
+  const source = String(ticket.qrCode ?? ticket.ticketNumber ?? ticket.id ?? 'lottivexa-ticket');
+  let hash = 2166136261;
+  for (const char of source) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return Array.from({ length: 4 }, (_, index) => ((hash + Math.imul(index, 0x9e3779b9)) >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
 export function ticketSvg(ticket: Ticket, language: Language) {
@@ -253,12 +294,18 @@ export function ticketSvg(ticket: Ticket, language: Language) {
   }
   addRule(28);
   const currency = String(ticket.currency ?? 'USD').toUpperCase();
-  const prefix = currency === 'USD' ? '$' : currency === 'HTG' ? 'G' : currency + ' ';
-  addText('TOTAL: ' + prefix + money(ticket.amount ?? ticket.totalAmount), 22, 800, 7);
+  addText('TOTAL: ' + money(ticket.amount ?? ticket.totalAmount, currency), 22, 800, 7);
   addText((language === 'fr' ? 'STATUT: ' : 'ESTATI: ') + receiptStatus(ticket.status, language), 16, 700, 5);
   const winningAmount = Number(ticket.winning?.winningAmount ?? ticket.winningAmount ?? 0);
-  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + prefix + money(winningAmount), 16, 700, 5);
+  if (winningAmount > 0) addText((language === 'fr' ? 'GAIN CONFIRMÉ: ' : 'GEN KONFIME: ') + money(winningAmount, currency), 16, 700, 5);
   addText((language === 'fr' ? 'VÉRIFICATION: ' : 'VERIFYE: ') + receiptCode(ticket), 14, 400, 4);
+  const qr = qrCodeMatrix(String(ticket.qrCode ?? receiptCode(ticket)));
+  const quiet = 4;
+  const qrDimension = qr.length + quiet * 2;
+  const qrSize = 220;
+  const qrScale = qrSize / qrDimension;
+  lines.push(`<g transform="translate(${(480 - qrSize) / 2} ${y}) scale(${qrScale})"><rect width="${qrDimension}" height="${qrDimension}" fill="#fff"/><path d="${qrCodePath(qr, quiet)}" fill="#000"/></g>`);
+  y += qrSize + 18;
   addText(language === 'fr' ? 'Conservez ce ticket original.' : 'Kenbe tikè orijinal la.', 13, 400, 0);
   const height = Math.ceil(y + 18);
   return '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="' + height + '" viewBox="0 0 480 ' + height + '"><rect width="480" height="' + height + '" fill="white"/>' + lines.join('') + '</svg>';
@@ -287,7 +334,7 @@ export async function downloadTicketImage(ticket: Ticket, language: Language) {
 }
 
 export async function shareTicket(ticket: Ticket, language: Language, format: 'pdf' | 'image') {
-  const blob = format === 'pdf' ? makeTicketPdf(ticket, language).output('blob') : await ticketImageBlob(ticket, language);
+  const blob = format === 'pdf' ? ticketPdfBlob(ticket, language) : await ticketImageBlob(ticket, language);
   const extension = format === 'pdf' ? 'pdf' : 'png';
   const mime = format === 'pdf' ? 'application/pdf' : 'image/png';
   const file = new File([blob], 'lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.' + extension, { type: mime });

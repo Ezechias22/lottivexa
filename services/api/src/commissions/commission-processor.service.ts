@@ -10,6 +10,7 @@ export type CommissionTicket = {
   branchId: string;
   gameId: string;
   amount: Prisma.Decimal;
+  currencyCode: string;
 };
 
 /** Creates the commission ledger and transaction inside the ticket's sale transaction. */
@@ -77,6 +78,7 @@ export async function postTicketCommission(
       ruleId: rule.id,
       baseAmount: ticket.amount,
       commissionAmount: amount,
+      currencyCode: ticket.currencyCode,
       ledgerTransactionId: ledger.id,
     },
   });

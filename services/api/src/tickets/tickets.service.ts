@@ -1,10 +1,13 @@
-import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{chooseOdds,cancellationDeadline,deriveFreeMaryajSelections,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{freeMaryajOdds}from'../tenants/country-currency-policy';import{postTicketCommission}from'../commissions/commission-processor.service';
+import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{blockedNumberMatches,chooseOdds,isNumberBlocked,cancellationDeadline,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{resolveFreeMaryajPolicy,randomFreeMaryajSelections}from'./free-maryaj-policy';import{currencyForOffice}from'../branches/office-currency-policy';import{officeCountryFromSettings}from'../branches/office-location-policy';import{postTicketCommission}from'../commissions/commission-processor.service';
 @Injectable()export class TicketsService{async create(u:Principal,dto:{drawId:string;idempotencyKey:string;deviceId?:string;lines:{betTypeId:string;selection:Array<number|string>;stake:string;resultPosition?:number}[];freeMaryaj?:{selection:Array<number|string>}[]}){
   const tenantId=this.tenant(u);
   const existing=await prisma.ticket.findUnique({where:{tenantId_idempotencyKey:{tenantId,idempotencyKey:dto.idempotencyKey}},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
   if(existing)return presentTicketLines(existing);
-  const merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE',branch:{status:'ACTIVE'}}});
+  const merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE',branch:{status:'ACTIVE'}},include:{branch:true}});
   if(!merchant)throw new ForbiddenException('MERCHANT_ACCOUNT_REQUIRED');
+  const tenant=await prisma.tenant.findUniqueOrThrow({where:{id:tenantId},select:{jurisdictionCode:true}});
+  const officeCountry=officeCountryFromSettings(merchant.branch.settings,tenant.jurisdictionCode);
+  const currencyCode=currencyForOffice(merchant.branch.settings,tenant.jurisdictionCode);
   if(dto.deviceId){
     const device=await prisma.device.findFirst({where:{id:dto.deviceId,tenantId,branchId:merchant.branchId,merchantId:merchant.id,status:{in:['ONLINE','OFFLINE']}}});
     if(!device)throw new ForbiddenException('DEVICE_NOT_AUTHORIZED');
@@ -13,11 +16,11 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
   if(!draw||!isBettingOpen(draw.status,draw.closesAt,draw.game.cutoffSeconds))throw new BadRequestException('DRAW_CLOSED');
   let declaredAmount:Prisma.Decimal;
   try{declaredAmount=dto.lines.reduce((sum,line)=>sum.add(new Prisma.Decimal(line.stake)),new Prisma.Decimal(0))}catch{throw new BadRequestException('INVALID_AMOUNT')}
-  if(dto.freeMaryaj?.length&&declaredAmount.lt(100))throw new BadRequestException('FREE_MARYAJ_MINIMUM_NOT_REACHED');
-  if(dto.freeMaryaj?.length&&dto.freeMaryaj.length!==2)throw new BadRequestException('FREE_MARYAJ_REQUIRES_TWO_LINES');
-  const tenantCountry=declaredAmount.gte(100)?await prisma.tenant.findUnique({where:{id:tenantId},select:{jurisdictionCode:true}}):null;
-  const maryaj= dto.freeMaryaj?.length||declaredAmount.gte(100) ? await prisma.betType.findFirst({where:{tenantId,code:'MARYAJ'}}) : null;
-  if(dto.freeMaryaj?.length&&!maryaj)throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
+  const now=new Date();
+  const freeRule=await prisma.lotteryRule.findFirst({where:{tenantId,jurisdictionCode:officeCountry,key:'free_maryaj_policy',active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},orderBy:{effectiveFrom:'desc'}});
+  const freePolicy=resolveFreeMaryajPolicy(officeCountry,freeRule?.value);
+  const earnsFreeMaryaj=declaredAmount.gte(freePolicy.minimumAmount);
+  const maryaj=earnsFreeMaryaj?await prisma.betType.findFirst({where:{tenantId,code:'MARYAJ'}}):null;
   const betIds=[...new Set([...dto.lines.map(line=>line.betTypeId),...(maryaj?[maryaj.id]:[])])];
   const configured=await prisma.gameBetType.findMany({where:{gameId:draw.gameId,betTypeId:{in:betIds},active:true},include:{betType:true}});
   if(configured.length!==betIds.length)throw new BadRequestException('INVALID_BET_TYPE');
@@ -30,29 +33,28 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
     const odd=chooseOdds(odds,line.betTypeId,position);
     if(!odd)throw new BadRequestException('ODDS_NOT_CONFIGURED');
     validateHaitianBetType(bet.code,selection);
-    return{...line,selection,resultPosition:position,odds:odd.multiplier.toString(),selectionCount:bet.selectionCount,numberMin:bet.numberMin,numberMax:bet.numberMax,allowRepeats:bet.allowRepeats,isPromotional:false};
+    return{...line,selection,resultPosition:position,betTypeCode:bet.code,odds:odd.multiplier.toString(),selectionCount:bet.selectionCount,numberMin:bet.numberMin,numberMax:bet.numberMax,allowRepeats:bet.allowRepeats,isPromotional:false};
   })).map(line=>({...line,id:randomUUID()}));
   const amount=paid.reduce((sum,line)=>sum.add(line.stake),new Prisma.Decimal(0));
   let free:typeof paid=[];
-  if(amount.gte(100)){
+  if(earnsFreeMaryaj){
     if(!maryaj)throw new BadRequestException('FREE_MARYAJ_NOT_CONFIGURED');
     const maryajConfig=configured.find(item=>item.betTypeId===maryaj!.id)!.betType;
-    const selections=dto.freeMaryaj?.map(item=>item.selection)??deriveFreeMaryajSelections(paid.map(line=>({
-      code:configured.find(item=>item.betTypeId===line.betTypeId)!.betType.code,
-      selection:line.selection,
-    })));
-    if(selections.length!==2)throw new BadRequestException('FREE_MARYAJ_NUMBERS_REQUIRED');
+    const blockedRules=await prisma.bettingLimit.findMany({where:{tenantId,scope:'NUMBER',active:true,startsAt:{lte:now},OR:[{endsAt:null},{endsAt:{gt:now}}]},select:{numberKey:true,gameId:true,drawId:true,betTypeId:true}});
+    const blockedKeys=blockedRules.filter(rule=>(!rule.gameId||rule.gameId===draw.gameId)&&(!rule.drawId||rule.drawId===draw.id)&&(!rule.betTypeId||rule.betTypeId===maryaj.id)).map(rule=>rule.numberKey).filter((key):key is string=>Boolean(key));
+    let selections:string[][];
+    try{selections=randomFreeMaryajSelections(freePolicy.freeTicketCount,undefined,blockedKeys)}catch{throw new BadRequestException('FREE_MARYAJ_NUMBERS_BLOCKED')}
     free=priceLines(selections.map(selectionInput=>{
       const selection=normalizeSelection('MARYAJ',selectionInput);
       const odd=chooseOdds(odds,maryaj!.id);
       if(!odd)throw new BadRequestException('ODDS_NOT_CONFIGURED');
       validateHaitianBetType('MARYAJ',selection);
-      return{betTypeId:maryaj!.id,selection,resultPosition:undefined,stake:'1',odds:freeMaryajOdds(tenantCountry?.jurisdictionCode,odd.multiplier.toString()),selectionCount:maryajConfig.selectionCount,numberMin:maryajConfig.numberMin,numberMax:maryajConfig.numberMax,allowRepeats:maryajConfig.allowRepeats,isPromotional:true};
+      return{betTypeId:maryaj!.id,selection,resultPosition:undefined,betTypeCode:'MARYAJ',stake:'1',odds:freePolicy.payoutAmount??odd.multiplier.toString(),selectionCount:maryajConfig.selectionCount,numberMin:maryajConfig.numberMin,numberMax:maryajConfig.numberMax,allowRepeats:maryajConfig.allowRepeats,isPromotional:true};
     })).map(line=>({...line,id:randomUUID()}));
   }
   const priced=[...paid,...free];
   const potentialWin=priced.reduce((sum,line)=>sum.add(line.potentialWin),new Prisma.Decimal(0));
-  await this.checkLimits(tenantId,draw.id,draw.gameId,merchant.id,priced);
+  await this.checkLimits(tenantId,draw.id,draw.gameId,merchant.id,merchant.branchId,priced);
   const token=randomBytes(12).toString('hex').toUpperCase();
   const date=new Date();
   const day=String(date.getUTCFullYear()).slice(-2)+String(date.getUTCMonth()+1).padStart(2,'0')+String(date.getUTCDate()).padStart(2,'0');
@@ -63,7 +65,7 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
     const concurrent=await tx.ticket.findUnique({where:{tenantId_idempotencyKey:{tenantId,idempotencyKey:dto.idempotencyKey}},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
     if(concurrent)return presentTicketLines(concurrent);
     const ticket=await tx.ticket.create({data:{
-      tenantId,ticketNumber,idempotencyKey:dto.idempotencyKey,branchId:merchant.branchId,merchantId:merchant.id,deviceId:dto.deviceId,gameId:draw.gameId,drawId:draw.id,amount,potentialWin,barcode:token,qrCode:`LV1:${tenantId}:${token}`,
+      tenantId,ticketNumber,idempotencyKey:dto.idempotencyKey,branchId:merchant.branchId,merchantId:merchant.id,deviceId:dto.deviceId,gameId:draw.gameId,drawId:draw.id,amount,currencyCode,potentialWin,barcode:token,qrCode:`LV1:${tenantId}:${token}`,
       lines:{create:priced.map(line=>({id:line.id,tenantId,betTypeId:line.betTypeId,selection:line.selection,selectionKey:line.selectionKey,stake:line.stake,odds:line.odds,potentialWin:line.potentialWin}))},
       events:{create:{tenantId,type:'CREATED',userId:u.sub,deviceId:dto.deviceId,metadata:free.length?{freeMaryajLineIds:free.map(line=>line.id)}:undefined}},
     }});
@@ -120,9 +122,29 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
       {tenantId,ticketId:ticket.id,type:'CANCELLED',userId:u.sub,metadata},
     ]});
     await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'CANCEL',entityType:'Ticket',entityId:ticket.id,oldValues:{status:'VALID'},newValues:{status:'CANCELLED',...(reason?{reason}:{}),tenantOverride}}});
-    return tx.ticket.findUniqueOrThrow({where:{id:ticket.id},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
+    return presentTicketLines(await tx.ticket.findUniqueOrThrow({where:{id:ticket.id},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}}));
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
 } async get(u:Principal,ref:string){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref);return presentTicketLines(await prisma.ticket.findFirstOrThrow({where:{tenantId,...(merchant?{branchId:merchant.branchId}:{}),OR:[...(uuid?[{id:ref}]:[]),{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},draw:{include:{game:true}},ticketDraws:{include:{draw:{include:{game:true}}}},merchant:{include:{branch:true}},winning:true,payout:true}}))}
  async search(u:Principal,q:{status?:TicketStatus;drawId?:string}){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});return prisma.ticket.findMany({where:{tenantId,...(merchant?{merchantId:merchant.id}:{}),...(q.status?{status:q.status}:{}),...(q.drawId?{OR:[{drawId:q.drawId},{ticketDraws:{some:{drawId:q.drawId}}}]}:{})},orderBy:{createdAt:'desc'},take:100,include:{winning:true,payout:true,draw:{include:{game:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},ticketDraws:{include:{draw:{include:{game:true}}}},lines:{select:{id:true,isWinner:true}}}}).then(rows=>rows.map(presentTicketLines))}
- private async checkLimits(tenantId:string,drawId:string,gameId:string,merchantId:string,lines:ReturnType<typeof priceLines>){const now=new Date();const limits=await prisma.bettingLimit.findMany({where:{tenantId,active:true,startsAt:{lte:now},OR:[{endsAt:null},{endsAt:{gt:now}}],AND:[{OR:[{scope:'TENANT'},{gameId},{drawId},{scope:'MERCHANT',scopeId:merchantId}]}]}});for(const line of lines)for(const limit of limits.filter(x=>!x.betTypeId||x.betTypeId===line.betTypeId).filter(x=>!x.numberKey||x.numberKey===line.selectionKey)){if(limit.minStake&&line.stake.lt(limit.minStake))throw new BadRequestException('BELOW_MINIMUM_STAKE');if(limit.maxStake&&line.stake.gt(limit.maxStake))throw new BadRequestException(limit.maxStake.eq(0)?'NUMBER_BLOCKED':'LIMIT_REACHED')}}
+ private async checkLimits(tenantId:string,drawId:string,gameId:string,merchantId:string,branchId:string,lines:ReturnType<typeof priceLines>){
+  const now=new Date();
+  const limits=await prisma.bettingLimit.findMany({where:{tenantId,active:true,startsAt:{lte:now},OR:[{endsAt:null},{endsAt:{gt:now}}],scope:{in:['TENANT','BRANCH','MERCHANT','GAME','DRAW','BET_TYPE','NUMBER']}},include:{betType:{select:{code:true}}}});
+  const applies=(limit:any,line:any)=>limit.scope==='TENANT'
+    ||(limit.scope==='BRANCH'&&limit.scopeId===branchId)
+    ||(limit.scope==='MERCHANT'&&limit.scopeId===merchantId)
+    ||(limit.scope==='GAME'&&(limit.gameId===gameId||limit.scopeId===gameId))
+    ||(limit.scope==='DRAW'&&(limit.drawId===drawId||limit.scopeId===drawId))
+    ||(limit.scope==='BET_TYPE'&&(limit.betTypeId===line.betTypeId||limit.scopeId===line.betTypeId))
+    ||(limit.scope==='NUMBER'&&(!limit.gameId||limit.gameId===gameId)&&(!limit.drawId||limit.drawId===drawId));
+  for(const line of lines){
+    const code=(line as any).betTypeCode??(line as any).code;
+    const matching=limits.filter(x=>applies(x,line)).filter(x=>!x.betTypeId||x.betTypeId===line.betTypeId).filter(x=>blockedNumberMatches(x.numberKey,line.selectionKey,code));
+    if(isNumberBlocked(matching,{gameId,drawId},{betTypeId:line.betTypeId,selectionKey:line.selectionKey,betTypeCode:code}))throw new BadRequestException('NUMBER_BLOCKED');
+    for(const limit of matching){
+      if(limit.scope==='NUMBER'&&limit.numberKey&&limit.maxStake?.eq(0))continue;
+      if(limit.minStake&&line.stake.lt(limit.minStake))throw new BadRequestException('BELOW_MINIMUM_STAKE');
+      if(limit.maxStake&&line.stake.gt(limit.maxStake))throw new BadRequestException('LIMIT_REACHED');
+    }
+  }
+ }
  private tenant(u:Principal){if(!u.tenantId)throw new ForbiddenException('TENANT_ACCESS_REQUIRED');return u.tenantId}}

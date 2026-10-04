@@ -29,6 +29,7 @@ const ticket = {
   branchId: 'branch-1',
   gameId: 'game-1',
   amount: new Prisma.Decimal('200'),
+  currencyCode: 'USD',
 };
 
 describe('postTicketCommission', () => {
@@ -42,7 +43,11 @@ describe('postTicketCommission', () => {
       orderBy: { priority: 'desc' },
     }));
     expect(tx.commissionTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ ticketId: 'ticket-1', commissionAmount: new Prisma.Decimal('25') }),
+      data: expect.objectContaining({
+        ticketId: 'ticket-1',
+        commissionAmount: new Prisma.Decimal('25'),
+        currencyCode: 'USD',
+      }),
     }));
     expect(tx.ticket.update).toHaveBeenCalledWith({ where: { id: 'ticket-1' }, data: { commission: new Prisma.Decimal('25') } });
     expect(tx.ledgerTransaction.create).toHaveBeenCalledTimes(1);

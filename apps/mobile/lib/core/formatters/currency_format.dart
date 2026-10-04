@@ -6,14 +6,8 @@ String normalizeCurrencyCode(dynamic value) {
 }
 
 String narrowCurrencySymbol(dynamic value) {
-  final code = normalizeCurrencyCode(value);
-  if (code == 'USD') return r'$';
-  try {
-    final symbol = NumberFormat.simpleCurrency(name: code, locale: 'fr_HT').currencySymbol.trim();
-    return symbol.isEmpty ? code : symbol;
-  } catch (_) {
-    return code;
-  }
+  normalizeCurrencyCode(value);
+  return r'$';
 }
 
 String formatCurrency(dynamic value, [dynamic currency = 'USD', int? decimalDigits]) {

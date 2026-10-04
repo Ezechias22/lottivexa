@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
@@ -11,6 +12,7 @@ import { reportRange } from "../reports/report-policy";
 import { presentTicketLines } from "../tickets/ticket-line-flags";
 import { merchantCommissionPercentage } from "./merchant-commission-policy";
 import { officeCountryFromSettings } from "../branches/office-location-policy";
+import { currencyForOffice } from "../branches/office-currency-policy";
 export const merchantPermissions = [
   "tickets.view",
   "tickets.create",
@@ -93,16 +95,16 @@ export class MerchantsService {
           take: 12,
           include: { winning: true, payout: true, draw: { include: { game: true } }, events: { select: { type: true, metadata: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }, lines: { select: { id: true, isWinner: true } }, ticketDraws: { include: { draw: { include: { game: true } } } } },
         }),
-        prisma.tenantSetting.findUnique({
-          where: { tenantId: merchant.tenantId },
-          select: { currency: true },
+        prisma.tenant.findUniqueOrThrow({
+          where: { id: merchant.tenantId },
+          select: { jurisdictionCode: true },
         }),
       ]);
     return {
       businessDate,
       businessName: branding?.businessName ?? "Bolet",
       logoUrl: branding?.logoUrl ?? null,
-      currency: settings?.currency ?? "USD",
+      currency: currencyForOffice(merchant.branch.settings, settings?.jurisdictionCode),
       merchant: {
         id: merchant.id,
         displayName: merchant.displayName,
@@ -167,7 +169,7 @@ export class MerchantsService {
       ...merchant,
       commissionRate: commissionByMerchant.get(merchant.id) ?? null,
       countryCode: officeCountryFromSettings(merchant.branch.settings, tenant.jurisdictionCode),
-      currency: tenantSetting?.currency ?? "USD",
+      currency: currencyForOffice(merchant.branch.settings, tenant.jurisdictionCode, tenantSetting?.currency ?? "USD"),
     }));
   }
   async create(
@@ -184,6 +186,10 @@ export class MerchantsService {
       branchId: string;
     },
   ) {
+    const username = dto.username.trim();
+    const merchantNumber = dto.merchantNumber.trim();
+    if (!username) throw new BadRequestException("INVALID_USERNAME");
+    if (!merchantNumber) throw new BadRequestException("INVALID_MERCHANT_NUMBER");
     const commissionPercentage = merchantCommissionPercentage(dto.commissionPercentage);
     const tenantId = this.tenant(u),
       branch = await prisma.branch.findFirst({
@@ -205,6 +211,12 @@ export class MerchantsService {
       if (dto.countryCode && dto.countryCode.toUpperCase() !== countryCode) {
         throw new BadRequestException("MERCHANT_COUNTRY_MUST_MATCH_BRANCH");
       }
+      const [existingUser, existingMerchant] = await Promise.all([
+        tx.user.findFirst({ where: { tenantId, username }, select: { id: true } }),
+        tx.merchantAccount.findFirst({ where: { tenantId, merchantNumber }, select: { id: true } }),
+      ]);
+      if (existingUser) throw new ConflictException("USERNAME_ALREADY_EXISTS");
+      if (existingMerchant) throw new ConflictException("MERCHANT_NUMBER_ALREADY_EXISTS");
       let role = await tx.role.findFirst({
         where: { tenantId, code: "MERCHANT" },
       });
@@ -230,7 +242,7 @@ export class MerchantsService {
       const user = await tx.user.create({
         data: {
           tenantId,
-          username: dto.username,
+          username,
           email: dto.email || null,
           phone: dto.phone || null,
           passwordHash: hash,
@@ -245,7 +257,7 @@ export class MerchantsService {
           userId: user.id,
           branchId: branch.id,
           displayName: dto.displayName,
-          merchantNumber: dto.merchantNumber,
+          merchantNumber,
           status: "ACTIVE",
         },
       });
@@ -374,7 +386,7 @@ export class MerchantsService {
         },
       });
     });
-    const [updated, savedTenant, savedSetting, savedRule] = await Promise.all([
+    const [updated, savedTenant, savedRule] = await Promise.all([
       prisma.merchantAccount.findFirstOrThrow({
       where: { id, tenantId },
       include: {
@@ -385,10 +397,9 @@ export class MerchantsService {
       },
       }),
       prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } }),
-      prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
       prisma.commissionRule.findFirst({ where: { tenantId, scope: "MERCHANT", scopeId: id, active: true }, orderBy: [{ priority: "desc" }, { startsAt: "desc" }] }),
     ]);
-    return { ...updated, countryCode: officeCountryFromSettings(updated.branch.settings, savedTenant.jurisdictionCode), currency: savedSetting?.currency ?? "USD", commissionRate: savedRule?.percentage ? `${savedRule.percentage.toString()}%` : null };
+    return { ...updated, countryCode: officeCountryFromSettings(updated.branch.settings, savedTenant.jurisdictionCode), currency: currencyForOffice(updated.branch.settings, savedTenant.jurisdictionCode), commissionRate: savedRule?.percentage ? `${savedRule.percentage.toString()}%` : null };
   }
   async disable(u: Principal, id: string) {
     const tenantId = this.tenant(u),
