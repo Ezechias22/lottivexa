@@ -1900,6 +1900,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
         <TenantLotterySettings
           games={lotterySettings}
           offices={offices}
+          countries={COUNTRIES}
           request={request}
           reload={() => load("branding")}
           canEdit={can("settings.edit")}

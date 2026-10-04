@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -104,6 +104,12 @@ class RuleDto {
   @IsDateString() effectiveFrom!: string;
   @IsOptional() @IsDateString() effectiveTo?: string;
 }
+class FreeMaryajSettingsDto {
+  @Matches(/^[A-Za-z]{2}$/) countryCode!: string;
+  @IsNumberString() minimumAmount!: string;
+  @IsInt() @Min(1) @Max(10) freeTicketCount!: number;
+  @IsOptional() @IsNumberString() payoutAmount?: string | null;
+}
 
 @Controller("lottery")
 export class LotteryController {
@@ -116,6 +122,10 @@ export class LotteryController {
   catalogStatus(@CurrentUser() u: Principal, @Param("catalogCode") code: string, @Body() dto: CatalogStatusDto) { return this.service.setCatalogStatus(u, code, dto.enabled); }
   @Get("settings") @RequirePermissions("settings.view")
   settings(@CurrentUser() u: Principal) { return this.service.settings(u); }
+  @Get("free-maryaj-settings") @RequirePermissions("settings.view")
+  freeMaryajSettings(@CurrentUser() u: Principal, @Query("countryCode") countryCode: string) { return this.service.freeMaryajSettings(u, countryCode); }
+  @Put("free-maryaj-settings") @RequirePermissions("settings.edit")
+  updateFreeMaryajSettings(@CurrentUser() u: Principal, @Body() dto: FreeMaryajSettingsDto) { return this.service.updateFreeMaryajSettings(u, dto); }
   @Get("games") @RequirePermissions("tickets.view")
   games(@CurrentUser() u: Principal) { return this.service.games(u); }
   @Post("games") @RequirePermissions("settings.edit")
