@@ -1399,3 +1399,24 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   }
 }
 .merchant-dashboard{display:grid;gap:20px}.dashboard-welcome{border:1px solid #dbe5f1;border-radius:20px;background:radial-gradient(circle at 90% 8%,#d9eaff 0,transparent 26%),linear-gradient(120deg,#fff,#f6f9ff);box-shadow:0 10px 28px #0f25400c;padding:18px 22px}.dashboard-welcome .welcome-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:15px;background:#fff1cc;color:#c98100;font-size:23px}.dashboard-welcome>div:nth-child(2)>span{font-size:17px;font-weight:850;color:#14243c}.dashboard-welcome>div:nth-child(2)>small{display:block;margin-top:4px;color:#718096}.dashboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.dashboard-kpis article{position:relative;min-width:0;overflow:hidden;padding:19px 20px;border:1px solid #e0e8f1;border-radius:18px;background:linear-gradient(145deg,#fff,#fbfdff);box-shadow:0 8px 25px #0f25400a}.dashboard-kpis article:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#2874d0}.dashboard-kpis article.sales:before{background:#158a56}.dashboard-kpis article.tickets:before{background:#2563eb}.dashboard-kpis article.payouts:before{background:#e49a08}.dashboard-kpis article.commission:before{background:#7c3aed}.dashboard-kpis article>span{color:#69788d;font-size:13px;font-weight:750}.dashboard-kpis article>strong{display:block;margin-top:15px;color:#132440;font-size:clamp(20px,2.2vw,29px);line-height:1.1;overflow-wrap:anywhere}.dashboard-kpis article>small{display:block;margin-top:9px;color:#8a97aa;font-size:11px}.dashboard-trend{border:1px solid #e0e8f1;border-radius:20px;background:#fff;box-shadow:0 8px 25px #0f25400a;padding:22px}.dashboard-trend-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.dashboard-trend-heading h2{margin:5px 0 0;color:#172a45;font-size:20px}.trend-period{padding:7px 10px;border-radius:999px;background:#eef4fb;color:#3c587a;font-size:10px;font-weight:850;letter-spacing:.09em}.dashboard-trend-bars{display:flex;align-items:stretch;gap:12px;min-height:190px;margin-top:22px;overflow-x:auto;padding:0 2px 4px}.dashboard-trend-column{display:grid;grid-template-rows:18px minmax(95px,1fr) 20px;align-items:end;justify-items:center;flex:1 0 56px;min-width:46px}.dashboard-trend-value{width:100%;overflow:hidden;color:#718096;font-size:10px;text-align:center;text-overflow:ellipsis;white-space:nowrap}.dashboard-trend-track{display:flex;align-items:flex-end;justify-content:center;width:min(100%,50px);height:100%;overflow:hidden;border-radius:10px 10px 5px 5px;background:linear-gradient(180deg,#f3f7fb,#f7f9fc)}.dashboard-trend-track span{display:block;width:64%;min-height:5px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#54a4ef,#2864c5);box-shadow:0 3px 10px #2563eb2b}.dashboard-trend-column>small{align-self:end;color:#7d8ba0;font-size:10px;text-transform:capitalize}.dashboard-trend-empty{margin:20px 0 0;padding:27px;border:1px dashed #d5dfeb;border-radius:13px;color:#718096;text-align:center}.dashboard-actions{gap:12px}.dashboard-actions>button{min-height:72px;border:1px solid #e0e8f1;border-radius:16px;background:#fff;box-shadow:0 5px 15px #10233f08}.dashboard-actions>button.action-sell{background:linear-gradient(115deg,#17375e,#245b91);color:#fff;border-color:#17375e}.dashboard-lists>.panel,.merchant-reports>.panel,.reports-grid>.panel{border:1px solid #e0e8f1;border-radius:18px;box-shadow:0 8px 25px #0f25400a}.report-filter{border-radius:18px}.report-kpis article{border-radius:16px;box-shadow:0 7px 22px #10233f08}.sales-chart,.game-sales,.draw-sales,.biggest-wins{padding:20px}.sales-chart h3,.game-sales h3,.draw-sales h3,.biggest-wins h3{margin-top:0;color:#172a45}@media(max-width:850px){.dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-trend-bars{min-height:170px}}@media(max-width:520px){.dashboard-kpis{gap:9px}.dashboard-kpis article{padding:15px 14px}.dashboard-kpis article>strong{font-size:20px}.dashboard-welcome{padding:15px;gap:10px}.dashboard-trend{padding:16px}.dashboard-trend-bars{gap:8px}.dashboard-trend-column{flex-basis:48px}.dashboard-trend-value{font-size:9px}}
+
+/* Keep quick-action text readable on the white dashboard cards. */
+.dashboard-actions > button:not(.action-sell) {
+  color: #17324f;
+  background: #fff;
+}
+.dashboard-actions > button:not(.action-sell) small {
+  color: #64748b;
+}
+.dashboard-actions > button:not(.action-sell) > b {
+  background: #eef4ff;
+  color: #2451c7;
+}
+.dashboard-actions > button:not(.action-sell):hover {
+  background: #f6f9ff;
+  border-color: #c8d5e8;
+}
+.dashboard-actions > button:focus-visible {
+  outline: 3px solid #9dc0ff;
+  outline-offset: 2px;
+}
