@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { describeDraw, drawSessionLabel } from "./draw-label";
+import { drawSessionLabel } from "./draw-label";
 import { useI18n } from "./i18n";
 
 type Row = Record<string, any>;
@@ -33,15 +33,52 @@ function shiftDate(date: string, days: number) {
 
 function currencyValue(value: unknown, currency: string, language: string) {
   const amount = Number(value ?? 0);
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : "USD";
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
   try {
     return new Intl.NumberFormat("fr-HT", {
       style: "currency",
-      currency: /^[A-Z]{3}$/.test(currency) ? currency : "USD",
-      maximumFractionDigits: 2,
-    }).format(Number.isFinite(amount) ? amount : 0);
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).format(safeAmount);
   } catch {
-    return `${currency || "USD"} ${(Number.isFinite(amount) ? amount : 0).toFixed(2)}`;
+    const formatted = new Intl.NumberFormat("fr-HT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount);
+    return `${code} ${formatted}`;
   }
+}
+
+function drawScheduleLabel(draw: Row, language: string) {
+  const scheduled = String(draw.drawNumber ?? "").match(/(?:^|[-_])(\d{8})[-_](\d{4})$/);
+  const encodedDate = scheduled ? `${scheduled[1].slice(0, 4)}-${scheduled[1].slice(4, 6)}-${scheduled[1].slice(6, 8)}` : null;
+  const source = encodedDate ? `${encodedDate}T12:00:00Z` : draw.drawDate ?? draw.drawTime;
+  const date = source ? new Date(source) : null;
+  const dateLabel = date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "fr-HT", {
+        timeZone: encodedDate || (draw.drawDate && source === draw.drawDate) ? "UTC" : BUSINESS_ZONE,
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(date)
+    : "";
+  const encodedTime = scheduled?.[2];
+  let timeLabel = "";
+  if (encodedTime) {
+    const hour = Number(encodedTime.slice(0, 2));
+    const minute = Number(encodedTime.slice(2));
+    if (hour < 24 && minute < 60) timeLabel = `${encodedTime.slice(0, 2)}:${encodedTime.slice(2)}`;
+  }
+  if (!timeLabel && draw.drawTime) {
+    const time = new Date(draw.drawTime);
+    if (!Number.isNaN(time.getTime())) {
+      timeLabel = new Intl.DateTimeFormat("en-GB", {
+        timeZone: BUSINESS_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(time);
+    }
+  }
+  return [dateLabel, timeLabel].filter(Boolean).join(" · ");
 }
 
 function dateLabel(value: string | Date, language: string) {
@@ -300,12 +337,7 @@ export default function TenantReports({
   const sessions = (drawReport.byDraw ?? []).map((draw: Row) => ({
     ...draw,
     sessionLabel: drawSessionLabel({ session: draw.session }, language),
-    humanLabel: describeDraw({
-      game: { name: draw.gameName },
-      drawDate: draw.drawDate,
-      resultAt: draw.drawTime,
-      session: draw.session,
-    }, language),
+    scheduleLabel: drawScheduleLabel(draw, language),
   }));
 
   async function loadRange(start: string, end: string) {
@@ -469,7 +501,7 @@ export default function TenantReports({
                 <tr key={draw.drawId}>
                   <td><strong>{draw.gameName || "—"}</strong></td>
                   <td><span className="draw-number-tag">{draw.drawNumber || "—"}</span></td>
-                  <td><span>{draw.humanLabel}</span><small className="tenant-report-subline">{draw.sessionLabel}</small></td>
+                  <td><span>{draw.sessionLabel}</span><small className="tenant-report-subline">{draw.scheduleLabel || draw.drawNumber || "—"}</small></td>
                   <td>{Number(draw.count ?? 0).toLocaleString("fr-HT")}</td>
                   <td className="report-number-cell">{currencyValue(draw.amount, currency, language)}</td>
                 </tr>

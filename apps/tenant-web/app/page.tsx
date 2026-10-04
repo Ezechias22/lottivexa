@@ -85,14 +85,32 @@ function claims(token: string) {
     return { permissions: [] };
   }
 }
-function money(v: any) {
-  return (
-    "$" +
-    new Intl.NumberFormat("fr-HT", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(Number(v ?? 0))
-  );
+function money(v: any, currency = "USD") {
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : "USD";
+  const amount = Number(v ?? 0);
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat("fr-HT", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).format(safeAmount);
+  } catch {
+    return `${code} ${new Intl.NumberFormat("fr-HT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount)}`;
+  }
+}
+
+function currencySymbol(value: unknown) {
+  const code = typeof value === "string" && /^[A-Z]{3}$/.test(value) ? value : "USD";
+  try {
+    return new Intl.NumberFormat("fr-HT", {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).formatToParts(0).find((part) => part.type === "currency")?.value ?? code;
+  } catch {
+    return code;
+  }
 }
 function haitiToday(value = new Date()) {
   const parts = Object.fromEntries(
@@ -146,13 +164,13 @@ function Table({
                   const raw = c[0].split(".").reduce((x: any, k) => x?.[k], r);
                   const value =
                     c[0].toLowerCase() === "currency"
-                      ? "$"
+                      ? currencySymbol(raw)
                       : /(amount|potentialwin|balance|sales|commission|payout|cash|price)/i.test(
                             c[0],
                           ) &&
                           raw != null &&
                           Number.isFinite(Number(raw))
-                        ? money(raw)
+                        ? money(raw, String(r.currency ?? "USD"))
                         : String(raw ?? "—");
                   return <td key={c[0]}>{value}</td>;
                 })}
@@ -183,6 +201,7 @@ export default function TenantConsole() {
     [tabReady, setTabReady] = useState(false),
     [data, setData] = useState<Record<string, any>>({}),
     [features, setFeatures] = useState<string[]>([]),
+    [ticketDetails, setTicketDetails] = useState<Row | null>(null),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const permissions = useMemo<string[]>(
@@ -436,10 +455,14 @@ export default function TenantConsole() {
       await load(tab);
     }
   }
-  async function cancelTicket(ticket: Row) {
+  async function openTicket(ticket: Row) {
+    const detail = await run(() => request(`/tickets/${encodeURIComponent(ticket.ticketNumber)}`));
+    if (detail) setTicketDetails(detail);
+  }
+  async function cancelTicket(ticket: Row, reason: string) {
     if (
       !window.confirm(
-        `Anile tikè ${ticket.ticketNumber}? Dosye finansye a ap rete nan istwa a.`,
+        `Anile definitivman tikè ${ticket.ticketNumber}? Li pap efase nan audit finansye a.`,
       )
     )
       return;
@@ -447,11 +470,15 @@ export default function TenantConsole() {
       () =>
         request(`/tickets/${encodeURIComponent(ticket.ticketNumber)}/cancel`, {
           method: "POST",
-          body: "{}",
+          body: JSON.stringify({ reason }),
         }),
-      "Tikè a anile; dosye a rete nan istwa a.",
+      "Tikè a anile definitivement; dosye audit la rete.",
     );
-    if (result) await load("tickets");
+    if (result) {
+      setTicketDetails(result);
+      await load("tickets");
+      setMessage("Tikè a anile definitivement; dosye audit la rete.");
+    }
   }
   if (!token)
     return (
@@ -590,7 +617,7 @@ export default function TenantConsole() {
         {tab === "manualResults" && <ManualResultsPage draws={current[0] ?? []} request={request} reload={() => load("manualResults")} />}{" "}
         {tab === "results" && <PublishedResults draws={current[0] ?? []} />}{" "}
         {tab === "tickets" && (
-          <Tickets data={current} can={can} onCancel={cancelTicket} />
+          <Tickets data={current} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onCancel={cancelTicket} />
         )}{" "}
         {tab === "finance" && <Finance data={current} submit={submit} />}{" "}
         {tab === "devices" && (
@@ -620,6 +647,15 @@ export default function TenantConsole() {
         )}{" "}
         {tab === "audit" && <Audit data={current} />}
       </main>
+      {ticketDetails && (
+        <TicketDetailsDialog
+          ticket={ticketDetails}
+          currency={data.dashboard?.[0]?.currency ?? "USD"}
+          canCancel={can("tickets.cancel")}
+          onClose={() => setTicketDetails(null)}
+          onCancel={cancelTicket}
+        />
+      )}
     </div>
   );
 }
@@ -680,10 +716,11 @@ function Dashboard({
       return new Intl.NumberFormat(french ? "fr-FR" : "fr-HT", {
         style: "currency",
         currency,
+        currencyDisplay: "narrowSymbol",
         maximumFractionDigits: 2,
       }).format(Number(value ?? 0));
     } catch {
-      return money(value);
+      return money(value, currency);
     }
   };
   const days = (trend.byDay ?? []) as Array<{ day: string; count: number; amount: string }>;
@@ -1295,42 +1332,39 @@ function LegacyLottery({ data: d, submit, request, load, can }: any) {
 function Tickets({
   data: d,
   can,
+  currency,
+  onOpen,
   onCancel,
 }: {
   data: any[];
   can: (permission: string) => boolean;
-  onCancel: (ticket: Row) => void;
+  currency: string;
+  onOpen: (ticket: Row) => void;
+  onCancel: (ticket: Row, reason: string) => void;
 }) {
+  const { language } = useI18n();
   const [tickets = [], draws = []] = d;
+  const rows = tickets.map((ticket: Row) => ({ ...ticket, currency }));
+  const labels = language === "fr"
+    ? { total: "Tickets chargés", draws: "Tirages ouverts", winners: "Gagnants", paid: "Payés", heading: "Tickets de l’entreprise", open: "Ouvrir" }
+    : { total: "Tikè chaje", draws: "Tiraj ouvè", winners: "Gayan", paid: "Peye", heading: "Tikè biznis la", open: "Ouvri" };
   return (
     <>
-      <div className="cards">
+      <div className="tenant-ticket-summary">
+        <article><span>{labels.total}</span><strong>{tickets.length}</strong></article>
         <article>
-          <span>Total loaded</span>
-          <strong>{tickets.length}</strong>
-        </article>
-        <article>
-          <span>Open draws</span>
+          <span>{labels.draws}</span>
           <strong>
             {draws.filter((x: Row) => x.status === "OPEN").length}
           </strong>
         </article>
-        <article>
-          <span>Winners</span>
-          <strong>
-            {tickets.filter((x: Row) => x.status === "WINNER").length}
-          </strong>
-        </article>
-        <article>
-          <span>Paid</span>
-          <strong>
-            {tickets.filter((x: Row) => x.status === "PAID").length}
-          </strong>
-        </article>
+        <article><span>{labels.winners}</span><strong>{tickets.filter((x: Row) => x.status === "WINNER").length}</strong></article>
+        <article><span>{labels.paid}</span><strong>{tickets.filter((x: Row) => x.status === "PAID").length}</strong></article>
       </div>
-      <section className="panel">
+      <section className="panel tenant-ticket-list-panel">
+        <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><span>{tickets.length} / 100</span></div>
         <Table
-          rows={tickets}
+          rows={rows}
           columns={[
             ["ticketNumber", "Ticket"],
             ["status", "Status"],
@@ -1338,22 +1372,76 @@ function Tickets({
             ["potentialWin", "Potential win"],
             ["createdAt", "Date"],
           ]}
-          actions={
-            can("tickets.cancel")
-              ? (ticket) => (
-                  <button
-                    className="danger"
-                    disabled={ticket.status !== "VALID"}
-                    onClick={() => onCancel(ticket)}
-                  >
-                    Anile
-                  </button>
-                )
-              : undefined
-          }
+          actions={(ticket) => (
+            <button className="tenant-ticket-open-button" onClick={() => onOpen(ticket)}>
+              {labels.open}
+            </button>
+          )}
         />
       </section>
     </>
+  );
+}
+
+function TicketDetailsDialog({
+  ticket,
+  currency,
+  canCancel,
+  onClose,
+  onCancel,
+}: {
+  ticket: Row;
+  currency: string;
+  canCancel: boolean;
+  onClose: () => void;
+  onCancel: (ticket: Row, reason: string) => void;
+}) {
+  const { language } = useI18n();
+  const [reason, setReason] = useState("");
+  const french = language === "fr";
+  const draws = (ticket.ticketDraws ?? []).map((item: Row) => item.draw).filter(Boolean);
+  const ticketDraws = draws.length ? draws : ticket.draw ? [ticket.draw] : [];
+  const eligible = ticket.status === "VALID" && !ticket.payout && !ticket.winning;
+  const statusNames: Record<string, { ht: string; fr: string }> = {
+    VALID: { ht: "Valab", fr: "Valide" },
+    WINNER: { ht: "Gayan", fr: "Gagnant" },
+    LOSER: { ht: "Pèdi", fr: "Perdu" },
+    PAID: { ht: "Peye", fr: "Payé" },
+    CANCELLED: { ht: "Anile", fr: "Annulé" },
+    VOID: { ht: "Anile", fr: "Annulé" },
+    PENDING: { ht: "An atant", fr: "En attente" },
+  };
+  return (
+    <div className="ticket-detail-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="ticket-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="tenant-ticket-dialog-title">
+        <header className="ticket-detail-heading">
+          <div><span className="tenant-report-kicker">{french ? "DOSSIER DU TICKET" : "DOSYE TIKÈ A"}</span><h2 id="tenant-ticket-dialog-title">{ticket.ticketNumber}</h2></div>
+          <button className="secondary" onClick={onClose}>{french ? "Fermer" : "Fèmen"}</button>
+        </header>
+        <div className="ticket-detail-summary">
+          <article><small>{french ? "Statut" : "Estati"}</small><strong>{statusNames[ticket.status]?.[french ? "fr" : "ht"] ?? ticket.status}</strong></article>
+          <article><small>{french ? "Montant" : "Montan"}</small><strong>{money(ticket.amount, currency)}</strong></article>
+          <article><small>{french ? "Gain potentiel" : "Gany posib"}</small><strong>{money(ticket.potentialWin, currency)}</strong></article>
+          <article><small>{french ? "Créé le" : "Kreye le"}</small><strong>{ticket.createdAt ? new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", { timeZone: "America/Port-au-Prince", dateStyle: "medium", timeStyle: "short" }).format(new Date(ticket.createdAt)) : "—"}</strong></article>
+        </div>
+        <section className="ticket-detail-section">
+          <h3>{french ? "Lotteries et tirages" : "Lotri ak tiraj"}</h3>
+          {ticketDraws.length ? <div className="ticket-detail-draws">{ticketDraws.map((draw: Row) => <span key={draw.id ?? draw.drawNumber}>{describeDraw(draw, language)}{draw.drawNumber ? ` · ${draw.drawNumber}` : ""}</span>)}</div> : <p>—</p>}
+          <p className="ticket-detail-byline">{ticket.merchant?.displayName ?? "—"}{ticket.merchant?.branch?.name ? ` · ${ticket.merchant.branch.name}` : ""}</p>
+        </section>
+        <section className="ticket-detail-section">
+          <h3>{french ? "Lignes du ticket" : "Liy tikè a"}</h3>
+          <div className="table-wrap"><table><thead><tr><th>{french ? "Type" : "Kalite"}</th><th>{french ? "Sélection" : "Chwa"}</th><th>{french ? "Mise" : "Miz"}</th><th>{french ? "Résultat" : "Rezilta"}</th></tr></thead><tbody>
+            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? (french ? "Gratuit" : "Gratis") : money(line.stake, currency)}</td><td>{line.isWinner ? (french ? "Gagnant" : "Gayan") : (french ? "En attente" : "An atant")}</td></tr>)}
+            {!(ticket.lines ?? []).length && <tr><td colSpan={4}>—</td></tr>}
+          </tbody></table></div>
+        </section>
+        {canCancel && <section className="ticket-cancel-panel">
+          <div><h3>{french ? "Annulation définitive" : "Anilasyon definitif"}</h3><p>{french ? "Le ticket ne pourra plus être utilisé. Son historique financier et d’audit restera conservé." : "Yo pap ka itilize tikè a ankò. Dosye finansye ak audit li ap rete konsève."}</p></div>
+          {eligible ? <><label>{french ? "Motif obligatoire" : "Rezon obligatwa"}<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={240} placeholder={french ? "Expliquez pourquoi vous annulez ce ticket" : "Eksplike poukisa w ap anile tikè sa a"} /></label><button className="danger" disabled={reason.trim().length < 5} onClick={() => onCancel(ticket, reason.trim())}>{french ? "Annuler définitivement" : "Anile definitivement"}</button></> : <p className="ticket-cancel-locked">{french ? "Seuls les tickets valides non payés et sans gain enregistré peuvent être annulés." : "Se tikè ki valab, ki poko peye e ki pa gen gany anrejistre ki ka anile."}</p>}
+        </section>}
+      </section>
+    </div>
   );
 }
 function Finance({ data: d, submit }: any) {
@@ -1793,7 +1881,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               submit(
                 e,
                 "/settings",
-                (x: Row) => ({ ...x, currency: "USD" }),
+                (x: Row) => ({ ...x, currency: String(x.currency ?? "USD").trim().toUpperCase() }),
                 "PUT",
                 "Settings sove.",
               )
@@ -1801,9 +1889,17 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
           >
             <label>
               Currency
-              <select name="currency" defaultValue="USD">
-                <option value="USD">$</option>
-              </select>
+              <input
+                name="currency"
+                defaultValue={s.settings?.currency ?? "USD"}
+                maxLength={3}
+                minLength={3}
+                pattern="[A-Za-z]{3}"
+                title="Antre kòd lajan ISO 4217 la, pa egzanp USD, HTG, EUR oswa CAD."
+                onChange={(event) => { event.currentTarget.value = event.currentTarget.value.toUpperCase(); }}
+                required
+              />
+              <small>Antre kòd ISO 4217 la: USD, HTG, EUR, CAD, DOP, oswa yon lòt kòd 3 lèt.</small>
             </label>
             <label>
               Timezone

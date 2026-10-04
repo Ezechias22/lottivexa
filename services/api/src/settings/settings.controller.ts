@@ -6,7 +6,7 @@ import type { Principal } from '../common/guards/jwt-auth.guard';
 import { SettingsService } from './settings.service';
 
 class SettingsDto {
-  @Length(3, 3) currency!: string;
+  @Length(3, 3) @Matches(/^[A-Za-z]{3}$/) currency!: string;
   @IsString() timezone!: string;
   @IsString() locale!: string;
   @IsString() dateFormat!: string;

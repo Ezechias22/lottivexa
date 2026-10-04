@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../common/decorators/access.decorators';
@@ -32,6 +32,10 @@ class TicketDto {
   @IsOptional() @IsArray() @ArrayMinSize(2) @ArrayMaxSize(2) @ValidateNested({ each: true }) @Type(() => FreeMaryajDto) freeMaryaj?: FreeMaryajDto[];
 }
 
+class TicketCancellationDto {
+  @IsOptional() @IsString() @MaxLength(240) reason?: string;
+}
+
 @Controller('tickets')
 export class TicketsController {
   constructor(private service: TicketsService, private multi: MultiTicketService) {}
@@ -40,7 +44,7 @@ export class TicketsController {
   create(@CurrentUser() user: Principal, @Body() dto: TicketDto) { return dto.draws?.length ? this.multi.create(user, dto) : this.service.create(user, dto as any); }
 
   @Post(':reference/cancel') @RequirePermissions('tickets.cancel')
-  cancel(@CurrentUser() user: Principal, @Param('reference') reference: string) { return this.service.cancel(user, reference); }
+  cancel(@CurrentUser() user: Principal, @Param('reference') reference: string, @Body() body?: TicketCancellationDto) { return this.service.cancel(user, reference, body); }
 
   @Get(':reference') @RequirePermissions('tickets.view')
   get(@CurrentUser() user: Principal, @Param('reference') reference: string) { return this.service.get(user, reference); }

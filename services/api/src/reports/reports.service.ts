@@ -4,22 +4,9 @@ import type { Principal } from '../common/guards/jwt-auth.guard';
 import { reportRange } from './report-policy';
 import { buildSalesPdf } from './pdf-report';
 import { ticketLineFlags } from '../tickets/ticket-line-flags';
+import { groupTicketSalesByDraw, reportDrawSession } from './report-draw-policy';
 
 const zone = 'America/Port-au-Prince';
-type Session = 'MORNING' | 'MIDDAY' | 'EVENING' | 'NIGHT' | 'UNKNOWN';
-
-function sessionFor(date?: Date | null): Session {
-  if (!date) return 'UNKNOWN';
-  const hour = Number(new Intl.DateTimeFormat('en-GB', {
-    timeZone: zone,
-    hour: '2-digit',
-    hourCycle: 'h23',
-  }).format(date));
-  if (hour < 12) return 'MORNING';
-  if (hour < 16) return 'MIDDAY';
-  if (hour < 21) return 'EVENING';
-  return 'NIGHT';
-}
 
 @Injectable()
 export class ReportsService {
@@ -98,7 +85,10 @@ export class ReportsService {
         merchantName: row.ticket.merchant.displayName,
         gameName: row.ticket.draw.game.name,
         drawNumber: row.ticket.draw.drawNumber,
-        session: sessionFor(row.ticket.draw.resultAt ?? row.ticket.draw.closesAt ?? row.ticket.draw.opensAt),
+        session: reportDrawSession(
+          row.ticket.draw.resultAt ?? row.ticket.draw.closesAt ?? row.ticket.draw.opensAt,
+          row.ticket.draw.drawNumber,
+        ),
         amount: row.winningAmount.toString(),
         draws: row.ticket.ticketDraws.map(item => ({ drawNumber: item.draw.drawNumber, drawDate: item.draw.drawDate, gameName: item.draw.game.name })),
         lines: row.ticket.lines.map(line => ({ selectionKey: line.selectionKey, drawId: line.drawId, drawNumber: line.draw?.drawNumber ?? '', drawGame: line.draw?.game.name ?? '', ...ticketLineFlags(row.ticket.events, line.id), betName: line.betType.name })),
@@ -114,42 +104,41 @@ export class ReportsService {
     const range = this.range(from, to);
     const merchant = await prisma.merchantAccount.findFirst({ where: { tenantId, userId: u.sub, status: 'ACTIVE' }, select: { id: true } });
     const tickets = await prisma.ticket.findMany({
-      where: { tenantId, createdAt: range, ...(merchant ? { merchantId: merchant.id } : {}) },
+      where: {
+        tenantId,
+        createdAt: range,
+        status: { notIn: ['CANCELLED', 'VOID'] },
+        ...(merchant ? { merchantId: merchant.id } : {}),
+      },
       select: {
         drawId: true,
         amount: true,
-        lines: { select: { drawId: true, stake: true } },
+        lines: { select: { id: true, drawId: true, stake: true } },
+        events: { select: { id: true, type: true, metadata: true, createdAt: true } },
+        draw: {
+          select: {
+            id: true,
+            drawNumber: true,
+            drawDate: true,
+            resultAt: true,
+            opensAt: true,
+            closesAt: true,
+            game: { select: { name: true, code: true } },
+          },
+        },
         ticketDraws: { select: { drawId: true, draw: { select: { id: true, drawNumber: true, drawDate: true, resultAt: true, opensAt: true, closesAt: true, game: { select: { name: true, code: true } } } } } },
       },
     });
-    const grouped = new Map<string, { count: number; amount: Prisma.Decimal; draw: any }>();
-    for (const ticket of tickets) {
-      const selected = ticket.ticketDraws.length ? ticket.ticketDraws : [{ drawId: ticket.drawId, draw: null }];
-      for (const item of selected) {
-        const lines = ticket.lines.filter(line => (line.drawId ?? ticket.drawId) === item.drawId);
-        const amount = lines.length ? lines.reduce((sum, line) => sum.add(line.stake), new Prisma.Decimal(0)) : new Prisma.Decimal(ticket.amount);
-        const current = grouped.get(item.drawId);
-        if (current) { current.count += 1; current.amount = current.amount.add(amount); }
-        else grouped.set(item.drawId, { count: 1, amount, draw: item.draw });
-      }
-    }
     return {
       period: { from: range.gte, to: range.lte },
-      byDraw: [...grouped.entries()].map(([drawId, item]) => {
-        const draw = item.draw;
-        const date = draw?.resultAt ?? draw?.closesAt ?? draw?.opensAt;
-        return {
-          drawId,
-          drawNumber: draw?.drawNumber ?? '',
-          gameName: draw?.game.name ?? '',
-          gameCode: draw?.game.code ?? '',
-          drawDate: draw?.drawDate,
-          drawTime: date,
-          session: sessionFor(date),
-          count: item.count,
-          amount: item.amount.toString(),
-        };
-      }).sort((a, b) => (a.drawDate?.getTime() ?? 0) - (b.drawDate?.getTime() ?? 0) || a.gameName.localeCompare(b.gameName) || a.session.localeCompare(b.session)),
+      byDraw: groupTicketSalesByDraw(tickets.map(ticket => ({
+        ...ticket,
+        lines: ticket.lines.map(line => ({
+          drawId: line.drawId,
+          stake: line.stake,
+          isPromotional: ticketLineFlags(ticket.events, line.id).isPromotional,
+        })),
+      }))),
     };
   }
 

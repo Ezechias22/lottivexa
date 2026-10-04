@@ -3,7 +3,8 @@ type DrawLine = {
   drawNumber?: string;
   gameName?: string;
   gameCode?: string;
-  drawDate?: Date | string;
+  drawDate?: Date | string | null;
+  drawTime?: Date | string | null;
   session?: string;
   count?: number;
   amount?: string;
@@ -67,6 +68,7 @@ function pdfSafe(value: unknown) {
     .replace(/[\u201c\u201d]/g, '"')
     .replace(/\u2022/g, '-')
     .replace(/\u00a0/g, ' ')
+    .replace(/\u202f/g, ' ')
     .replace(/[^\x20-\xff]/g, '')
     .replace(/\\/g, '\\\\')
     .replace(/\(/g, '\\(')
@@ -160,10 +162,37 @@ function formatGeneratedAt() {
 function amount(value: unknown, currency: string) {
   const number = Number(value ?? 0);
   const code = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
-  return code + ' ' + new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  return new Intl.NumberFormat('fr-HT', {
+    style: 'currency',
+    currency: code,
+    currencyDisplay: 'narrowSymbol',
   }).format(Number.isFinite(number) ? number : 0);
+}
+
+function drawTimeLabel(row: DrawLine) {
+  const encodedTime = row.drawNumber?.match(/(?:^|[-_])(\d{4})$/)?.[1];
+  if (encodedTime) {
+    const hour = Number(encodedTime.slice(0, 2));
+    const minute = Number(encodedTime.slice(2));
+    if (hour < 24 && minute < 60) return `${encodedTime.slice(0, 2)}:${encodedTime.slice(2)}`;
+  }
+  if (!row.drawTime) return '';
+  const date = safeDate(row.drawTime);
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
+function drawDateLabel(row: DrawLine) {
+  const encodedDate = row.drawNumber?.match(/(?:^|[-_])(\d{8})[-_](\d{4})$/)?.[1];
+  if (encodedDate) {
+    const year = encodedDate.slice(0, 4), month = encodedDate.slice(4, 6), day = encodedDate.slice(6, 8);
+    return formatDay(`${year}-${month}-${day}`);
+  }
+  return row.drawDate ? formatDate(row.drawDate) : '—';
 }
 
 function count(value: unknown) {
@@ -377,7 +406,7 @@ export function buildSalesPdf(report: SalesReport, businessName: string, currenc
     ]));
   table('Vant pa tiraj', ['Dat / sesyon', 'Lotri ak tiraj', 'Tikè', 'Vant'], [108, 190, 55, CONTENT_WIDTH - 353],
     (report.byDraw ?? []).map((row) => [
-      (row.drawDate ? formatDate(row.drawDate) : '—') + ' / ' + sessionName(row.session),
+      drawDateLabel(row) + ' / ' + sessionName(row.session) + (drawTimeLabel(row) ? ' ' + drawTimeLabel(row) : ''),
       (row.gameCode ? row.gameCode + '  ' : '') + (row.gameName ?? '') + (row.drawNumber ? ' / ' + row.drawNumber : ''),
       count(row.count),
       amount(row.amount, currency),

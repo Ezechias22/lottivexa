@@ -11,7 +11,8 @@ type ReportData = {
   subscriptionStatus?: StatusRow[];
   planDistribution?: PlanRow[];
   subscriptionRevenue?: number | string;
-  platformSales?: { tickets?: number | string; amount?: number | string };
+  subscriptionRevenueByCurrency?: Array<{ currency: string; amount: unknown; payments?: number }>;
+  platformSales?: { tickets?: number | string; amount?: number | string; byCurrency?: Array<{ currency: string; amount: unknown; tickets?: number }> };
 };
 
 const numberValue = (value: unknown) => {
@@ -30,8 +31,18 @@ const activeRows = (rows: StatusRow[] = []) =>
 const integer = (value: unknown) =>
   new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(numberValue(value));
 
-const money = (value: unknown) =>
-  '$' + new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numberValue(value));
+const money = (value: unknown, currency = 'USD') => {
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
+  try {
+    return new Intl.NumberFormat('fr-HT', { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).format(numberValue(value));
+  } catch {
+    return code + ' ' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numberValue(value));
+  }
+};
+
+function currencyTotals(rows: Array<{ currency: string; amount: unknown; tickets?: number; payments?: number }> = []) {
+  return rows.length ? <div className={styles.currencyTotals}>{rows.map((row) => <span key={row.currency}><b>{money(row.amount, row.currency)}</b><small>{row.currency}</small></span>)}</div> : null;
+}
 
 const statusLabel = (status = '') => {
   const labels: Record<string, string> = {
@@ -93,9 +104,9 @@ export default function ReportsDashboard({ data, plans = [] }: { data: ReportDat
   const cards = [
     { label: 'Kliyan aktif', value: integer(activeRows(tenants)), tone: 'blue' },
     { label: 'Abonnman aktif', value: integer(activeRows(subscriptions)), tone: 'green' },
-    { label: 'Revni abonnman', value: money(data.subscriptionRevenue), tone: 'gold' },
+    { label: 'Revni abonnman', value: currencyTotals(data.subscriptionRevenueByCurrency) ?? money(data.subscriptionRevenue), tone: 'gold' },
     { label: 'Tikè vann', value: integer(data.platformSales?.tickets), tone: 'violet' },
-    { label: 'Volim vant', value: money(data.platformSales?.amount), tone: 'navy' },
+    { label: 'Volim vant', value: currencyTotals(data.platformSales?.byCurrency) ?? money(data.platformSales?.amount), tone: 'navy' },
   ];
 
   return (

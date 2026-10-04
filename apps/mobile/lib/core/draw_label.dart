@@ -12,17 +12,6 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
       session = french ? 'Nuit' : 'Swa';
   }
   if (session == null) {
-    final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'];
-    final parsed = source == null ? null : DateTime.tryParse('$source');
-    final date = parsed == null ? null : _haitiTime(parsed);
-    if (date != null) {
-      session = date.hour < 12 ? (french ? 'Matin' : 'Maten')
-          : date.hour < 16 ? 'Midi'
-          : date.hour < 21 ? (french ? 'Soir' : 'Swa')
-          : (french ? 'Nuit' : 'Swa');
-    }
-  }
-  if (session == null) {
     final code = '${draw['drawNumber'] ?? ''}';
     final time = RegExp(r'(?:-|_)(\d{4})$').firstMatch(code)?.group(1);
     final hour = time == null ? null : int.tryParse(time.substring(0, 2));
@@ -34,6 +23,17 @@ String drawSession(Map<String, dynamic> draw, {bool french = false}) {
           : (french ? 'Nuit' : 'Swa');
     }
   }
+  if (session == null) {
+    final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'];
+    final parsed = source == null ? null : DateTime.tryParse('$source');
+    final date = parsed == null ? null : _haitiTime(parsed);
+    if (date != null) {
+      session = date.hour < 12 ? (french ? 'Matin' : 'Maten')
+          : date.hour < 16 ? 'Midi'
+          : date.hour < 21 ? (french ? 'Soir' : 'Swa')
+          : (french ? 'Nuit' : 'Lannuit');
+    }
+  }
   if (session == null) return french ? 'Séance à confirmer' : 'Sesyon pou verifye';
   return session;
 }
@@ -42,6 +42,18 @@ String merchantDrawLabel(Map<String, dynamic> draw, {bool french = false}) {
   final game = draw['game'] is Map
       ? '${draw['game']['name'] ?? ''}'
       : '${draw['gameName'] ?? ''}';
+  final scheduled = RegExp(r'(?:-|_)(\d{8})-(\d{4})$').firstMatch('${draw['drawNumber'] ?? ''}');
+  if (scheduled != null) {
+    final dateCode = scheduled.group(1)!;
+    final hour = int.tryParse(scheduled.group(2)!.substring(0, 2));
+    final minute = int.tryParse(scheduled.group(2)!.substring(2));
+    final month = int.tryParse(dateCode.substring(4, 6)), day = int.tryParse(dateCode.substring(6, 8));
+    if (month != null && day != null && hour != null && minute != null && month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60) {
+      final dateLabel = '${day.toString().padLeft(2, '0')}/${month.toString().padLeft(2, '0')}/${dateCode.substring(0, 4)}';
+      final timeLabel = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+      return [if (game.trim().isNotEmpty) game, drawSession(draw, french: french), '$dateLabel $timeLabel'].join(' ');
+    }
+  }
   final source = draw['resultAt'] ?? draw['drawTime'] ?? draw['closesAt'] ?? draw['opensAt'] ?? draw['drawDate'];
   final parsed = source == null ? null : DateTime.tryParse('$source');
   final date = parsed == null ? null : _haitiTime(parsed);

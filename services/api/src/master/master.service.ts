@@ -2,7 +2,25 @@ import { Injectable } from "@nestjs/common";
 import { access, statfs } from "node:fs/promises";
 import { constants } from "node:fs";
 import { redisReady } from "../health/redis-health";
-import { prisma } from "@lottivexa/database";
+import { Prisma, prisma } from "@lottivexa/database";
+
+function salesByCurrency(
+  rows: Array<{ tenantId: string; _count: { _all: number }; _sum: { amount: Prisma.Decimal | null } }>,
+  currencyByTenant: Map<string, string>,
+) {
+  const totals = new Map<string, { tickets: number; amount: Prisma.Decimal }>();
+  for (const row of rows) {
+    const currency = currencyByTenant.get(row.tenantId) ?? "USD";
+    const current = totals.get(currency) ?? { tickets: 0, amount: new Prisma.Decimal(0) };
+    current.tickets += row._count._all;
+    current.amount = current.amount.add(row._sum.amount ?? new Prisma.Decimal(0));
+    totals.set(currency, current);
+  }
+  return [...totals.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([currency, value]) => ({ currency, tickets: value.tickets, amount: value.amount.toString() }));
+}
+
 @Injectable()
 export class MasterService {
   async systemHealth() {
@@ -73,8 +91,8 @@ export class MasterService {
       subscriptions,
       merchants,
       branches,
-      tickets,
-      sales,
+      tenantSales,
+      tenantCurrencies,
       failedPayments,
     ] = await Promise.all([
       prisma.tenant.count(),
@@ -82,8 +100,13 @@ export class MasterService {
       prisma.subscription.count({ where: { status: "ACTIVE" } }),
       prisma.merchantAccount.count({ where: { status: "ACTIVE" } }),
       prisma.branch.count({ where: { status: "ACTIVE" } }),
-      prisma.ticket.count(),
-      prisma.ticket.aggregate({ _sum: { amount: true } }),
+      prisma.ticket.groupBy({
+        by: ["tenantId"],
+        where: { status: { notIn: ["CANCELLED", "VOID"] } },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.tenantSetting.findMany({ select: { tenantId: true, currency: true } }),
       prisma.subscriptionPayment.count({ where: { status: "FAILED" } }),
     ]);
     return {
@@ -92,8 +115,8 @@ export class MasterService {
       activeSubscriptions: subscriptions,
       merchants,
       branches,
-      tickets,
-      totalSales: sales._sum.amount?.toString() ?? "0",
+      tickets: tenantSales.reduce((sum, row) => sum + row._count._all, 0),
+      salesByCurrency: salesByCurrency(tenantSales, new Map<string, string>(tenantCurrencies.map((row) => [row.tenantId, row.currency] as const))),
       failedPayments,
     };
   }
@@ -102,8 +125,9 @@ export class MasterService {
       tenantStatus,
       subscriptionStatus,
       planDistribution,
-      revenue,
-      platformSales,
+      revenueByCurrency,
+      tenantSales,
+      tenantCurrencies,
     ] = await Promise.all([
       prisma.tenant.groupBy({
         by: ["status"],
@@ -120,14 +144,20 @@ export class MasterService {
         orderBy: { planId: "asc" },
         _count: { _all: true },
       }),
-      prisma.subscriptionPayment.aggregate({
+      prisma.subscriptionPayment.groupBy({
+        by: ["currency"],
         where: { status: "VERIFIED" },
-        _sum: { amount: true },
-      }),
-      prisma.ticket.aggregate({
+        orderBy: { currency: "asc" },
         _count: { _all: true },
         _sum: { amount: true },
       }),
+      prisma.ticket.groupBy({
+        by: ["tenantId"],
+        where: { status: { notIn: ["CANCELLED", "VOID"] } },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      prisma.tenantSetting.findMany({ select: { tenantId: true, currency: true } }),
     ]);
     return {
       tenantStatus: tenantStatus.map((x) => ({
@@ -142,10 +172,14 @@ export class MasterService {
         planId: x.planId,
         count: x._count._all,
       })),
-      subscriptionRevenue: revenue._sum.amount?.toString() ?? "0",
+      subscriptionRevenueByCurrency: revenueByCurrency.map((row) => ({
+        currency: row.currency,
+        payments: row._count._all,
+        amount: row._sum.amount?.toString() ?? "0",
+      })),
       platformSales: {
-        tickets: platformSales._count._all,
-        amount: platformSales._sum.amount?.toString() ?? "0",
+        tickets: tenantSales.reduce((sum, row) => sum + row._count._all, 0),
+        byCurrency: salesByCurrency(tenantSales, new Map<string, string>(tenantCurrencies.map((row) => [row.tenantId, row.currency] as const))),
       },
     };
   }

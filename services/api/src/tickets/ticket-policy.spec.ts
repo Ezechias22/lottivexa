@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cancellationDeadline, deriveFreeMaryajSelections, isTicketCancellationAllowed, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
+import { cancellationDeadline, deriveFreeMaryajSelections, isTenantCancellationEligible, isTicketCancellationAllowed, isWinningSelection, normalizeSelection, priceLines, resultWinningKeys, winningSelectionCount } from './ticket-policy';
 
 const line = { betTypeId: 'bet-1', selection: ['12'], stake: '1.25', odds: '20.5', selectionCount: 1, numberMin: 0, numberMax: 99, allowRepeats: true };
 
@@ -49,6 +49,13 @@ describe('selection formatting and cancellation', () => {
     const deadline=new Date('2026-01-01T00:01:00Z');
     expect(isTicketCancellationAllowed(new Date('2026-01-01T00:00:59.999Z'),deadline)).toBe(true);
     expect(isTicketCancellationAllowed(deadline,deadline)).toBe(false);
+  });
+  it('allows tenant cancellation only for unresolved, unpaid tickets', () => {
+    expect(isTenantCancellationEligible('VALID', false, false)).toBe(true);
+    expect(isTenantCancellationEligible('VALID', true, false)).toBe(false);
+    expect(isTenantCancellationEligible('VALID', false, true)).toBe(false);
+    expect(isTenantCancellationEligible('WINNER', false, false)).toBe(false);
+    expect(isTenantCancellationEligible('PAID', false, false)).toBe(false);
   });
 });
 

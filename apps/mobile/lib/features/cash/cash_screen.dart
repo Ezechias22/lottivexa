@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/formatters/currency_format.dart';
 
 class CashScreen extends StatefulWidget {
   const CashScreen({super.key, required this.api});
@@ -14,6 +15,7 @@ class _State extends State<CashScreen> {
   final amount = TextEditingController();
   String? message;
   bool busy = false;
+  String currency = 'USD';
 
   @override
   void initState() {
@@ -25,6 +27,10 @@ class _State extends State<CashScreen> {
     try {
       final response = await widget.api.dio
           .get<Map<String, dynamic>?>('/api/v1/cash/session/current');
+      try {
+        final dashboard = await widget.api.dio.get<Map<String, dynamic>>('/api/v1/merchants/me/dashboard');
+        currency = '${dashboard.data?['currency'] ?? currency}';
+      } catch (_) {}
       if (mounted) {
         setState(() {
           session = response.data;
@@ -72,7 +78,7 @@ class _State extends State<CashScreen> {
                     : 'Shift ${session!['status']}'),
                 subtitle: session == null
                     ? null
-                    : Text('Opening cash: ' + r'$' + '${session!['openingCash']}'),
+                    : Text('Opening cash: ${formatCurrency(session!['openingCash'], currency)}'),
               ),
             ),
             TextField(
@@ -82,7 +88,7 @@ class _State extends State<CashScreen> {
               decoration: InputDecoration(
                 labelText:
                     session == null ? 'Opening cash' : 'Actual closing cash',
-                prefixText: r'$ ',
+                prefixText: '${narrowCurrencySymbol(currency)} ',
                 border: const OutlineInputBorder(),
               ),
             ),

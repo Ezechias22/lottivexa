@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/draw_label.dart';
 import '../../core/mobile_runtime.dart';
+import '../../core/formatters/currency_format.dart';
 
 bool ticketLineWon(dynamic raw) {
   if (raw is! Map) return false;
@@ -46,6 +47,7 @@ class _TicketState extends State<TicketSearchScreen> {
   Map<String, dynamic>? ticket;
   String? message;
   bool busy = false;
+  String currency = 'USD';
 
   @override void initState() { super.initState(); load(); }
   @override void dispose() { reference.dispose(); super.dispose(); }
@@ -54,7 +56,12 @@ class _TicketState extends State<TicketSearchScreen> {
     setState(() => busy = true);
     try {
       final response = await widget.runtime.api.dio.get<List<dynamic>>('/api/v1/tickets');
-      if (mounted) setState(() { rows = response.data ?? []; message = null; });
+      try {
+        final dashboard = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/merchants/me/dashboard');
+        currency = '${dashboard.data?['currency'] ?? currency}';
+      } catch (_) {}
+      final loaded = (response.data ?? []).map((raw) => <String, dynamic>{...Map<String, dynamic>.from(raw as Map), 'currency': currency}).toList();
+      if (mounted) setState(() { rows = loaded; message = null; });
     } catch (_) { if (mounted) setState(() => message = 'Lis tikè yo pa disponib.'); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -65,7 +72,7 @@ class _TicketState extends State<TicketSearchScreen> {
     setState(() => busy = true);
     try {
       final response = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/tickets/${Uri.encodeComponent(ref)}');
-      if (mounted) setState(() { ticket = response.data; reference.text = ref; message = null; });
+      if (mounted) setState(() { ticket = {...response.data!, 'currency': currency}; reference.text = ref; message = null; });
     } catch (_) { if (mounted) setState(() { ticket = null; message = 'Tikè a pa jwenn oswa ou pa gen aksè.'; }); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -85,7 +92,7 @@ class _TicketState extends State<TicketSearchScreen> {
   }
 
   String statusLabel(dynamic value) => const {'PENDING':'ANNATANT','VALID':'VALID','WINNER':'GENYEN','LOSER':'PÈDI','CANCELLED':'ANILE','VOID':'ANILE NÈT','PAID':'PEYE','EXPIRED':'EKSPIRE'}['$value'] ?? '$value';
-  String _money(dynamic value) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
+  String _money(dynamic value, [dynamic code]) => formatCurrency(value, code ?? currency);
   String _displayTicketStatus(Map<String, dynamic> value) {
     final raw = '${value['status'] ?? 'VALID'}';
     if (value['payout'] != null || raw == 'PAID') return 'PAID';
@@ -142,7 +149,7 @@ class _TicketState extends State<TicketSearchScreen> {
           leading: Icon(Icons.confirmation_number, color: statusColor(context, displayStatus)),
           title: Text('${row['ticketNumber']}'),
           subtitle: Text([label, if (draw.isNotEmpty) draw, '${row['createdAt']}'].join(' · ')),
-          trailing: Text(_money(row['amount']), style: const TextStyle(fontWeight: FontWeight.bold)),
+          trailing: Text(_money(row['amount'], row['currency']), style: const TextStyle(fontWeight: FontWeight.bold)),
           onTap: () => search('${row['ticketNumber']}'),
         ));
       }),
@@ -160,7 +167,7 @@ class TicketDetails extends StatelessWidget {
   final VoidCallback onPrint;
   final VoidCallback? onPay;
 
-  String _money(dynamic value) => r'$' + (double.tryParse('$value') ?? 0).toStringAsFixed(2);
+  String _money(dynamic value) => formatCurrency(value, ticket['currency'] ?? 'USD');
 
   @override Widget build(BuildContext context) {
     final lines = ticket['lines'] as List<dynamic>? ?? [];

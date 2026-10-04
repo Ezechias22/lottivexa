@@ -18,7 +18,18 @@ function shiftDay(value: string, days: number) {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 function money(value: unknown, currency: string) {
-  return '$' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
+  const code = /^[A-Z]{3}$/.test(currency) ? currency : 'USD';
+  const amount = Number(value ?? 0);
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat('fr-HT', {
+      style: 'currency',
+      currency: code,
+      currencyDisplay: 'narrowSymbol',
+    }).format(safeAmount);
+  } catch {
+    return code + ' ' + new Intl.NumberFormat('fr-HT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount);
+  }
 }
 function displayDay(value: string, language: 'ht' | 'fr') {
   const date = new Date(value + 'T12:00:00Z');
@@ -75,8 +86,12 @@ export default function MerchantReports({ request }: { request: Request }) {
   const chartDaily: Row[] = [];
   for (let day = chartStart; day <= to; day = shiftDay(day, 1)) chartDaily.push(dailyByDate.get(day) ?? { day, amount: 0, count: 0 });
   const maxSales = Math.max(1, ...chartDaily.map((row) => Number(row.amount ?? 0)));
-  const net = Number(sales?.tickets?.sales ?? 0) - Number(sales?.payouts?.amount ?? 0);
   const accounting = sales?.accounting ?? {};
+  const net = Number(accounting.netSales ?? (
+    Number(sales?.tickets?.sales ?? 0)
+    - Number(sales?.payouts?.amount ?? 0)
+    - Number(sales?.commission ?? 0)
+  ));
   const biggestWins: Row[] = sales?.biggestWins ?? [];
 
   return <section className="merchant-reports">

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../draw_label.dart';
+import '../formatters/currency_format.dart';
 
 class EscPosEncoder {
   String plain(Map<String, dynamic> ticket) {
@@ -10,7 +11,7 @@ class EscPosEncoder {
     final french = ticket['language'] == 'fr';
     String tr(String ht, String fr) => french ? fr : ht;
     final game = ticket['gameName'] ?? ticket['game']?['name'] ?? 'Lotri';
-    final currency = _currency(ticket['currency']);
+    final currency = normalizeCurrencyCode(ticket['currency']);
     final branch = _map(ticket['merchant']?['branch']);
     final date = _date(ticket['createdAt']);
     final winning = _map(ticket['winning']);
@@ -39,10 +40,10 @@ class EscPosEncoder {
     }
     out
       ..writeln('--------------------------------')
-      ..writeln('TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}')
+      ..writeln('TOTAL: ${formatCurrency(ticket['amount'] ?? ticket['totalAmount'] ?? 0, currency)}')
       ..writeln('${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      out.writeln('${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
+      out.writeln('${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: ${formatCurrency(winning['winningAmount'], currency)}');
     }
     out
       ..writeln('--------------------------------')
@@ -53,7 +54,7 @@ class EscPosEncoder {
 
   Uint8List ticket(Map<String, dynamic> ticket) {
     final out = BytesBuilder();
-    final currency = _currency(ticket['currency']);
+    final currency = normalizeCurrencyCode(ticket['currency']);
     final ticketNumber = ticket['ticketNumber'] ?? ticket['id'] ?? '';
     out.add([0x1b, 0x40, 0x1b, 0x61, 1, 0x1b, 0x45, 1]);
     final businessName = _requiredName(ticket);
@@ -82,11 +83,11 @@ class EscPosEncoder {
       if (winCount > 1) _line(out, '${tr('DEKABÈS', 'DÉKABÈS')} × $winCount');
     }
     _line(out, '--------------------------------');
-    _line(out, 'TOTAL: $currency${ticket['amount'] ?? ticket['totalAmount'] ?? ''}');
+    _line(out, 'TOTAL: ${formatCurrency(ticket['amount'] ?? ticket['totalAmount'] ?? 0, currency)}');
     _line(out, '${tr('ESTATI', 'STATUT')}: ${_status(ticket['status'], french)}');
     final winning = _map(ticket['winning']);
     if ((double.tryParse('${winning['winningAmount'] ?? 0}') ?? 0) > 0) {
-      _line(out, '${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: $currency${winning['winningAmount']}');
+      _line(out, '${tr('GEN KONFIME', 'GAIN CONFIRMÉ')}: ${formatCurrency(winning['winningAmount'], currency)}');
     }
     _line(out, _date(ticket['createdAt']));
     final code = ticket['ticketNumber']?.toString();
@@ -133,7 +134,6 @@ class EscPosEncoder {
   }
 
   Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
-  String _currency(dynamic _) => r'$';
   String _compactLine(Map<String, dynamic> line, String selection, String option) {
     final betType = line['betType'];
     final raw = (betType is Map ? betType['code'] : line['betTypeName'] ?? betType ?? '').toString().toUpperCase();
@@ -143,7 +143,7 @@ class EscPosEncoder {
 
   String _receiptRow(Map<String, dynamic> line, String selection, String option, String currency, String free) {
     final left = _compactLine(line, selection, option);
-    final price = line['isPromotional'] == true ? free : currency + (line['stake'] ?? '').toString();
+    final price = line['isPromotional'] == true ? free : formatCurrency(line['stake'], currency);
     const width = 32;
     if (price.length >= width - 2) return '$left\n${price.padLeft(width)}';
     final firstWidth = width - price.length;

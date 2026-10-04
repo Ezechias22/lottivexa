@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/mobile_runtime.dart';
 import '../../core/draw_label.dart';
+import '../../core/formatters/currency_format.dart';
 
 class PosLine {
   PosLine({required this.number, required this.betTypeId, required this.betName, this.position, required this.stake, this.drawId});
@@ -28,7 +29,6 @@ class _NewTicketState extends State<NewTicketScreen> {
   final List<PosLine> lines = [];
   String? drawId, message;
   String currency = 'USD';
-  String get currencyMark => r'$';
   bool busy = false;
   final Set<int> selectedPositions = {1};
   bool usingOfflineCatalog = false;
@@ -298,7 +298,7 @@ class _NewTicketState extends State<NewTicketScreen> {
       String? printWarning;
       try { await widget.runtime.printer.queueConfirmedTicket(ticket); }
       catch (_) { printWarning = 'Tikè a vann, men fich la pa enprime. Verifye non biznis la epi itilize Re-enprime; pa vann li ankò.'; }
-      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ' + r'$' + '${ticket['amount']}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
+      if (mounted) {setState(() { lines.clear(); message = printWarning ?? 'Tikè ${ticket['ticketNumber']} kreye avèk siksè.'; });await showDialog<void>(context:context,builder:(context)=>AlertDialog(title:Text('Tikè ${ticket['ticketNumber']}'),content:Column(mainAxisSize:MainAxisSize.min,children:[Chip(label:Text('${ticket['status']??'VALID'}')),if('${ticket['qrCode']??''}'.isNotEmpty)QrImageView(data:'${ticket['qrCode']}',size:190),Text('Total: ${formatCurrency(ticket['amount'], currency)}'),if(printWarning!=null)Text(printWarning)]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('FÈMEN')),FilledButton.icon(onPressed:()async{try{await widget.runtime.printer.queueConfirmedTicket(ticket);}catch(_){if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enpresyon pa disponib. Tikè a deja vann; pa vann li ankò.')));}},icon:const Icon(Icons.print),label:const Text('ENPRIME'))]));}
     } on DioException catch (error) {
       if (error.response == null && !usingOfflineCatalog) _restoreOfflineCatalog();
       if (error.response == null && freeMaryaj.isEmpty && widget.runtime.deviceId?.isNotEmpty == true && widget.runtime.session.tenantId != null && widget.runtime.session.hasPermission('tickets.create') && usingOfflineCatalog) {
@@ -341,7 +341,7 @@ class _NewTicketState extends State<NewTicketScreen> {
       child: Row(children: [
         Expanded(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('TOTAL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-          Text('$currencyMark${total.toStringAsFixed(2)}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(formatCurrency(total, currency), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
         ])),
         const SizedBox(width: 12),
         FilledButton.icon(onPressed: busy ? null : sell, icon: const Icon(Icons.print), label: Text(busy ? 'Validasyon…' : 'VANN & ENPRIME')),

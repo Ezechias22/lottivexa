@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/draw_label.dart';
 import '../../core/localization/app_language.dart';
 import '../../core/network/api_client.dart';
+import '../../core/formatters/currency_format.dart';
 
 DateTime _haitiNow() => DateTime.now().toUtc().subtract(const Duration(hours: 4));
 
@@ -26,7 +27,7 @@ class _ReportsState extends State<ReportsScreen> {
     from = to.subtract(const Duration(days: 6)); load();
   }
   String _date(DateTime d) => d.year.toString().padLeft(4, '0') + '-' + d.month.toString().padLeft(2, '0') + '-' + d.day.toString().padLeft(2, '0');
-  String _money(dynamic v, String _currency) => r'$' + (double.tryParse('$v') ?? 0).toStringAsFixed(2);
+  String _money(dynamic v, String currency) => formatCurrency(v, currency);
   Future<void> _period(int days) async {
     final now = _haitiNow(); final end = DateTime(now.year, now.month, now.day);
     setState(() { to = end; from = end.subtract(Duration(days: days - 1)); }); await load();
@@ -72,7 +73,11 @@ class _ReportsState extends State<ReportsScreen> {
     final tickets = report['tickets'] as Map<String, dynamic>? ?? {};
     final payouts = report['payouts'] as Map<String, dynamic>? ?? {};
     final currency = '${report['currency'] ?? 'USD'}';
-    final net = (double.tryParse('${tickets['sales'] ?? 0}') ?? 0) - (double.tryParse('${payouts['amount'] ?? 0}') ?? 0);
+    final accounting = report['accounting'] as Map<String, dynamic>? ?? {};
+    final net = double.tryParse('${accounting['netSales'] ?? ''}') ??
+        (double.tryParse('${tickets['sales'] ?? 0}') ?? 0) -
+        (double.tryParse('${payouts['amount'] ?? 0}') ?? 0) -
+        (double.tryParse('${report['commission'] ?? 0}') ?? 0);
     final byDay = report['byDay'] as List<dynamic>? ?? [], byGame = report['byGame'] as List<dynamic>? ?? [], wins = report['biggestWins'] as List<dynamic>? ?? [];
     final dailyMap = <String, Map<String, dynamic>>{};
     for (final raw in byDay) {
@@ -122,7 +127,7 @@ class _ReportsState extends State<ReportsScreen> {
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(AppLanguage.tr('Vant pa jou'), style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            if (byDay.isEmpty) Text(AppLanguage.tr('Pa gen lavant pou dat sa yo.')) else _chart(chartRows),
+            if (byDay.isEmpty) Text(AppLanguage.tr('Pa gen lavant pou dat sa yo.')) else _chart(chartRows, currency),
           ]))),
           Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(AppLanguage.tr('Vant pa lotri'), style: Theme.of(context).textTheme.titleMedium),
@@ -171,13 +176,13 @@ class _ReportsState extends State<ReportsScreen> {
       Icon(icon, color: const Color(0xff2451c7)), const SizedBox(height: 4), Text(title, style: const TextStyle(fontSize: 12)),
       Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
     ])));
-  Widget _chart(List<dynamic> values) {
+  Widget _chart(List<dynamic> values, String currency) {
     final rows = values.map((v) => Map<String, dynamic>.from(v as Map)).toList();
     final maximum = rows.fold<double>(1, (max, row) { final amount = double.tryParse('${row['amount'] ?? 0}') ?? 0; return amount > max ? amount : max; });
     return SizedBox(height: 210, child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       for (final row in rows.take(14))
         Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2), child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-          Text(r'$' + (double.tryParse('${row['amount'] ?? 0}') ?? 0).toStringAsFixed(0), style: const TextStyle(fontSize: 9), maxLines: 1, overflow: TextOverflow.clip),
+          Text(formatCurrency(row['amount'], currency, 0), style: const TextStyle(fontSize: 9), maxLines: 1, overflow: TextOverflow.clip),
           const SizedBox(height: 4),
           Expanded(child: Align(alignment: Alignment.bottomCenter, child: FractionallySizedBox(heightFactor: ((double.tryParse('${row['amount'] ?? 0}') ?? 0) / maximum).clamp(.04, 1), widthFactor: .72, child: Container(decoration: BoxDecoration(color: const Color(0xff5796ef), borderRadius: BorderRadius.circular(4)))))),
           const SizedBox(height: 5),

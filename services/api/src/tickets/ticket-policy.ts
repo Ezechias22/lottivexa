@@ -116,3 +116,7 @@ export function cancellationDeadline(createdAt: Date, drawClosesAt: Date, second
 export function isTicketCancellationAllowed(now: Date, deadline: Date) {
   return now.getTime() < deadline.getTime();
 }
+
+export function isTenantCancellationEligible(status: string, hasPayout: boolean, hasWinningRecord: boolean) {
+  return status === 'VALID' && !hasPayout && !hasWinningRecord;
+}

@@ -3,7 +3,7 @@ import { buildSalesPdf } from './pdf-report';
 
 describe('sales PDF', () => {
   it('creates a readable A4 report with local dates, tenant currency, and paginated details', () => {
-    const report = buildSalesPdf({
+    const data = {
       period: {
         from: new Date('2026-01-01T05:00:00.000Z'),
         to: new Date('2026-02-01T04:59:59.999Z'),
@@ -31,6 +31,7 @@ describe('sales PDF', () => {
         gameCode: 'FL',
         gameName: 'Florida',
         drawNumber: 'FL-20260101-2000',
+        drawTime: new Date('2026-01-01T20:00:00.000Z'),
         count: 2,
         amount: '20.00',
       }],
@@ -41,13 +42,19 @@ describe('sales PDF', () => {
         drawNumber: 'FL-20260101-2000',
         amount: '50.00',
       }],
-    }, 'Top Lotto', 'HTG').toString('latin1');
+    };
+    const report = buildSalesPdf(data, 'Top Lotto', 'HTG').toString('latin1');
+    const usdReport = buildSalesPdf(data, 'Top Lotto', 'USD').toString('latin1');
 
     expect(report.startsWith('%PDF-1.4')).toBe(true);
     expect(report).toContain('Top Lotto');
     expect(report).toContain('/MediaBox [0 0 595 842]');
-    expect(report).toContain('HTG 30.50');
-    expect(report).toContain('HTG 50.00');
+    expect(report).toContain('30,50 G');
+    expect(report).toContain('50,00 G');
+    expect(report).toContain('20:00');
+    expect(report).not.toContain('HTG 30.50');
+    expect(usdReport).toContain('30,50 $');
+    expect(usdReport).not.toContain('$US');
     expect(report).toContain('VANT PA TIRAJ');
     expect(report).toContain('PI GWO TIKÈ GAYAN YO');
     expect(report).toContain('xref');
