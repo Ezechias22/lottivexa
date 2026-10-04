@@ -15,6 +15,7 @@ import {
 import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
 import TenantReports from "./tenant-reports";
 import TenantLotterySettings from "./tenant-lottery-settings";
+import { refreshWebSession } from "./session-refresh";
 const COUNTRIES: [string, string][] = [
   ["HT", "Haiti · HTG"],
   ["US", "United States · USD"],
@@ -282,28 +283,6 @@ export default function TenantConsole() {
     setData({});
     setFeatures([]);
   }, []);
-  useEffect(() => {
-    if (!token || force) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(logout, 30 * 60 * 1000);
-    };
-    const passive = { passive: true };
-    const events = [
-      "pointerdown",
-      "keydown",
-      "touchstart",
-      "scroll",
-      "mousemove",
-    ] as const;
-    for (const event of events) window.addEventListener(event, reset, passive);
-    reset();
-    return () => {
-      clearTimeout(timer);
-      for (const event of events) window.removeEventListener(event, reset);
-    };
-  }, [token, force, logout]);
   const request = useCallback(
     async (path: string, init: RequestInit = {}) => {
       let access = localStorage.getItem("tenant_access") ?? token;
@@ -319,19 +298,12 @@ export default function TenantConsole() {
           },
         });
       let response = await send();
-      if (response.status === 401 && refresh) {
-        const renewed = await fetch(`${API}/auth/refresh`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ refreshToken: refresh }),
-        });
-        if (renewed.ok) {
-          const r = await renewed.json();
-          access = r.accessToken;
-          localStorage.setItem("tenant_access", r.accessToken);
-          localStorage.setItem("tenant_refresh", r.refreshToken);
-          setToken(r.accessToken);
-          setRefresh(r.refreshToken);
+      if (response.status === 401) {
+        const renewed = await refreshWebSession(API, "tenant", access, refresh);
+        if (renewed) {
+          access = renewed.accessToken;
+          setToken(renewed.accessToken);
+          setRefresh(renewed.refreshToken);
           response = await send();
         } else logout();
       }

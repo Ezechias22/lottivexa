@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
 const language = readFileSync(new URL('./language-switcher.tsx', import.meta.url), 'utf8');
 const reports = readFileSync(new URL('./merchant-reports.tsx', import.meta.url), 'utf8');
+const sessionRefresh = readFileSync(new URL('./session-refresh.ts', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
   it('has login only and no public account creation', () => {
@@ -27,7 +28,8 @@ describe('merchant POS', () => {
   });
 
   it('rotates sessions and forces temporary password replacement', () => {
-    expect(source).toContain('/auth/refresh');
+    expect(source).toContain('refreshWebSession');
+    expect(sessionRefresh).toContain('/auth/refresh');
     expect(source).toContain('/users/me/change-password');
     expect(source).toContain('forcePasswordChange');
   });

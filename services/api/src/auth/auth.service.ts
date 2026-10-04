@@ -13,6 +13,7 @@ import {
   passwordResetHash,
   passwordResetUsable,
 } from "./password-reset-policy";
+import { refreshTokenExpiry } from "./refresh-token-policy";
 @Injectable()
 export class AuthService {
   constructor(private jwt: JwtService) {}
@@ -117,7 +118,7 @@ export class AuthService {
           userId: record.userId,
           tokenHash: this.hash(rawNext),
           deviceId: record.deviceId,
-          expiresAt: new Date(Date.now() + 7 * 864e5),
+          expiresAt: refreshTokenExpiry(),
         },
       });
       return {
@@ -286,7 +287,7 @@ export class AuthService {
         userId: user.id,
         tokenHash: this.hash(raw),
         deviceId,
-        expiresAt: new Date(Date.now() + 7 * 864e5),
+        expiresAt: refreshTokenExpiry(),
       },
     });
     return { accessToken: await this.access(user), refreshToken: raw };

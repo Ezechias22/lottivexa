@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "LOTTIVEXA Merchant",
+  "short_name": "LOTTIVEXA",
+  "description": "Point de vente LOTTIVEXA pour les marchands",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f8fc",
+  "theme_color": "#17375e",
+  "categories": ["business", "finance"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

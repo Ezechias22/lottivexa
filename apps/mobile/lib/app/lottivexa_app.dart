@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -54,92 +52,40 @@ class LottivexaApp extends StatelessWidget {
   @override Widget build(BuildContext context) => ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>MaterialApp.router(title:'Bolet',debugShowCheckedModeBanner:false,locale:const Locale('fr'),supportedLocales:const[Locale('fr')],localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff172554)),useMaterial3:true),routerConfig:router));
 }
 
-class AppShell extends StatefulWidget {
+class AppShell extends StatelessWidget {
   const AppShell({super.key, required this.runtime, required this.currentPath, required this.child});
   final MobileRuntime runtime;
   final String currentPath;
   final Widget child;
 
   @override
-  State<AppShell> createState() => _AppShellState();
-}
-
-class _AppShellState extends State<AppShell> {
-  Timer? _idleTimer;
-
-  bool get _tenantSession => widget.runtime.session.authenticated && widget.runtime.session.isTenantAdmin;
-
-  @override
-  void initState() {
-    super.initState();
-    _resetIdleTimer();
-  }
-
-  @override
-  void didUpdateWidget(covariant AppShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _resetIdleTimer();
-  }
-
-  @override
-  void dispose() {
-    _idleTimer?.cancel();
-    super.dispose();
-  }
-
-  void _resetIdleTimer() {
-    _idleTimer?.cancel();
-    if (_tenantSession) {
-      _idleTimer = Timer(const Duration(minutes: 30), _expireTenantSession);
-    }
-  }
-
-  Future<void> _expireTenantSession() async {
-    if (!_tenantSession) return;
-    await widget.runtime.session.clear();
-    if (mounted) context.go('/login');
-  }
-
-  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    _resetIdleTimer();
-    return KeyEventResult.ignored;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final admin = widget.runtime.session.isTenantAdmin;
-    final canSell = widget.runtime.session.hasPermission('tickets.create');
-    final canReports = widget.runtime.session.hasPermission('reports.view');
+    final admin = runtime.session.isTenantAdmin;
+    final canSell = runtime.session.hasPermission('tickets.create');
+    final canReports = runtime.session.hasPermission('reports.view');
     final paths = admin
         ? <String>['/', '/admin', if (canSell) '/new-ticket', '/tickets', if (canReports) '/reports', '/settings']
         : <String>['/', '/new-ticket', '/tickets', if (canReports) '/reports', '/settings'];
     final destinations = paths.map(_destination).toList();
-    final selected = paths.indexOf(widget.currentPath);
-    final businessName = widget.runtime.store.setting('receipt_business_name_${widget.runtime.session.tenantId}') ?? 'Bolet';
-    final hideHeader = widget.currentPath == '/reports' || widget.currentPath == '/notifications' || widget.currentPath.startsWith('/admin/');
-    return Listener(
-      onPointerDown: (_) => _resetIdleTimer(),
-      onPointerSignal: (_) => _resetIdleTimer(),
-      child: Focus(
-        onKeyEvent: _onKey,
-        child: Scaffold(
+    final selected = paths.indexOf(currentPath);
+    final businessName = runtime.store.setting('receipt_business_name_${runtime.session.tenantId}') ?? 'Bolet';
+    final hideHeader = currentPath == '/reports' || currentPath == '/notifications' || currentPath.startsWith('/admin/');
+    return Scaffold(
           appBar: hideHeader ? null : AppBar(
             title: Text(businessName),
             actions: [
-              if (widget.runtime.pendingCount > 0) Badge(label: Text('${widget.runtime.pendingCount}'), child: const Icon(Icons.sync_problem)),
+              if (runtime.pendingCount > 0) Badge(label: Text('${runtime.pendingCount}'), child: const Icon(Icons.sync_problem)),
               if (canReports) IconButton(onPressed: () => context.go('/reports'), icon: const Icon(Icons.analytics)),
               IconButton(onPressed: () => context.go('/notifications'), icon: const Icon(Icons.notifications)),
               IconButton(onPressed: () => context.go('/settings'), tooltip: AppLanguage.tr('Paramèt'), icon: const Icon(Icons.settings)),
             ],
           ),
-          body: widget.child,
+          body: child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: selected < 0 ? 0 : selected,
             onDestinationSelected: (index) => context.go(paths[index]),
             destinations: destinations,
           ),
-        ),
-      ),
     );
   }
 

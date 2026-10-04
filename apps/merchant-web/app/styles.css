@@ -1420,3 +1420,38 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   outline: 3px solid #9dc0ff;
   outline-offset: 2px;
 }
+
+.install-app-control {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  margin: 12px 0;
+}
+.install-app-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 10px 15px;
+  border: 1px solid #cbd8e8;
+  border-radius: 10px;
+  color: #17375e;
+  background: #eef4fb;
+  font-size: 13px;
+  font-weight: 800;
+}
+.install-app-control button:hover {
+  background: #e2edf8;
+  border-color: #a8bfd9;
+}
+.install-app-control button span {
+  font-size: 19px;
+  line-height: 1;
+}
+.install-app-control small {
+  max-width: 420px;
+  color: #53667f;
+  font-size: 12px;
+  line-height: 1.5;
+}
