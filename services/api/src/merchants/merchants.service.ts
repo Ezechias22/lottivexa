@@ -10,7 +10,7 @@ import { merchantUpdate, MerchantUpdate } from "./merchant-update-policy";
 import { reportRange } from "../reports/report-policy";
 import { presentTicketLines } from "../tickets/ticket-line-flags";
 import { merchantCommissionPercentage } from "./merchant-commission-policy";
-import { setTenantCountryCurrency } from "../tenants/tenant-country-settings";
+import { officeCountryFromSettings } from "../branches/office-location-policy";
 export const merchantPermissions = [
   "tickets.view",
   "tickets.create",
@@ -166,7 +166,7 @@ export class MerchantsService {
     return merchants.map((merchant) => ({
       ...merchant,
       commissionRate: commissionByMerchant.get(merchant.id) ?? null,
-      countryCode: tenant.jurisdictionCode,
+      countryCode: officeCountryFromSettings(merchant.branch.settings, tenant.jurisdictionCode),
       currency: tenantSetting?.currency ?? "USD",
     }));
   }
@@ -201,7 +201,10 @@ export class MerchantsService {
     });
     return prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
-      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? tenant.jurisdictionCode ?? "HT");
+      const countryCode = officeCountryFromSettings(branch.settings, tenant.jurisdictionCode);
+      if (dto.countryCode && dto.countryCode.toUpperCase() !== countryCode) {
+        throw new BadRequestException("MERCHANT_COUNTRY_MUST_MATCH_BRANCH");
+      }
       let role = await tx.role.findFirst({
         where: { tenantId, code: "MERCHANT" },
       });
@@ -269,7 +272,7 @@ export class MerchantsService {
             branchId: branch.id,
             merchantNumber: dto.merchantNumber,
             commissionPercentage,
-            countryCode: dto.countryCode ?? tenant.jurisdictionCode ?? "HT",
+            countryCode,
           },
         },
       });
@@ -287,17 +290,16 @@ export class MerchantsService {
       dto = merchantUpdate(input),
       current = await prisma.merchantAccount.findFirst({
         where: { id, tenantId, archivedAt: null },
-        include: { user: true },
+        include: { user: true, branch: true },
       });
     if (!current) throw new ForbiddenException("RESOURCE_NOT_FOUND");
     const branchId = dto.branchId ?? current.branchId;
-    if (
-      dto.branchId &&
-      !(await prisma.branch.findFirst({
+    const targetBranch = dto.branchId
+      ? await prisma.branch.findFirst({
         where: { id: branchId, tenantId, status: "ACTIVE", archivedAt: null },
-      }))
-    )
-      throw new BadRequestException("INVALID_BRANCH");
+      })
+      : current.branch;
+    if (!targetBranch) throw new BadRequestException("INVALID_BRANCH");
     const loginChanged =
       dto.username !== undefined ||
       dto.email !== undefined ||
@@ -312,8 +314,12 @@ export class MerchantsService {
         orderBy: [{ priority: "desc" }, { startsAt: "desc" }],
       }),
     ]);
+    const currentCountry = officeCountryFromSettings(current.branch.settings, tenant.jurisdictionCode);
+    const targetCountry = officeCountryFromSettings(targetBranch.settings, tenant.jurisdictionCode);
+    if (dto.countryCode && dto.countryCode !== targetCountry) {
+      throw new BadRequestException("MERCHANT_COUNTRY_MUST_MATCH_BRANCH");
+    }
     await prisma.$transaction(async (tx) => {
-      if (dto.countryCode) await setTenantCountryCurrency(tx, tenantId, dto.countryCode);
       await tx.merchantAccount.update({
         where: { id },
         data: { displayName: dto.displayName, branchId },
@@ -362,9 +368,9 @@ export class MerchantsService {
             email: current.user.email,
             phone: current.user.phone,
             commissionPercentage: currentRule?.percentage?.toString() ?? null,
-            countryCode: tenant.jurisdictionCode,
+            countryCode: currentCountry,
           } as Prisma.InputJsonValue,
-          newValues: { ...dto, branchId, commissionPercentage: commissionPercentage ?? currentRule?.percentage?.toString() ?? null } as Prisma.InputJsonValue,
+          newValues: { ...dto, branchId, countryCode: targetCountry, commissionPercentage: commissionPercentage ?? currentRule?.percentage?.toString() ?? null } as Prisma.InputJsonValue,
         },
       });
     });
@@ -382,7 +388,7 @@ export class MerchantsService {
       prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
       prisma.commissionRule.findFirst({ where: { tenantId, scope: "MERCHANT", scopeId: id, active: true }, orderBy: [{ priority: "desc" }, { startsAt: "desc" }] }),
     ]);
-    return { ...updated, countryCode: savedTenant.jurisdictionCode, currency: savedSetting?.currency ?? "USD", commissionRate: savedRule?.percentage ? `${savedRule.percentage.toString()}%` : null };
+    return { ...updated, countryCode: officeCountryFromSettings(updated.branch.settings, savedTenant.jurisdictionCode), currency: savedSetting?.currency ?? "USD", commissionRate: savedRule?.percentage ? `${savedRule.percentage.toString()}%` : null };
   }
   async disable(u: Principal, id: string) {
     const tenantId = this.tenant(u),

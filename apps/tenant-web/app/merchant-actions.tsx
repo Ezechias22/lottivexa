@@ -22,9 +22,9 @@ export default function MerchantActions({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [countryCode, setCountryCode] = useState(String(r.countryCode ?? "HT"));
-  const activeCountry = countries.find(([code]) => code === countryCode)?.[1] ?? "";
-  const currency = activeCountry.split("·").at(-1)?.trim() ?? r.currency ?? "";
+  const [branchId, setBranchId] = useState(String(r.branchId ?? ""));
+  const selectedBranch = branches.find((branch) => branch.id === branchId);
+  const country = countries.find(([code]) => code === selectedBranch?.countryCode)?.[1]?.split("·")[0].trim() ?? "—";
 
   const refresh = async (path: string, method: string, body?: Record<string, unknown>) => {
     await request(path, { method, body: body ? JSON.stringify(body) : undefined });
@@ -46,15 +46,14 @@ export default function MerchantActions({
           email: String(values.email ?? "").trim(),
           branchId: String(values.branchId ?? ""),
           commissionPercentage: String(values.commissionPercentage ?? "").trim(),
-          countryCode,
         }),
       });
       setEditing(false);
       await load("merchants");
     } catch (error) {
       const code = error instanceof Error ? error.message : String(error);
-      setMessage(code.includes("TENANT_COUNTRY_LOCKED_AFTER_FIRST_TICKET")
-        ? "Peyi/lajan biznis la pa ka chanje apre premye tikè a."
+      setMessage(code.includes("MERCHANT_COUNTRY_MUST_MATCH_BRANCH")
+        ? "Peyi machann nan dwe koresponn ak peyi biwo li. Chwazi biwo ki nan peyi ou vle a."
         : code.includes("INVALID_COMMISSION_PERCENTAGE")
           ? "Komisyon an dwe ant 0 ak 100%."
           : code);
@@ -65,7 +64,7 @@ export default function MerchantActions({
 
   return (
     <>
-      {can("merchants.edit") && <button onClick={() => { setCountryCode(String(r.countryCode ?? "HT")); setMessage(""); setEditing(true); }}>Modifye</button>}
+      {can("merchants.edit") && <button onClick={() => { setBranchId(String(r.branchId ?? "")); setMessage(""); setEditing(true); }}>Modifye</button>}
       {can("users.edit") && r.user?.id && (
         <button onClick={async () => {
           const temporaryPassword = prompt("Nouvo modpas tanporè (omwen 12 karaktè)");
@@ -89,10 +88,10 @@ export default function MerchantActions({
             <label>Telefòn<input name="phone" defaultValue={r.user?.phone ?? ""} /></label>
             <label>Imèl<input name="email" type="email" defaultValue={r.user?.email ?? ""} /></label>
             <label>Komisyon (%)<input name="commissionPercentage" type="number" min="0" max="100" step="0.01" defaultValue={String(r.commissionRate ?? "0").replace("%", "")} required /></label>
-            <label>Biwo / santral<select name="branchId" defaultValue={r.branchId} required>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.officeKind === "CENTRAL" ? "Santral" : "Biwo"} · {branch.name}</option>)}</select></label>
-            <label>Peyi biznis la (pou tout machann)<select value={countryCode} onChange={(event) => setCountryCode(event.target.value)} required>{countries.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label>
-            <label>Lajan kont lan<input value={currency} readOnly aria-readonly="true" /></label>
-            <p className="form-help">Peyi a chwazi lajan tenant lan pou tout machann ak rapò yo. Chanjman peyi/lajan an disponib sèlman anvan premye tikè.</p>
+            <label>Biwo / santral<select name="branchId" value={branchId} onChange={(event) => setBranchId(event.target.value)} required>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.officeKind === "CENTRAL" ? "Santral" : "Biwo"} · {branch.name}</option>)}</select></label>
+            <label>Peyi biwo machann nan<input value={country} readOnly aria-readonly="true" /></label>
+            <label>Lajan antrepriz la (tikè ak rapò)<input value={r.currency ?? "—"} readOnly aria-readonly="true" /></label>
+            <p className="form-help">Pou chanje peyi machann nan, chwazi yon biwo nan peyi sa a. Sa pa chanje lajan antrepriz la ni tikè ki deja egziste yo.</p>
             {message && <p className="merchant-edit-error" role="alert">{message}</p>}
             <div className="merchant-edit-actions"><button type="button" className="secondary" onClick={() => setEditing(false)} disabled={busy}>Anile</button><button disabled={busy}>{busy ? "Ap sove…" : "Sove chanjman yo"}</button></div>
           </form>

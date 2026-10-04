@@ -953,7 +953,7 @@ function Branches({ data: d, submit, can }: any) {
     <>
       <section className="panel">
         <h2>Kreye biwo oswa santral</h2>
-        <p className="muted">Peyi a ak lajan li aplike pou tout tenant lan, tout biwo ak tout machann yo.</p>
+        <p className="muted">Chwazi peyi kote biwo oswa santral la ye. Sa pa chanje peyi ni lajan antrepriz la.</p>
         {can("branches.create") && (
           <form className="form" onSubmit={(e) => submit(e, "/branches", (x: Row) => ({
             ...x,
@@ -964,13 +964,13 @@ function Branches({ data: d, submit, can }: any) {
               <label key={x[0]}>{x[1]}<input name={x[0]} required={x[0] === "code" || x[0] === "name"} /></label>
             ))}
             <label>Kalite kote<select name="officeKind" defaultValue="OFFICE" required><option value="OFFICE">Biwo</option><option value="CENTRAL">Santral</option></select></label>
-            <label>Peyi operasyonèl · lajan kont lan<select name="countryCode" defaultValue={settings.countryCode ?? ""} required><option value="" disabled>Chwazi peyi</option>{COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
-            <small className="form-help">Lajan an chwazi otomatikman selon peyi a. Apre premye tikè a, peyi/lajan an pa ka chanje pou pwoteje ansyen tranzaksyon yo.</small>
+            <label>Peyi biwo a<select name="countryCode" defaultValue={settings.countryCode ?? ""} required><option value="" disabled>Chwazi peyi</option>{COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
+            <small className="form-help">Peyi biwo a rete apa. Tikè ak rapò yo kontinye sèvi ak lajan antrepriz la ki deja fikse.</small>
             <button>Kreye biwo oswa santral</button>
           </form>
         )}
       </section>
-      <section className="panel"><Table rows={rows} columns={[["code", "Code"], ["name", "Name"], ["officeKind", "Type"], ["countryCode", "Country"], ["currency", "Currency"], ["address", "Address"], ["phone", "Phone"], ["_count.merchants", "Merchants"], ["status", "Status"]]} /></section>
+      <section className="panel"><Table rows={rows} columns={[["code", "Code"], ["name", "Name"], ["officeKind", "Type"], ["countryCode", "Country"], ["currency", "Business currency"], ["address", "Address"], ["phone", "Phone"], ["_count.merchants", "Merchants"], ["status", "Status"]]} /></section>
     </>
   );
 }
@@ -980,7 +980,7 @@ function Merchants({ data: d, submit, request, load, can }: any) {
     <>
       <section className="panel">
         <h2>Kreye kont machann</h2>
-        <p className="muted">Machann nan pa ka enskri tèt li; administratè a kreye kont lan. Peyi ak lajan an aplike pou tout biznis la.</p>
+        <p className="muted">Machann nan pa ka enskri tèt li; administratè a kreye kont lan. Peyi li soti nan biwo oswa santral ou chwazi a.</p>
         {can("merchants.create") && (
           <form className="form" onSubmit={(e) => submit(e, "/merchants", normalizeMerchantCreateForm)}>
             <label>Display name<input name="displayName" required /></label>
@@ -989,15 +989,14 @@ function Merchants({ data: d, submit, request, load, can }: any) {
             <label>Phone<input name="phone" /></label>
             <label>Email<input name="email" type="email" /></label>
             <label>Pousantaj komisyon machann nan (%)<input name="commissionPercentage" type="number" min="0" max="100" step="0.01" placeholder="Pa egzanp: 10" required /></label>
-            <label>Peyi operasyonèl · lajan tenant lan<select name="countryCode" defaultValue={settings.countryCode ?? ""} required><option value="" disabled>Chwazi peyi</option>{COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
             <label>Modpas tanporè<input name="temporaryPassword" type="password" minLength={12} required /></label>
-            <label>Biwo / santral<select name="branchId" required><option value="">Chwazi</option>{branches.map((b: Row) => <option key={b.id} value={b.id}>{b.officeKind === "CENTRAL" ? "Santral" : "Biwo"} · {b.name}</option>)}</select></label>
-            <small className="form-help">Chwazi peyi a mete menm lajan sa a sou tout vant ak rapò tenant lan. Lajan an vin bloke apre premye tikè a.</small>
+            <label>Biwo / santral<select name="branchId" required><option value="">Chwazi</option>{branches.map((b: Row) => <option key={b.id} value={b.id}>{b.officeKind === "CENTRAL" ? "Santral" : "Biwo"} · {b.name} · {COUNTRIES.find(([code]) => code === b.countryCode)?.[1]?.split("·")[0].trim() ?? b.countryCode}</option>)}</select></label>
+            <small className="form-help">Peyi machann nan swiv biwo li. Tikè ak rapò yo rete nan lajan antrepriz la.</small>
             <button>Kreye machann</button>
           </form>
         )}
       </section>
-      <section className="panel"><Table rows={rows} columns={[["merchantNumber", "Number"], ["displayName", "Name"], ["user.username", "Login"], ["branch.name", "Branch"], ["commissionRate", "Commission"], ["countryCode", "Country"], ["currency", "Currency"], ["status", "Status"]]} actions={(r) => <MerchantActions row={r} request={request} load={load} can={can} branches={branches} countries={COUNTRIES} />} /></section>
+      <section className="panel"><Table rows={rows} columns={[["merchantNumber", "Number"], ["displayName", "Name"], ["user.username", "Login"], ["branch.name", "Branch"], ["commissionRate", "Commission"], ["countryCode", "Country"], ["currency", "Business currency"], ["status", "Status"]]} actions={(r) => <MerchantActions row={r} request={request} load={load} can={can} branches={branches} countries={COUNTRIES} />} /></section>
     </>
   );
 }

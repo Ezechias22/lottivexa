@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { prisma, Prisma } from '@lottivexa/database';
 import type { Principal } from '../common/guards/jwt-auth.guard';
-import { setTenantCountryCurrency } from '../tenants/tenant-country-settings';
+import { officeCountryFromSettings, officeSettings, resolveOfficeCountry } from './office-location-policy';
 
 type OfficeKind = 'OFFICE' | 'CENTRAL';
 type BranchInput = {
@@ -30,7 +30,7 @@ export class BranchesService {
     return branches.map(branch => ({
       ...branch,
       officeKind: (branch.settings as { officeKind?: OfficeKind } | null)?.officeKind ?? 'OFFICE',
-      countryCode: tenant.jurisdictionCode,
+      countryCode: officeCountryFromSettings(branch.settings, tenant.jurisdictionCode),
       currency: setting?.currency ?? 'USD',
     }));
   }
@@ -40,7 +40,7 @@ export class BranchesService {
     await this.limit(tenantId);
     const branch = await prisma.$transaction(async tx => {
       const currentTenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
-      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? currentTenant.jurisdictionCode ?? 'HT');
+      const countryCode = resolveOfficeCountry(dto.countryCode, currentTenant.jurisdictionCode);
       const value = await tx.branch.create({
         data: {
           tenantId,
@@ -49,7 +49,7 @@ export class BranchesService {
           address: dto.address,
           phone: dto.phone,
           openingHours: dto.openingHours as Prisma.InputJsonValue | undefined,
-          settings: { officeKind: dto.officeKind ?? 'OFFICE' },
+          settings: officeSettings(null, dto.officeKind ?? 'OFFICE', countryCode) as Prisma.InputJsonValue,
         },
       });
       await tx.auditLog.create({
@@ -59,12 +59,16 @@ export class BranchesService {
           action: 'CREATE',
           entityType: 'Branch',
           entityId: value.id,
-          newValues: { code: value.code, name: value.name, officeKind: dto.officeKind ?? 'OFFICE', countryCode: dto.countryCode ?? currentTenant.jurisdictionCode ?? 'HT' },
+          newValues: { code: value.code, name: value.name, officeKind: dto.officeKind ?? 'OFFICE', countryCode },
         },
       });
       return value;
     });
-    return { ...branch, officeKind: dto.officeKind ?? 'OFFICE', countryCode: dto.countryCode ?? null };
+    return {
+      ...branch,
+      officeKind: dto.officeKind ?? 'OFFICE',
+      countryCode: officeCountryFromSettings(branch.settings, dto.countryCode),
+    };
   }
 
   async update(u: Principal, id: string, dto: BranchInput) {
@@ -72,8 +76,12 @@ export class BranchesService {
     const existing = await prisma.branch.findFirst({ where: { id, tenantId, archivedAt: null } });
     if (!existing) throw new ForbiddenException('RESOURCE_NOT_FOUND');
     const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
+    const currentSettings = existing.settings as Record<string, unknown> | null;
+    const countryCode = resolveOfficeCountry(
+      dto.countryCode ?? currentSettings?.countryCode,
+      tenant.jurisdictionCode,
+    );
     await prisma.$transaction(async tx => {
-      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? tenant.jurisdictionCode ?? 'HT');
       await tx.branch.update({
         where: { id },
         data: {
@@ -82,10 +90,11 @@ export class BranchesService {
           address: dto.address,
           phone: dto.phone,
           openingHours: dto.openingHours as Prisma.InputJsonValue | undefined,
-          settings: {
-            ...((existing.settings && typeof existing.settings === 'object' && !Array.isArray(existing.settings)) ? existing.settings as Record<string, unknown> : {}),
-            officeKind: dto.officeKind ?? (existing.settings as { officeKind?: OfficeKind } | null)?.officeKind ?? 'OFFICE',
-          } as Prisma.InputJsonValue,
+          settings: officeSettings(
+            existing.settings,
+            dto.officeKind ?? (existing.settings as { officeKind?: OfficeKind } | null)?.officeKind ?? 'OFFICE',
+            countryCode,
+          ) as Prisma.InputJsonValue,
         },
       });
       await tx.auditLog.create({
@@ -96,7 +105,7 @@ export class BranchesService {
           entityType: 'Branch',
           entityId: id,
           oldValues: { code: existing.code, name: existing.name, settings: existing.settings ?? Prisma.JsonNull } as Prisma.InputJsonValue,
-          newValues: { ...dto, officeKind: dto.officeKind ?? 'OFFICE' } as Prisma.InputJsonValue,
+          newValues: { ...dto, officeKind: dto.officeKind ?? 'OFFICE', countryCode } as Prisma.InputJsonValue,
         },
       });
     });

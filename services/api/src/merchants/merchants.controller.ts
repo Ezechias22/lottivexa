@@ -20,7 +20,7 @@ export class CreateMerchantDto {
   @IsOptional() @ValidateIf((_, value) => value !== "") @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsNumberString() commissionPercentage!: string;
-  @IsIn(SUPPORTED_COUNTRY_CODES) countryCode!: string;
+  @IsOptional() @IsIn(SUPPORTED_COUNTRY_CODES) countryCode?: string;
   @MinLength(12) temporaryPassword!: string;
   @IsString() branchId!: string;
 }

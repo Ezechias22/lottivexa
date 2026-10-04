@@ -37,4 +37,10 @@ describe("create merchant validation", () => {
     const errors = await validate(validMerchant({ countryCode: "ZZ" }));
     expect(errors.map((error) => error.property)).toContain("countryCode");
   });
+
+  it("allows the merchant country to be inherited from its selected office", async () => {
+    const merchant = validMerchant();
+    delete (merchant as Partial<CreateMerchantDto>).countryCode;
+    expect(await validate(merchant)).toEqual([]);
+  });
 });
