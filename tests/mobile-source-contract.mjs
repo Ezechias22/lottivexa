@@ -18,6 +18,7 @@ const [app, session, dashboard, hub, resource, sell, tickets, results, encoder, 
 assert.match(session, /isTenantAdmin/);
 assert.match(app, /session\.isTenantAdmin \? AdminDashboardScreen/);
 assert.match(app, /state\.matchedLocation\.startsWith\('\/admin'\)/);
+assert.doesNotMatch(app, /CashScreen|path: '\/cash'|NavigationDestination[^\n]*\/cash/);
 for (const endpoint of ['/api/v1/reports/sales', '/api/v1/merchants', '/api/v1/branches', '/api/v1/devices', '/api/v1/notifications']) assert.ok(dashboard.includes(endpoint));
 for (const permission of ['merchants.view', 'branches.view', 'users.view', 'devices.view', 'printers.view', 'finance.view', 'reports.view']) assert.ok(hub.includes(permission));
 for (const endpoint of ['/api/v1/merchants', '/api/v1/branches', '/api/v1/users', '/api/v1/devices', '/api/v1/printing/printers', '/api/v1/finance/trial-balance']) assert.ok(resource.includes(endpoint));

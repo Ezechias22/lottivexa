@@ -234,7 +234,7 @@ export default function TenantReports({
   data: any[];
   request: Request;
   run: Run;
-  downloadReport: (from: string, to: string) => Promise<void>;
+  downloadReport: (from: string, to: string, merchantIds?: string[], branchId?: string) => Promise<void>;
   canExport: boolean;
 }) {
   const { language } = useI18n();
@@ -245,6 +245,13 @@ export default function TenantReports({
         title: "Rapports de l’entreprise",
         subtitle: "Suivez les ventes, les paiements et l’activité de vos points de vente.",
         period: "Période analysée",
+        scope: "Périmètre du rapport",
+        allOffices: "Tous les bureaux / centrales",
+        allMerchants: "Tous les vendeurs",
+        selectMerchants: "Vendeurs à inclure",
+        selectionHelp: "Laissez vide pour inclure tous les vendeurs du bureau choisi.",
+        central: "Centrale",
+        office: "Bureau",
         session: "Session / date",
         today: "Aujourd’hui",
         seven: "7 jours",
@@ -260,7 +267,7 @@ export default function TenantReports({
         net: "Résultat net",
         byStatus: "Répartition par statut",
         byGame: "Ventes par loterie",
-        byBranch: "Ventes par succursale",
+        byBranch: "Ventes par bureau / centrale",
         byDraw: "Activité par tirage",
         winners: "Gains les plus élevés",
         noWinners: "Aucun gain enregistré sur cette période.",
@@ -280,6 +287,13 @@ export default function TenantReports({
         title: "Rapò biznis la",
         subtitle: "Swiv lavant, peman gayan ak aktivite biwo ou yo.",
         period: "Peryòd analiz la",
+        scope: "Ki pati biznis la rapò a kouvri",
+        allOffices: "Tout biwo ak santral yo",
+        allMerchants: "Tout machann yo",
+        selectMerchants: "Machann pou mete nan rapò a",
+        selectionHelp: "Kite l vid pou mete tout machann biwo oswa santral ki chwazi a.",
+        central: "Santral",
+        office: "Biwo",
         session: "Sesyon / dat",
         today: "Jodi a",
         seven: "7 jou",
@@ -316,7 +330,25 @@ export default function TenantReports({
   const [to, setTo] = useState(() => localDate());
   const [filterError, setFilterError] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [merchantOptions, setMerchantOptions] = useState<Row[]>([]);
+  const [branchOptions, setBranchOptions] = useState<Row[]>([]);
+  const [selectedMerchantIds, setSelectedMerchantIds] = useState<string[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const currency = String(report.currency ?? "USD");
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([request("/merchants"), request("/branches")])
+      .then(([merchants, branches]) => {
+        if (!active) return;
+        setMerchantOptions(Array.isArray(merchants) ? merchants : []);
+        setBranchOptions(Array.isArray(branches) ? branches : []);
+      })
+      .catch(() => {
+        if (active) setFilterError(french ? "Impossible de charger la liste des vendeurs et des bureaux." : "Nou pa t kapab chaje lis machann ak biwo yo.");
+      });
+    return () => { active = false; };
+  }, [request, french]);
 
   useEffect(() => {
     setReport(data[0] ?? {});
@@ -340,13 +372,15 @@ export default function TenantReports({
     scheduleLabel: drawScheduleLabel(draw, language),
   }));
 
-  async function loadRange(start: string, end: string) {
+  async function loadRange(start: string, end: string, merchantIds = selectedMerchantIds, branchId = selectedBranchId) {
     setFilterError("");
     if (!start || !end || start > end) {
       setFilterError(text.invalidRange);
       return;
     }
     const query = new URLSearchParams({ from: start, to: end });
+    if (merchantIds.length) query.set("merchantIds", merchantIds.join(","));
+    if (branchId) query.set("branchId", branchId);
     const values = await run(() => Promise.all([
       request(`/reports/sales?${query}`),
       request(`/reports/draws?${query}`),
@@ -374,7 +408,7 @@ export default function TenantReports({
     setPdfBusy(true);
     setFilterError("");
     try {
-      await downloadReport(from, to);
+      await downloadReport(from, to, selectedMerchantIds, selectedBranchId);
     } catch {
       setFilterError(text.pdfError);
     } finally {
@@ -387,6 +421,12 @@ export default function TenantReports({
     Number(report.tickets?.sales ?? 0) - Number(report.payouts?.amount ?? 0) - Number(report.commission ?? 0)
   ));
   const cancelledCount = Number(report.accounting?.cancelledCount ?? 0);
+  const visibleMerchants = selectedBranchId
+    ? merchantOptions.filter((merchant) => merchant.branchId === selectedBranchId)
+    : merchantOptions;
+  const selectedMerchantLabel = selectedMerchantIds.length
+    ? `${selectedMerchantIds.length} ${french ? "vendeur(s) sélectionné(s)" : "machann chwazi"}`
+    : (french ? "Tous les vendeurs" : "Tout machann yo");
 
   return (
     <div className="tenant-report-page">
@@ -410,6 +450,30 @@ export default function TenantReports({
           <strong>{fullDateLabel(from, language)} <span>→</span> {fullDateLabel(to, language)}</strong>
         </div>
         <div className="tenant-report-toolbar-actions">
+          <div className="tenant-report-scope-filters">
+            <label className="tenant-report-scope-select">{text.scope}
+              <select value={selectedBranchId} onChange={(event) => {
+                const nextBranch = event.target.value;
+                setSelectedBranchId(nextBranch);
+                if (nextBranch) setSelectedMerchantIds((current) => current.filter((id) => merchantOptions.some((merchant) => merchant.id === id && merchant.branchId === nextBranch)));
+              }}>
+                <option value="">{text.allOffices}</option>
+                {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.officeKind === "CENTRAL" ? text.central : text.office} · {branch.name}</option>)}
+              </select>
+            </label>
+            <details className="tenant-report-merchant-picker">
+              <summary>{selectedMerchantLabel}</summary>
+              <div className="tenant-report-merchant-options" role="group" aria-label={text.selectMerchants}>
+                <label><input type="checkbox" checked={selectedMerchantIds.length === 0} onChange={() => setSelectedMerchantIds([])} />{text.allMerchants}</label>
+                {visibleMerchants.map((merchant) => <label key={merchant.id}>
+                  <input type="checkbox" checked={selectedMerchantIds.includes(merchant.id)} onChange={(event) => setSelectedMerchantIds((current) => event.target.checked ? [...current, merchant.id] : current.filter((id) => id !== merchant.id))} />
+                  {merchant.displayName} · {merchant.branch?.name ?? "—"}
+                </label>)}
+                {!visibleMerchants.length && <small>{text.empty}</small>}
+                <small>{text.selectionHelp}</small>
+              </div>
+            </details>
+          </div>
           <div className="tenant-report-presets">
             <button type="button" onClick={() => choosePreset(0)}>{text.today}</button>
             <button type="button" onClick={() => choosePreset(7)}>{text.seven}</button>

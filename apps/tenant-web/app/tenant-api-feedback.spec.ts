@@ -52,6 +52,11 @@ describe("tenant API feedback", () => {
     ).toContain("succursale choisie");
   });
 
+  it("translates report scope errors into clear Haitian Creole", () => {
+    expect(formatTenantApiError({ error: { code: "REPORT_MERCHANT_OFFICE_MISMATCH" } }, 400, "ht")).toContain("pa nan biwo oswa santral");
+    expect(formatTenantApiError({ error: { code: "TENANT_COUNTRY_LOCKED_AFTER_FIRST_TICKET" } }, 400, "ht")).toContain("apre premye tikè a");
+  });
+
   it("explains invalid merchant commission rates in Haitian Creole", () => {
     expect(
       formatTenantApiError(

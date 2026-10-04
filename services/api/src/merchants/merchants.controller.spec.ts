@@ -9,6 +9,7 @@ function validMerchant(overrides: Partial<CreateMerchantDto> = {}) {
     merchantNumber: "M-100",
     username: "machann100",
     commissionPercentage: "10",
+    countryCode: "HT",
     email: "",
     phone: "",
     temporaryPassword: "safe-temporary-password",
@@ -30,5 +31,10 @@ describe("create merchant validation", () => {
   it("requires a numeric merchant commission percentage", async () => {
     const errors = await validate(validMerchant({ commissionPercentage: "ten" }));
     expect(errors.map((error) => error.property)).toContain("commissionPercentage");
+  });
+
+  it("rejects a country that does not have a supported currency", async () => {
+    const errors = await validate(validMerchant({ countryCode: "ZZ" }));
+    expect(errors.map((error) => error.property)).toContain("countryCode");
   });
 });

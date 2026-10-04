@@ -99,7 +99,7 @@ const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
     { id: "manualResults", label: "Saisir un résultat", permission: "settings.edit" },
     { id: "results", label: "Résultats", permission: "tickets.view" },
     { id: "merchants", label: "Merchants", permission: "merchants.view" },
-    { id: "branches", label: "Branches", permission: "branches.view" },
+    { id: "branches", label: "Biwo / Santral", permission: "branches.view" },
     { id: "users", label: "Users & Roles", permission: "users.view" },
     {
       id: "finance",
@@ -216,6 +216,10 @@ function Table({
                   const value =
                     c[0].toLowerCase() === "currency"
                       ? currencySymbol(raw)
+                      : c[0].toLowerCase() === "officekind"
+                        ? raw === "CENTRAL" ? "Santral" : "Biwo"
+                        : c[0].toLowerCase() === "countrycode"
+                          ? COUNTRIES.find(([code]) => code === raw)?.[1]?.split("·")[0].trim() ?? String(raw ?? "—")
                       : /(amount|potentialwin|balance|sales|commission|payout|cash|price)/i.test(
                             c[0],
                           ) &&
@@ -351,8 +355,10 @@ export default function TenantConsole() {
     [token, refresh, logout, language],
   );
   const downloadSalesReport = useCallback(
-    async (from: string, to: string) => {
+    async (from: string, to: string, merchantIds: string[] = [], branchId = "") => {
       const query = new URLSearchParams({ from, to });
+      if (merchantIds.length) query.set("merchantIds", merchantIds.join(","));
+      if (branchId) query.set("branchId", branchId);
       const access = localStorage.getItem("tenant_access") ?? token;
       const response = await fetch(`${API}/reports/sales.pdf?${query}`, {
         headers: { authorization: `Bearer ${access}` },
@@ -401,8 +407,8 @@ export default function TenantConsole() {
           "/merchants",
           "/notifications?unread=true",
         ],
-        branches: ["/branches"],
-        merchants: ["/merchants", "/branches"],
+        branches: ["/branches", "/settings"],
+        merchants: ["/merchants", "/branches", "/settings"],
         users: ["/users", "/roles", "/permissions"],
         lottery: ["/lottery/games"],
         lotterySchedules: ["/lottery/games"],
@@ -942,135 +948,56 @@ function Dashboard({
   );
 }
 function Branches({ data: d, submit, can }: any) {
+  const [rows = [], settings = {}] = d;
   return (
     <>
       <section className="panel">
-        <h2>Create branch</h2>
+        <h2>Kreye biwo oswa santral</h2>
+        <p className="muted">Peyi a ak lajan li aplike pou tout tenant lan, tout biwo ak tout machann yo.</p>
         {can("branches.create") && (
-          <form
-            className="form"
-            onSubmit={(e) =>
-              submit(e, "/branches", (x: Row) => ({
-                ...x,
-                openingHours: { note: x.openingHours },
-              }))
-            }
-          >
-            {[
-              ["code", "Code"],
-              ["name", "Name"],
-              ["address", "Address"],
-              ["phone", "Phone"],
-              ["openingHours", "Opening hours"],
-            ].map((x) => (
-              <label key={x[0]}>
-                {x[1]}
-                <input
-                  name={x[0]}
-                  required={x[0] === "code" || x[0] === "name"}
-                />
-              </label>
+          <form className="form" onSubmit={(e) => submit(e, "/branches", (x: Row) => ({
+            ...x,
+            openingHours: { note: x.openingHours },
+            countryCode: String(x.countryCode ?? "").trim().toUpperCase(),
+          }))}>
+            {[ ["code", "Kòd"], ["name", "Non biwo oswa santral"], ["address", "Adrès"], ["phone", "Telefòn"], ["openingHours", "Orè ouvèti"] ].map((x) => (
+              <label key={x[0]}>{x[1]}<input name={x[0]} required={x[0] === "code" || x[0] === "name"} /></label>
             ))}
-            <button>Create</button>
+            <label>Kalite kote<select name="officeKind" defaultValue="OFFICE" required><option value="OFFICE">Biwo</option><option value="CENTRAL">Santral</option></select></label>
+            <label>Peyi operasyonèl · lajan kont lan<select name="countryCode" defaultValue={settings.countryCode ?? ""} required><option value="" disabled>Chwazi peyi</option>{COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
+            <small className="form-help">Lajan an chwazi otomatikman selon peyi a. Apre premye tikè a, peyi/lajan an pa ka chanje pou pwoteje ansyen tranzaksyon yo.</small>
+            <button>Kreye biwo oswa santral</button>
           </form>
         )}
       </section>
-      <section className="panel">
-        <Table
-          rows={d[0] ?? []}
-          columns={[
-            ["code", "Code"],
-            ["name", "Name"],
-            ["address", "Address"],
-            ["phone", "Phone"],
-            ["_count.merchants", "Merchants"],
-            ["status", "Status"],
-          ]}
-        />
-      </section>
+      <section className="panel"><Table rows={rows} columns={[["code", "Code"], ["name", "Name"], ["officeKind", "Type"], ["countryCode", "Country"], ["currency", "Currency"], ["address", "Address"], ["phone", "Phone"], ["_count.merchants", "Merchants"], ["status", "Status"]]} /></section>
     </>
   );
 }
 function Merchants({ data: d, submit, request, load, can }: any) {
-  const [rows = [], branches = []] = d;
+  const [rows = [], branches = [], settings = {}] = d;
   return (
     <>
       <section className="panel">
-        <h2>Create merchant account</h2>
-        <p className="muted">
-          Merchant la pa ka enskri tèt li; admin lan kreye login sa a. Machann lan eritye peyi ak lajan tenant la pou tout vant, kès ak rapò rete nan menm lajan.
-        </p>
+        <h2>Kreye kont machann</h2>
+        <p className="muted">Machann nan pa ka enskri tèt li; administratè a kreye kont lan. Peyi ak lajan an aplike pou tout biznis la.</p>
         {can("merchants.create") && (
-          <form
-            className="form"
-            onSubmit={(e) =>
-              submit(e, "/merchants", normalizeMerchantCreateForm)
-            }
-          >
-            <label>
-              Display name
-              <input name="displayName" required />
-            </label>
-            <label>
-              Merchant number
-              <input name="merchantNumber" required />
-            </label>
-            <label>
-              Username
-              <input name="username" required />
-            </label>
-            <label>
-              Phone
-              <input name="phone" />
-            </label>
-            <label>
-              Email
-              <input name="email" type="email" />
-            </label>
-            <label>
-              Merchant commission (%)
-              <input name="commissionPercentage" type="number" min="0" max="100" step="0.01" placeholder="e.g. 10" required />
-            </label>
-            <label>
-              Temporary password
-              <input
-                name="temporaryPassword"
-                type="password"
-                minLength={12}
-                required
-              />
-            </label>
-            <label>
-              Branch
-              <select name="branchId" required>
-                <option value="">Select</option>
-                {branches.map((b: Row) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button>Create merchant</button>
+          <form className="form" onSubmit={(e) => submit(e, "/merchants", normalizeMerchantCreateForm)}>
+            <label>Display name<input name="displayName" required /></label>
+            <label>Merchant number<input name="merchantNumber" required /></label>
+            <label>Username<input name="username" required /></label>
+            <label>Phone<input name="phone" /></label>
+            <label>Email<input name="email" type="email" /></label>
+            <label>Pousantaj komisyon machann nan (%)<input name="commissionPercentage" type="number" min="0" max="100" step="0.01" placeholder="Pa egzanp: 10" required /></label>
+            <label>Peyi operasyonèl · lajan tenant lan<select name="countryCode" defaultValue={settings.countryCode ?? ""} required><option value="" disabled>Chwazi peyi</option>{COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
+            <label>Modpas tanporè<input name="temporaryPassword" type="password" minLength={12} required /></label>
+            <label>Biwo / santral<select name="branchId" required><option value="">Chwazi</option>{branches.map((b: Row) => <option key={b.id} value={b.id}>{b.officeKind === "CENTRAL" ? "Santral" : "Biwo"} · {b.name}</option>)}</select></label>
+            <small className="form-help">Chwazi peyi a mete menm lajan sa a sou tout vant ak rapò tenant lan. Lajan an vin bloke apre premye tikè a.</small>
+            <button>Kreye machann</button>
           </form>
         )}
       </section>
-      <section className="panel">
-        <Table
-          rows={rows}
-          columns={[
-            ["merchantNumber", "Number"],
-            ["displayName", "Name"],
-            ["user.username", "Login"],
-            ["branch.name", "Branch"],
-            ["commissionRate", "Commission"],
-            ["status", "Status"],
-          ]}
-          actions={(r) => (
-            <MerchantActions row={r} request={request} load={load} can={can} />
-          )}
-        />
-      </section>
+      <section className="panel"><Table rows={rows} columns={[["merchantNumber", "Number"], ["displayName", "Name"], ["user.username", "Login"], ["branch.name", "Branch"], ["commissionRate", "Commission"], ["countryCode", "Country"], ["currency", "Currency"], ["status", "Status"]]} actions={(r) => <MerchantActions row={r} request={request} load={load} can={can} branches={branches} countries={COUNTRIES} />} /></section>
     </>
   );
 }

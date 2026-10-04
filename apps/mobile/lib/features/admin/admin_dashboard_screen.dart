@@ -40,7 +40,7 @@ class _AdminDashboardState extends State<AdminDashboardScreen> {
     GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), childAspectRatio: 1.35, children: [
       _card('Sales', metric('tickets', 'sales'), Icons.payments), _card('Tickets', metric('tickets', 'count'), Icons.receipt_long), _card('Payouts', metric('payouts', 'amount'), Icons.price_check),
       if (widget.session.hasPermission('merchants.view')) _card('Merchants', '$merchants', Icons.storefront),
-      if (widget.session.hasPermission('branches.view')) _card('Branches', '$branches', Icons.account_tree),
+      if (widget.session.hasPermission('branches.view')) _card('Biwo / Santral', '$branches', Icons.account_tree),
       if (widget.session.hasPermission('devices.view')) _card('Devices', '$devices', Icons.devices),
       _card('Alerts', '$alerts', Icons.notifications_active),
     ])

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
 import {
   IsEmail,
+  IsIn,
   IsNumberString,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../common/decorators/access.decorators";
 import type { Principal } from "../common/guards/jwt-auth.guard";
 import { MerchantsService } from "./merchants.service";
+import { SUPPORTED_COUNTRY_CODES } from "../tenants/country-currency-policy";
 export class CreateMerchantDto {
   @IsString() displayName!: string;
   @IsString() merchantNumber!: string;
@@ -18,6 +20,7 @@ export class CreateMerchantDto {
   @IsOptional() @ValidateIf((_, value) => value !== "") @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsNumberString() commissionPercentage!: string;
+  @IsIn(SUPPORTED_COUNTRY_CODES) countryCode!: string;
   @MinLength(12) temporaryPassword!: string;
   @IsString() branchId!: string;
 }
@@ -30,6 +33,8 @@ class UpdateMerchantDto {
   email?: string;
   @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() branchId?: string;
+  @IsOptional() @IsNumberString() commissionPercentage?: string;
+  @IsOptional() @IsIn(SUPPORTED_COUNTRY_CODES) countryCode?: string;
 }
 @Controller("merchants")
 export class MerchantsController {

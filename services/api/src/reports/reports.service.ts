@@ -5,24 +5,36 @@ import { reportRange } from './report-policy';
 import { buildSalesPdf } from './pdf-report';
 import { ticketLineFlags } from '../tickets/ticket-line-flags';
 import { groupTicketSalesByDraw, reportDrawSession } from './report-draw-policy';
+import { parseMerchantIds } from './report-scope-policy';
 
 const zone = 'America/Port-au-Prince';
+type ReportFilterInput = { merchantIds?: string | string[]; branchId?: string };
+type ReportScope = { merchantIds?: string[]; branchId?: string };
 
 @Injectable()
 export class ReportsService {
-  async sales(u: Principal, from?: string, to?: string) {
+  async sales(u: Principal, from?: string, to?: string, filters: ReportFilterInput = {}) {
     const tenantId = this.tenant(u);
     const range = this.range(from, to);
-    const merchant = await prisma.merchantAccount.findFirst({
-      where: { tenantId, userId: u.sub, status: 'ACTIVE' },
-      select: { id: true },
-    });
-    const merchantId = merchant?.id;
-    const where = { tenantId, createdAt: range, ...(merchantId ? { merchantId } : {}) };
+    const scope = await this.scope(u, tenantId, filters);
+    const ticketScope = {
+      ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
+      ...(scope.branchId ? { branchId: scope.branchId } : {}),
+    };
+    const where = { tenantId, createdAt: range, ...ticketScope };
     const saleWhere = { ...where, status: { notIn: ['CANCELLED', 'VOID'] as any } };
     const cancelledWhere = { ...where, status: { in: ['CANCELLED', 'VOID'] as any } };
-    const payoutWhere = { tenantId, paidAt: range, ...(merchantId ? { ticket: { merchantId } } : {}) };
-    const commissionWhere = { tenantId, createdAt: range, ...(merchantId ? { merchantId } : {}) };
+    const payoutWhere = {
+      tenantId,
+      paidAt: range,
+      ticket: ticketScope,
+    };
+    const commissionWhere = {
+      tenantId,
+      createdAt: range,
+      ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
+      ...(scope.branchId ? { merchant: { branchId: scope.branchId } } : {}),
+    };
 
     const [totals, cancelledTotals, statuses, branches, games, payouts, commissions, settings, dayRows, winnerRows] = await Promise.all([
       prisma.ticket.aggregate({ where: saleWhere, _count: { _all: true }, _sum: { amount: true, commission: true } }),
@@ -33,9 +45,9 @@ export class ReportsService {
       prisma.payout.aggregate({ where: payoutWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.commissionTransaction.aggregate({ where: commissionWhere, _sum: { commissionAmount: true } }),
       prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
-      this.salesByDay(tenantId, merchantId, range),
+      this.salesByDay(tenantId, scope, range),
       prisma.winningTicket.findMany({
-        where: { tenantId, detectedAt: range, ...(merchantId ? { ticket: { merchantId } } : {}) },
+        where: { tenantId, detectedAt: range, ticket: ticketScope },
         orderBy: [{ winningAmount: 'desc' }, { detectedAt: 'desc' }],
         take: 5,
         include: {
@@ -65,6 +77,7 @@ export class ReportsService {
     return {
       period: { from: range.gte, to: range.lte },
       currency: settings?.currency ?? 'USD',
+      filters: { merchantIds: scope.merchantIds ?? [], branchId: scope.branchId ?? null },
       tickets: {
         count: totals._count._all,
         sales: totals._sum.amount?.toString() ?? '0',
@@ -76,7 +89,7 @@ export class ReportsService {
       accounting: {
         cancelledCount: cancelledTotals._count._all,
         cancelledAmount: cancelledTotals._sum.amount?.toString() ?? '0',
-        netSales: ((totals._sum.amount ?? new Prisma.Decimal(0)) .sub(payouts._sum.amount ?? new Prisma.Decimal(0)).sub(commissions._sum.commissionAmount ?? new Prisma.Decimal(0))).toString(),
+        netSales: ((totals._sum.amount ?? new Prisma.Decimal(0)).sub(payouts._sum.amount ?? new Prisma.Decimal(0)).sub(commissions._sum.commissionAmount ?? new Prisma.Decimal(0))).toString(),
         deficit: Math.max(0, Number(payouts._sum.amount ?? 0) + Number(commissions._sum.commissionAmount ?? 0) - Number(totals._sum.amount ?? 0)).toFixed(2),
       },
       biggestWins: winnerRows.map(row => ({
@@ -85,10 +98,7 @@ export class ReportsService {
         merchantName: row.ticket.merchant.displayName,
         gameName: row.ticket.draw.game.name,
         drawNumber: row.ticket.draw.drawNumber,
-        session: reportDrawSession(
-          row.ticket.draw.resultAt ?? row.ticket.draw.closesAt ?? row.ticket.draw.opensAt,
-          row.ticket.draw.drawNumber,
-        ),
+        session: reportDrawSession(row.ticket.draw.resultAt ?? row.ticket.draw.closesAt ?? row.ticket.draw.opensAt, row.ticket.draw.drawNumber),
         amount: row.winningAmount.toString(),
         draws: row.ticket.ticketDraws.map(item => ({ drawNumber: item.draw.drawNumber, drawDate: item.draw.drawDate, gameName: item.draw.game.name })),
         lines: row.ticket.lines.map(line => ({ selectionKey: line.selectionKey, drawId: line.drawId, drawNumber: line.draw?.drawNumber ?? '', drawGame: line.draw?.game.name ?? '', ...ticketLineFlags(row.ticket.events, line.id), betName: line.betType.name })),
@@ -99,33 +109,24 @@ export class ReportsService {
     };
   }
 
-  async draws(u: Principal, from?: string, to?: string) {
+  async draws(u: Principal, from?: string, to?: string, filters: ReportFilterInput = {}) {
     const tenantId = this.tenant(u);
     const range = this.range(from, to);
-    const merchant = await prisma.merchantAccount.findFirst({ where: { tenantId, userId: u.sub, status: 'ACTIVE' }, select: { id: true } });
+    const scope = await this.scope(u, tenantId, filters);
     const tickets = await prisma.ticket.findMany({
       where: {
         tenantId,
         createdAt: range,
         status: { notIn: ['CANCELLED', 'VOID'] },
-        ...(merchant ? { merchantId: merchant.id } : {}),
+        ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
+        ...(scope.branchId ? { branchId: scope.branchId } : {}),
       },
       select: {
         drawId: true,
         amount: true,
         lines: { select: { id: true, drawId: true, stake: true } },
         events: { select: { id: true, type: true, metadata: true, createdAt: true } },
-        draw: {
-          select: {
-            id: true,
-            drawNumber: true,
-            drawDate: true,
-            resultAt: true,
-            opensAt: true,
-            closesAt: true,
-            game: { select: { name: true, code: true } },
-          },
-        },
+        draw: { select: { id: true, drawNumber: true, drawDate: true, resultAt: true, opensAt: true, closesAt: true, game: { select: { name: true, code: true } } } },
         ticketDraws: { select: { drawId: true, draw: { select: { id: true, drawNumber: true, drawDate: true, resultAt: true, opensAt: true, closesAt: true, game: { select: { name: true, code: true } } } } } },
       },
     });
@@ -133,31 +134,54 @@ export class ReportsService {
       period: { from: range.gte, to: range.lte },
       byDraw: groupTicketSalesByDraw(tickets.map(ticket => ({
         ...ticket,
-        lines: ticket.lines.map(line => ({
-          drawId: line.drawId,
-          stake: line.stake,
-          isPromotional: ticketLineFlags(ticket.events, line.id).isPromotional,
-        })),
+        lines: ticket.lines.map(line => ({ drawId: line.drawId, stake: line.stake, isPromotional: ticketLineFlags(ticket.events, line.id).isPromotional })),
       }))),
     };
   }
 
-  async pdf(u: Principal, from?: string, to?: string) {
+  async pdf(u: Principal, from?: string, to?: string, filters: ReportFilterInput = {}) {
     const tenantId = this.tenant(u);
     const [report, drawReport, tenant] = await Promise.all([
-      this.sales(u, from, to),
-      this.draws(u, from, to),
+      this.sales(u, from, to, filters),
+      this.draws(u, from, to, filters),
       prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { legalName: true, branding: { select: { businessName: true } }, settings: { select: { currency: true } } } }),
     ]);
-    return buildSalesPdf(
-      { ...report, byDraw: drawReport.byDraw },
-      tenant.branding?.businessName ?? tenant.legalName,
-      tenant.settings?.currency ?? 'USD',
-    );
+    return buildSalesPdf({
+      ...report,
+      byDraw: drawReport.byDraw.map(draw => ({
+        ...draw,
+        drawDate: draw.drawDate ?? undefined,
+        drawTime: draw.drawTime ?? undefined,
+      })),
+    }, tenant.branding?.businessName ?? tenant.legalName, tenant.settings?.currency ?? 'USD');
   }
 
-  private salesByDay(tenantId: string, merchantId: string | undefined, range: { gte: Date; lte: Date }) {
-    const merchantFilter = merchantId ? Prisma.sql`AND "merchantId" = ${merchantId}::uuid` : Prisma.empty;
+  private async scope(u: Principal, tenantId: string, filters: ReportFilterInput): Promise<ReportScope> {
+    const signedInMerchant = await prisma.merchantAccount.findFirst({
+      where: { tenantId, userId: u.sub, status: 'ACTIVE', archivedAt: null },
+      select: { id: true, branchId: true },
+    });
+    if (signedInMerchant) return { merchantIds: [signedInMerchant.id], branchId: signedInMerchant.branchId };
+
+    const merchantIds = parseMerchantIds(filters.merchantIds);
+    const branchId = filters.branchId?.trim() || undefined;
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({ where: { id: branchId, tenantId, archivedAt: null }, select: { id: true } });
+      if (!branch) throw new BadRequestException('INVALID_REPORT_FILTER');
+    }
+    if (merchantIds) {
+      const merchants = await prisma.merchantAccount.findMany({ where: { tenantId, id: { in: merchantIds }, archivedAt: null }, select: { id: true, branchId: true } });
+      if (merchants.length !== merchantIds.length) throw new BadRequestException('INVALID_REPORT_FILTER');
+      if (branchId && merchants.some(merchant => merchant.branchId !== branchId)) throw new BadRequestException('REPORT_MERCHANT_OFFICE_MISMATCH');
+    }
+    return { merchantIds, branchId };
+  }
+
+  private salesByDay(tenantId: string, scope: ReportScope, range: { gte: Date; lte: Date }) {
+    const merchantFilter = scope.merchantIds?.length
+      ? Prisma.sql`AND "merchantId" IN (${Prisma.join(scope.merchantIds.map(id => Prisma.sql`${id}::uuid`))})`
+      : Prisma.empty;
+    const branchFilter = scope.branchId ? Prisma.sql`AND "branchId" = ${scope.branchId}::uuid` : Prisma.empty;
     return prisma.$queryRaw<Array<{ day: string; tickets: number; sales: string }>>(Prisma.sql`
       SELECT TO_CHAR(DATE_TRUNC('day', "createdAt" AT TIME ZONE ${zone}), 'YYYY-MM-DD') AS day,
              COUNT(*)::int AS tickets,
@@ -168,6 +192,7 @@ export class ReportsService {
         AND "createdAt" <= ${range.lte}
         AND "status" NOT IN ('CANCELLED', 'VOID')
         ${merchantFilter}
+        ${branchFilter}
       GROUP BY 1
       ORDER BY 1
     `);

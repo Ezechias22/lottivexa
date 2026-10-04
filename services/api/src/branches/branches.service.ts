@@ -1,2 +1,128 @@
-import{ForbiddenException,Injectable}from'@nestjs/common';import{prisma,Prisma}from'@lottivexa/database';import type{Principal}from'../common/guards/jwt-auth.guard';
-@Injectable()export class BranchesService{list(u:Principal){const tenantId=this.tenant(u);return prisma.branch.findMany({where:{tenantId,archivedAt:null},include:{_count:{select:{merchants:true}}},orderBy:{name:'asc'}})}async create(u:Principal,dto:{code:string;name:string;address?:string;phone?:string;openingHours?:Record<string,unknown>}){const tenantId=this.tenant(u);await this.limit(tenantId);const branch=await prisma.branch.create({data:{tenantId,...dto,openingHours:dto.openingHours as Prisma.InputJsonValue}});await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'CREATE',entityType:'Branch',entityId:branch.id,newValues:{code:branch.code,name:branch.name}}});return branch}async update(u:Principal,id:string,dto:{code:string;name:string;address?:string;phone?:string;openingHours?:Record<string,unknown>}){const tenantId=this.tenant(u);const result=await prisma.branch.updateMany({where:{id,tenantId},data:{code:dto.code,name:dto.name,address:dto.address,phone:dto.phone,openingHours:dto.openingHours as Prisma.InputJsonValue}});if(result.count!==1)throw new ForbiddenException('RESOURCE_NOT_FOUND');await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'Branch',entityId:id,newValues:dto as Prisma.InputJsonValue}});return{updated:true}}private async limit(tenantId:string){const now=new Date(),sub=await prisma.subscription.findFirstOrThrow({where:{tenantId,OR:[{status:{in:['ACTIVE','TRIAL']},currentPeriodEndsAt:{gt:now}},{status:'PAST_DUE',graceEndsAt:{gt:now}}]},include:{plan:{include:{features:{where:{key:'multi_branch',enabled:true}}}}},orderBy:{createdAt:'desc'}});const count=await prisma.branch.count({where:{tenantId,archivedAt:null}});if(count>0&&!sub.plan.features.length)throw new ForbiddenException('FEATURE_NOT_AVAILABLE');if(sub.plan.maxBranches!==null&&count>=sub.plan.maxBranches)throw new ForbiddenException('LIMIT_REACHED')} private tenant(u:Principal){if(!u.tenantId)throw new ForbiddenException('TENANT_ACCESS_REQUIRED');return u.tenantId}}
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { prisma, Prisma } from '@lottivexa/database';
+import type { Principal } from '../common/guards/jwt-auth.guard';
+import { setTenantCountryCurrency } from '../tenants/tenant-country-settings';
+
+type OfficeKind = 'OFFICE' | 'CENTRAL';
+type BranchInput = {
+  code: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  openingHours?: Record<string, unknown>;
+  officeKind?: OfficeKind;
+  countryCode?: string;
+};
+
+@Injectable()
+export class BranchesService {
+  async list(u: Principal) {
+    const tenantId = this.tenant(u);
+    const [branches, tenant, setting] = await Promise.all([
+      prisma.branch.findMany({
+        where: { tenantId, archivedAt: null },
+        include: { _count: { select: { merchants: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } }),
+      prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
+    ]);
+    return branches.map(branch => ({
+      ...branch,
+      officeKind: (branch.settings as { officeKind?: OfficeKind } | null)?.officeKind ?? 'OFFICE',
+      countryCode: tenant.jurisdictionCode,
+      currency: setting?.currency ?? 'USD',
+    }));
+  }
+
+  async create(u: Principal, dto: BranchInput) {
+    const tenantId = this.tenant(u);
+    await this.limit(tenantId);
+    const branch = await prisma.$transaction(async tx => {
+      const currentTenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
+      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? currentTenant.jurisdictionCode ?? 'HT');
+      const value = await tx.branch.create({
+        data: {
+          tenantId,
+          code: dto.code,
+          name: dto.name,
+          address: dto.address,
+          phone: dto.phone,
+          openingHours: dto.openingHours as Prisma.InputJsonValue | undefined,
+          settings: { officeKind: dto.officeKind ?? 'OFFICE' },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId: u.sub,
+          action: 'CREATE',
+          entityType: 'Branch',
+          entityId: value.id,
+          newValues: { code: value.code, name: value.name, officeKind: dto.officeKind ?? 'OFFICE', countryCode: dto.countryCode ?? currentTenant.jurisdictionCode ?? 'HT' },
+        },
+      });
+      return value;
+    });
+    return { ...branch, officeKind: dto.officeKind ?? 'OFFICE', countryCode: dto.countryCode ?? null };
+  }
+
+  async update(u: Principal, id: string, dto: BranchInput) {
+    const tenantId = this.tenant(u);
+    const existing = await prisma.branch.findFirst({ where: { id, tenantId, archivedAt: null } });
+    if (!existing) throw new ForbiddenException('RESOURCE_NOT_FOUND');
+    const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
+    await prisma.$transaction(async tx => {
+      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? tenant.jurisdictionCode ?? 'HT');
+      await tx.branch.update({
+        where: { id },
+        data: {
+          code: dto.code,
+          name: dto.name,
+          address: dto.address,
+          phone: dto.phone,
+          openingHours: dto.openingHours as Prisma.InputJsonValue | undefined,
+          settings: {
+            ...((existing.settings && typeof existing.settings === 'object' && !Array.isArray(existing.settings)) ? existing.settings as Record<string, unknown> : {}),
+            officeKind: dto.officeKind ?? (existing.settings as { officeKind?: OfficeKind } | null)?.officeKind ?? 'OFFICE',
+          } as Prisma.InputJsonValue,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          userId: u.sub,
+          action: 'UPDATE',
+          entityType: 'Branch',
+          entityId: id,
+          oldValues: { code: existing.code, name: existing.name, settings: existing.settings ?? Prisma.JsonNull } as Prisma.InputJsonValue,
+          newValues: { ...dto, officeKind: dto.officeKind ?? 'OFFICE' } as Prisma.InputJsonValue,
+        },
+      });
+    });
+    return { updated: true };
+  }
+
+  private async limit(tenantId: string) {
+    const now = new Date();
+    const sub = await prisma.subscription.findFirstOrThrow({
+      where: {
+        tenantId,
+        OR: [
+          { status: { in: ['ACTIVE', 'TRIAL'] }, currentPeriodEndsAt: { gt: now } },
+          { status: 'PAST_DUE', graceEndsAt: { gt: now } },
+        ],
+      },
+      include: { plan: { include: { features: { where: { key: 'multi_branch', enabled: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const count = await prisma.branch.count({ where: { tenantId, archivedAt: null } });
+    if (count > 0 && !sub.plan.features.length) throw new ForbiddenException('FEATURE_NOT_AVAILABLE');
+    if (sub.plan.maxBranches !== null && count >= sub.plan.maxBranches) throw new ForbiddenException('LIMIT_REACHED');
+  }
+
+  private tenant(u: Principal) {
+    if (!u.tenantId) throw new ForbiddenException('TENANT_ACCESS_REQUIRED');
+    return u.tenantId;
+  }
+}

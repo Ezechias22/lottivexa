@@ -160,6 +160,18 @@ button.danger {
   align-self: flex-end;
   margin-bottom: 12px;
 }
+.form-help { grid-column: 1 / -1; display: block; margin: 0 0 10px; padding: 10px 12px; border: 1px solid #dce8f7; border-radius: 9px; color: #51647e; background: #f4f8fd; font-size: 11px; line-height: 1.5; }
+.merchant-edit-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: #1020398a; backdrop-filter: blur(3px); }
+.merchant-edit-dialog { width: min(700px, 100%); max-height: min(90vh, 850px); overflow: auto; padding: 24px; border: 1px solid #dce5f0; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px #0b1c3552; }
+.merchant-edit-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
+.merchant-edit-dialog h2 { margin: 5px 0; color: #1e304d; font-size: 22px; }
+.merchant-edit-dialog header p { margin: 0; color: #77879c; font-size: 12px; }
+.merchant-edit-dialog .form-help { margin: 0; }
+.merchant-edit-dialog .form input[readonly] { color: #5f6e83; background: #f4f7fb; }
+.merchant-edit-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.merchant-edit-actions button { min-height: 40px; padding: 9px 14px; border: 0; border-radius: 9px; color: white; background: #2463eb; font-weight: 750; cursor: pointer; }
+.merchant-edit-actions .secondary { color: #485970; border: 1px solid #d8e1ed; background: #f6f8fb; }
+.merchant-edit-error { grid-column: 1 / -1; margin: 0; padding: 10px 12px; border-radius: 9px; color: #963640; background: #fff0f1; font-size: 12px; }
 .split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -616,6 +628,17 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
 .tenant-report-period-copy strong { font-size: 13px; }
 .tenant-report-period-copy strong span { padding: 0 4px; color: #96a6bd; }
 .tenant-report-toolbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.tenant-report-scope-filters { display: flex; align-items: flex-end; gap: 8px; }
+.tenant-report-scope-select { display: grid; gap: 5px; color: #64738a; font-size: 10px; font-weight: 700; }
+.tenant-report-scope-select select, .tenant-report-merchant-picker summary { min-height: 39px; max-width: 230px; padding: 8px 10px; border: 1px solid #dfe6f0; border-radius: 9px; color: #28374f; background: #fff; font: inherit; font-size: 11px; }
+.tenant-report-merchant-picker { position: relative; }
+.tenant-report-merchant-picker summary { display: flex; align-items: center; cursor: pointer; list-style: none; }
+.tenant-report-merchant-picker summary::-webkit-details-marker { display: none; }
+.tenant-report-merchant-picker summary::after { margin-left: 10px; color: #74839a; content: "⌄"; }
+.tenant-report-merchant-options { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; display: grid; gap: 8px; width: min(320px, 80vw); max-height: 280px; overflow: auto; padding: 12px; border: 1px solid #dce5f0; border-radius: 12px; background: #fff; box-shadow: 0 14px 36px #15284424; }
+.tenant-report-merchant-options label { display: flex; align-items: center; gap: 8px; color: #34435a; font-size: 12px; font-weight: 600; }
+.tenant-report-merchant-options input { accent-color: #2463eb; }
+.tenant-report-merchant-options small { color: #7b8aa0; font-size: 10px; line-height: 1.45; }
 .tenant-report-presets { display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: #f2f5fa; }
 .tenant-report-presets button { padding: 7px 10px; border: 0; border-radius: 7px; color: #65748b; background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
 .tenant-report-presets button:hover { color: #154db8; background: white; }
@@ -709,9 +732,16 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
   .tenant-report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tenant-report-toolbar-actions, .tenant-report-filter { align-items: stretch; width: 100%; }
   .tenant-report-toolbar-actions { flex-direction: column; }
+  .tenant-report-scope-filters { align-items: stretch; flex-direction: column; width: 100%; }
+  .tenant-report-scope-select select, .tenant-report-merchant-picker summary { width: 100%; max-width: none; }
+  .tenant-report-merchant-options { right: auto; left: 0; width: min(100%, 360px); }
   .tenant-report-filter { display: grid; grid-template-columns: 1fr 1fr; }
   .tenant-report-filter input { width: 100%; }
   .tenant-report-apply, .tenant-report-pdf { width: 100%; }
+  .form-help { grid-column: auto; }
+  .merchant-edit-dialog { padding: 18px; }
+  .merchant-edit-dialog .form { grid-template-columns: 1fr; }
+  .merchant-edit-dialog .form-help, .merchant-edit-actions, .merchant-edit-error { grid-column: auto; }
 }
 @media (max-width: 480px) {
   .tenant-report-hero-art { display: none; }

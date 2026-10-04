@@ -12,7 +12,6 @@ import '../features/admin/admin_results_screen.dart';
 import '../features/auth/change_password_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
-import '../features/cash/cash_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/reports/reports_screen.dart';
@@ -43,7 +42,6 @@ class LottivexaApp extends StatelessWidget {
         GoRoute(path: '/new-ticket', builder: (_, state) => NewTicketScreen(runtime: runtime, replayTicket: state.extra as Map<String, dynamic>?)),
         GoRoute(path: '/tickets', builder: (_, __) => TicketSearchScreen(runtime: runtime)),
         GoRoute(path: '/results', builder: (_, __) => ResultsScreen(api: api)),
-        GoRoute(path: '/cash', builder: (_, __) => CashScreen(api: api)),
         GoRoute(path: '/settings', builder: (_, __) => SettingsScreen(runtime: runtime)),
       ])
     ]);
@@ -153,7 +151,6 @@ class _AppShellState extends State<AppShell> {
     '/reports' => NavigationDestination(icon: const Icon(Icons.bar_chart_outlined), selectedIcon: const Icon(Icons.bar_chart), label: AppLanguage.tr('Rapò')),
     '/settings' => NavigationDestination(icon: const Icon(Icons.more_horiz), selectedIcon: const Icon(Icons.more_horiz), label: AppLanguage.tr('Plis')),
     '/results' => NavigationDestination(icon: const Icon(Icons.emoji_events_outlined), selectedIcon: const Icon(Icons.emoji_events), label: AppLanguage.tr('Rezilta')),
-    '/cash' => NavigationDestination(icon: const Icon(Icons.point_of_sale_outlined), selectedIcon: const Icon(Icons.point_of_sale), label: AppLanguage.tr('Kès')),
     _ => NavigationDestination(icon: const Icon(Icons.apps_outlined), label: AppLanguage.tr('Plis')),
   };
 }

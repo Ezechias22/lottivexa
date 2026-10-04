@@ -10,6 +10,7 @@ import { merchantUpdate, MerchantUpdate } from "./merchant-update-policy";
 import { reportRange } from "../reports/report-policy";
 import { presentTicketLines } from "../tickets/ticket-line-flags";
 import { merchantCommissionPercentage } from "./merchant-commission-policy";
+import { setTenantCountryCurrency } from "../tenants/tenant-country-settings";
 export const merchantPermissions = [
   "tickets.view",
   "tickets.create",
@@ -121,7 +122,7 @@ export class MerchantsService {
   async list(u: Principal) {
     const tenantId = this.tenant(u);
     const now = new Date();
-    const [merchants, commissionRules] = await Promise.all([
+    const [merchants, commissionRules, tenant, tenantSetting] = await Promise.all([
       prisma.merchantAccount.findMany({
         where: { tenantId, archivedAt: null },
         include: {
@@ -135,7 +136,7 @@ export class MerchantsService {
               forcePasswordChange: true,
             },
           },
-          branch: { select: { id: true, code: true, name: true } },
+          branch: { select: { id: true, code: true, name: true, settings: true } },
         },
         orderBy: { displayName: "asc" },
       }),
@@ -150,6 +151,8 @@ export class MerchantsService {
         },
         orderBy: [{ priority: "desc" }, { startsAt: "desc" }],
       }),
+      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } }),
+      prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
     ]);
     const commissionByMerchant = new Map<string, string>();
     for (const rule of commissionRules) {
@@ -163,6 +166,8 @@ export class MerchantsService {
     return merchants.map((merchant) => ({
       ...merchant,
       commissionRate: commissionByMerchant.get(merchant.id) ?? null,
+      countryCode: tenant.jurisdictionCode,
+      currency: tenantSetting?.currency ?? "USD",
     }));
   }
   async create(
@@ -174,6 +179,7 @@ export class MerchantsService {
       email?: string;
       phone?: string;
       commissionPercentage: string;
+      countryCode?: string;
       temporaryPassword: string;
       branchId: string;
     },
@@ -194,6 +200,8 @@ export class MerchantsService {
       type: argon2.argon2id,
     });
     return prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } });
+      await setTenantCountryCurrency(tx, tenantId, dto.countryCode ?? tenant.jurisdictionCode ?? "HT");
       let role = await tx.role.findFirst({
         where: { tenantId, code: "MERCHANT" },
       });
@@ -261,6 +269,7 @@ export class MerchantsService {
             branchId: branch.id,
             merchantNumber: dto.merchantNumber,
             commissionPercentage,
+            countryCode: dto.countryCode ?? tenant.jurisdictionCode ?? "HT",
           },
         },
       });
@@ -293,7 +302,18 @@ export class MerchantsService {
       dto.username !== undefined ||
       dto.email !== undefined ||
       dto.phone !== undefined;
+    const commissionPercentage = dto.commissionPercentage === undefined
+      ? undefined
+      : merchantCommissionPercentage(dto.commissionPercentage);
+    const [tenant, currentRule] = await Promise.all([
+      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } }),
+      prisma.commissionRule.findFirst({
+        where: { tenantId, scope: "MERCHANT", scopeId: id, active: true, startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+        orderBy: [{ priority: "desc" }, { startsAt: "desc" }],
+      }),
+    ]);
     await prisma.$transaction(async (tx) => {
+      if (dto.countryCode) await setTenantCountryCurrency(tx, tenantId, dto.countryCode);
       await tx.merchantAccount.update({
         where: { id },
         data: { displayName: dto.displayName, branchId },
@@ -318,6 +338,16 @@ export class MerchantsService {
           data: { revokedAt: new Date() },
         });
       }
+      if (commissionPercentage !== undefined) {
+        const now = new Date();
+        await tx.commissionRule.updateMany({
+          where: { tenantId, scope: "MERCHANT", scopeId: id, active: true, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+          data: { active: false, endsAt: now },
+        });
+        await tx.commissionRule.create({
+          data: { tenantId, scope: "MERCHANT", scopeId: id, kind: "PERCENTAGE", percentage: new Prisma.Decimal(commissionPercentage), priority: 1000, startsAt: now },
+        });
+      }
       await tx.auditLog.create({
         data: {
           tenantId,
@@ -331,12 +361,15 @@ export class MerchantsService {
             username: current.user.username,
             email: current.user.email,
             phone: current.user.phone,
+            commissionPercentage: currentRule?.percentage?.toString() ?? null,
+            countryCode: tenant.jurisdictionCode,
           } as Prisma.InputJsonValue,
-          newValues: { ...dto, branchId } as Prisma.InputJsonValue,
+          newValues: { ...dto, branchId, commissionPercentage: commissionPercentage ?? currentRule?.percentage?.toString() ?? null } as Prisma.InputJsonValue,
         },
       });
     });
-    return prisma.merchantAccount.findFirstOrThrow({
+    const [updated, savedTenant, savedSetting, savedRule] = await Promise.all([
+      prisma.merchantAccount.findFirstOrThrow({
       where: { id, tenantId },
       include: {
         user: {
@@ -344,7 +377,12 @@ export class MerchantsService {
         },
         branch: true,
       },
-    });
+      }),
+      prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { jurisdictionCode: true } }),
+      prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
+      prisma.commissionRule.findFirst({ where: { tenantId, scope: "MERCHANT", scopeId: id, active: true }, orderBy: [{ priority: "desc" }, { startsAt: "desc" }] }),
+    ]);
+    return { ...updated, countryCode: savedTenant.jurisdictionCode, currency: savedSetting?.currency ?? "USD", commissionRate: savedRule?.percentage ? `${savedRule.percentage.toString()}%` : null };
   }
   async disable(u: Principal, id: string) {
     const tenantId = this.tenant(u),

@@ -20,10 +20,10 @@ describe('merchant POS', () => {
     }
   });
 
-  it('connects cash shift operations', () => {
-    expect(source).toContain('/cash/session/open');
-    expect(source).toContain('/movements');
-    expect(source).toContain('/close');
+  it('keeps the cash-register workflow out of the merchant interface', () => {
+    expect(source).not.toContain('/cash/session/current');
+    expect(source).not.toContain('/cash/session/open');
+    expect(source).not.toMatch(/screen===['"]cash['"]|\[['"]cash['"]|function Cash\(/);
   });
 
   it('rotates sessions and forces temporary password replacement', () => {

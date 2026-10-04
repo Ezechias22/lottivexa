@@ -100,6 +100,22 @@ export function formatTenantApiError(
       ht: "Pousantaj komisyon an dwe yon chif ant 0 ak 100.",
       fr: "Le taux de commission doit être un nombre entre 0 et 100.",
     },
+    TENANT_COUNTRY_LOCKED_AFTER_FIRST_TICKET: {
+      ht: "Peyi ak lajan biznis la pa ka chanje apre premye tikè a, pou rapò ak tranzaksyon ki deja fèt yo rete egzak.",
+      fr: "Le pays et la devise de l’entreprise sont verrouillés après le premier ticket afin de préserver les transactions et rapports existants.",
+    },
+    UNSUPPORTED_COUNTRY: {
+      ht: "Peyi sa a poko disponib. Chwazi youn nan peyi ki nan lis la.",
+      fr: "Ce pays n’est pas encore pris en charge. Choisissez un pays dans la liste.",
+    },
+    INVALID_REPORT_FILTER: {
+      ht: "Machann oswa biwo ou chwazi pou rapò a pa disponib. Rechaje lis yo epi eseye ankò.",
+      fr: "Le vendeur ou le bureau choisi pour le rapport n’est pas disponible. Actualisez les listes puis réessayez.",
+    },
+    REPORT_MERCHANT_OFFICE_MISMATCH: {
+      ht: "Machann ou chwazi yo pa nan biwo oswa santral ki chwazi a.",
+      fr: "Les vendeurs sélectionnés ne sont pas rattachés au bureau ou à la centrale sélectionné.",
+    },
     INVALID_BOLET_PAYOUTS: {
       ht: "Mete twa miltiplikatè ki pi gran pase zewo pou 1ye, 2yèm ak 3yèm rezilta yo.",
       fr: "Saisissez trois multiplicateurs supérieurs à zéro pour les 1er, 2e et 3e résultats.",

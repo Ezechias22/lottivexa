@@ -8,7 +8,7 @@ class AdminHubScreen extends StatelessWidget {
   final SessionStore session;
   @override Widget build(BuildContext context) {
     final items = <({String permission, String path, String label, IconData icon})>[
-      (permission: 'merchants.view', path: 'merchants', label: 'Merchants', icon: Icons.storefront), (permission: 'branches.view', path: 'branches', label: 'Branches', icon: Icons.account_tree),
+      (permission: 'merchants.view', path: 'merchants', label: 'Merchants', icon: Icons.storefront), (permission: 'branches.view', path: 'branches', label: 'Biwo / Santral', icon: Icons.account_tree),
       (permission: 'users.view', path: 'users', label: 'Users', icon: Icons.group), (permission: 'devices.view', path: 'devices', label: 'Devices', icon: Icons.devices),
       (permission: 'printers.view', path: 'printers', label: 'Printers', icon: Icons.print), (permission: 'finance.view', path: 'finance', label: 'Finance', icon: Icons.account_balance),
       (permission: 'reports.view', path: 'reports', label: 'Reports', icon: Icons.analytics), (permission: '', path: 'notifications', label: 'Alerts', icon: Icons.notifications),

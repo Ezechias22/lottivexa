@@ -25,7 +25,6 @@ class _State extends State<SettingsScreen>{
     Text(AppLanguage.tr('Plis'),style:const TextStyle(fontSize:26,fontWeight:FontWeight.bold)),
     Card(child:Wrap(spacing:8,runSpacing:8,alignment:WrapAlignment.center,children:[
       OutlinedButton.icon(onPressed:()=>context.go('/results'),icon:const Icon(Icons.emoji_events_outlined),label:Text(AppLanguage.tr('Rezilta'))),
-      if(widget.runtime.session.hasPermission('finance.view'))OutlinedButton.icon(onPressed:()=>context.go('/cash'),icon:const Icon(Icons.point_of_sale_outlined),label:Text(AppLanguage.tr('Kès'))),
       if(widget.runtime.session.hasPermission('reports.view'))OutlinedButton.icon(onPressed:()=>context.go('/reports'),icon:const Icon(Icons.bar_chart_outlined),label:Text(AppLanguage.tr('Rapò'))),
     ])),
     ValueListenableBuilder<Locale>(valueListenable:AppLanguage.current,builder:(_,locale,__)=>Card(child:ListTile(leading:const Icon(Icons.language),title:Text(AppLanguage.tr('Lang aplikasyon an')),trailing:DropdownButton<String>(value:locale.languageCode,items:const[DropdownMenuItem(value:'ht',child:Text('Kreyòl')),DropdownMenuItem(value:'fr',child:Text('Français'))],onChanged:(value){if(value!=null)AppLanguage.set(value);})))),
