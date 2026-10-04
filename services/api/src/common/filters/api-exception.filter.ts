@@ -17,7 +17,31 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let details: unknown;
 
-    if (error instanceof HttpException) {
+    const prismaError = error && typeof error === 'object'
+      ? error as { code?: unknown; meta?: { target?: unknown } }
+      : undefined;
+    if (prismaError?.code === 'P2002') {
+      const target = Array.isArray(prismaError.meta?.target)
+        ? prismaError.meta.target.join(',')
+        : String(prismaError.meta?.target ?? '');
+      const fields = target.replace(/[^a-z]/gi, '').toLowerCase();
+      status = HttpStatus.CONFLICT;
+      if (fields.includes('username')) {
+        code = 'USERNAME_ALREADY_EXISTS';
+        message = 'USERNAME_ALREADY_EXISTS';
+      } else if (fields.includes('merchantnumber')) {
+        code = 'MERCHANT_NUMBER_ALREADY_EXISTS';
+        message = 'MERCHANT_NUMBER_ALREADY_EXISTS';
+      } else if (fields.includes('email')) {
+        code = 'EMAIL_ALREADY_EXISTS';
+        message = 'EMAIL_ALREADY_EXISTS';
+      } else {
+        code = 'UNIQUE_CONSTRAINT_CONFLICT';
+        message = 'UNIQUE_CONSTRAINT_CONFLICT';
+      }
+    }
+
+    if (status !== HttpStatus.CONFLICT && error instanceof HttpException) {
       status = error.getStatus();
       const body = error.getResponse();
       if (typeof body === 'string') {

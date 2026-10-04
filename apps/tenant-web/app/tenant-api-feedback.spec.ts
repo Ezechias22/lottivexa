@@ -66,4 +66,12 @@ describe("tenant API feedback", () => {
       ),
     ).toContain("ant 0 ak 100");
   });
+
+  it("explains duplicate merchant usernames instead of showing an HTTP code", () => {
+    expect(formatTenantApiError(
+      { error: { code: "USERNAME_ALREADY_EXISTS", message: "USERNAME_ALREADY_EXISTS" } },
+      409,
+      "ht",
+    )).toContain("Non itilizatè sa a deja egziste");
+  });
 });

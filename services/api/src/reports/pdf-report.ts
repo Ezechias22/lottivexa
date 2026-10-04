@@ -3,8 +3,8 @@ type DrawLine = {
   drawNumber?: string;
   gameName?: string;
   gameCode?: string;
-  drawDate?: Date | string | null;
-  drawTime?: Date | string | null;
+  drawDate?: Date | string;
+  drawTime?: Date | string;
   session?: string;
   count?: number;
   amount?: string;
@@ -24,6 +24,7 @@ type SalesReport = {
   byDay?: Array<{ day: string; count: number; amount: string }>;
   byGame?: Array<{ gameName: string; gameCode?: string; count: number; amount: string }>;
   byBranch?: Array<{ branchName: string; branchCode?: string; count: number; amount: string }>;
+  byMerchant?: Array<{ merchantName: string; merchantNumber?: string; commissionRate?: string; count: number; amount: string; commission: string }>;
   byDraw?: DrawLine[];
   biggestWins?: Array<{
     ticketNumber: string;
@@ -403,6 +404,14 @@ export function buildSalesPdf(report: SalesReport, businessName: string, currenc
       (row.branchCode ? row.branchCode + '  ' : '') + row.branchName,
       count(row.count),
       amount(row.amount, currency),
+    ]));
+  table('Komisyon pa machann', ['Machann', 'Pousantaj', 'Tikè', 'Vant', 'Komisyon'], [125, 72, 45, 120, CONTENT_WIDTH - 362],
+    (report.byMerchant ?? []).map((row) => [
+      (row.merchantNumber ? row.merchantNumber + '  ' : '') + row.merchantName,
+      row.commissionRate ?? '—',
+      count(row.count),
+      amount(row.amount, currency),
+      amount(row.commission, currency),
     ]));
   table('Vant pa tiraj', ['Dat / sesyon', 'Lotri ak tiraj', 'Tikè', 'Vant'], [108, 190, 55, CONTENT_WIDTH - 353],
     (report.byDraw ?? []).map((row) => [

@@ -32,11 +32,12 @@ export class ReportsService {
     const commissionWhere = {
       tenantId,
       createdAt: range,
+      ticket: { status: { notIn: ['CANCELLED', 'VOID'] as any } },
       ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
       ...(scope.branchId ? { merchant: { branchId: scope.branchId } } : {}),
     };
 
-    const [totals, cancelledTotals, statuses, branches, games, payouts, commissions, settings, dayRows, winnerRows] = await Promise.all([
+    const [totals, cancelledTotals, statuses, branches, games, payouts, commissions, commissionDetails, merchantSales, settings, dayRows, winnerRows] = await Promise.all([
       prisma.ticket.aggregate({ where: saleWhere, _count: { _all: true }, _sum: { amount: true, commission: true } }),
       prisma.ticket.aggregate({ where: cancelledWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.ticket.groupBy({ by: ['status'], where, orderBy: { status: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
@@ -44,6 +45,11 @@ export class ReportsService {
       prisma.ticket.groupBy({ by: ['gameId'], where: saleWhere, orderBy: { gameId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
       prisma.payout.aggregate({ where: payoutWhere, _count: { _all: true }, _sum: { amount: true } }),
       prisma.commissionTransaction.aggregate({ where: commissionWhere, _sum: { commissionAmount: true } }),
+      prisma.commissionTransaction.findMany({
+        where: commissionWhere,
+        select: { merchantId: true, commissionAmount: true, rule: { select: { kind: true, percentage: true } } },
+      }),
+      prisma.ticket.groupBy({ by: ['merchantId'], where: saleWhere, orderBy: { merchantId: 'asc' }, _count: { _all: true }, _sum: { amount: true } }),
       prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
       this.salesByDay(tenantId, scope, range),
       prisma.winningTicket.findMany({
@@ -67,12 +73,21 @@ export class ReportsService {
       }),
     ]);
 
-    const [branchInfo, gameInfo] = await Promise.all([
+    const [branchInfo, gameInfo, merchantInfo] = await Promise.all([
       prisma.branch.findMany({ where: { tenantId, id: { in: branches.map(x => x.branchId) } }, select: { id: true, name: true, code: true } }),
       prisma.game.findMany({ where: { tenantId, id: { in: games.map(x => x.gameId) } }, select: { id: true, name: true, code: true } }),
+      prisma.merchantAccount.findMany({ where: { tenantId, id: { in: merchantSales.map(x => x.merchantId) } }, select: { id: true, displayName: true, merchantNumber: true } }),
     ]);
     const branchById = new Map(branchInfo.map(x => [x.id, x]));
     const gameById = new Map(gameInfo.map(x => [x.id, x]));
+    const merchantById = new Map(merchantInfo.map(x => [x.id, x]));
+    const commissionByMerchant = new Map<string, { amount: Prisma.Decimal; rates: Set<string> }>();
+    for (const row of commissionDetails) {
+      const current = commissionByMerchant.get(row.merchantId) ?? { amount: new Prisma.Decimal(0), rates: new Set<string>() };
+      current.amount = current.amount.add(row.commissionAmount);
+      if (row.rule?.kind === 'PERCENTAGE' && row.rule.percentage) current.rates.add(`${row.rule.percentage.toString()}%`);
+      commissionByMerchant.set(row.merchantId, current);
+    }
 
     return {
       period: { from: range.gte, to: range.lte },
@@ -86,6 +101,19 @@ export class ReportsService {
       payouts: { count: payouts._count._all, amount: payouts._sum.amount?.toString() ?? '0' },
       commission: commissions._sum.commissionAmount?.toString() ?? '0',
       byDay: dayRows.map(row => ({ day: row.day, count: Number(row.tickets), amount: String(row.sales) })),
+      byMerchant: merchantSales.map(row => {
+        const merchant = merchantById.get(row.merchantId);
+        const commission = commissionByMerchant.get(row.merchantId);
+        return {
+          merchantId: row.merchantId,
+          merchantName: merchant?.displayName ?? row.merchantId,
+          merchantNumber: merchant?.merchantNumber ?? '',
+          commissionRate: commission?.rates.size ? [...commission.rates].join(', ') : '—',
+          count: row._count._all,
+          amount: row._sum.amount?.toString() ?? '0',
+          commission: commission?.amount.toString() ?? '0',
+        };
+      }).sort((a, b) => Number(b.amount) - Number(a.amount)),
       accounting: {
         cancelledCount: cancelledTotals._count._all,
         cancelledAmount: cancelledTotals._sum.amount?.toString() ?? '0',

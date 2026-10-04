@@ -96,6 +96,22 @@ export function formatTenantApiError(
       ht: "Enfòmasyon yo pa disponib ankò. Rechaje paj la epi eseye ankò.",
       fr: "Ces informations ne sont plus disponibles. Actualisez la page puis réessayez.",
     },
+    USERNAME_ALREADY_EXISTS: {
+      ht: "Non itilizatè sa a deja egziste nan biznis sa a. Chwazi yon lòt non itilizatè.",
+      fr: "Ce nom d’utilisateur existe déjà dans cette entreprise. Choisissez-en un autre.",
+    },
+    MERCHANT_NUMBER_ALREADY_EXISTS: {
+      ht: "Nimewo machann sa a deja egziste. Chwazi yon lòt nimewo.",
+      fr: "Ce numéro de vendeur existe déjà. Choisissez-en un autre.",
+    },
+    EMAIL_ALREADY_EXISTS: {
+      ht: "Adrès imèl sa a deja sèvi. Mete yon lòt imèl oswa kite chan an vid.",
+      fr: "Cette adresse e-mail est déjà utilisée. Saisissez une autre adresse ou laissez le champ vide.",
+    },
+    UNIQUE_CONSTRAINT_CONFLICT: {
+      ht: "Youn nan enfòmasyon sa yo deja egziste. Verifye non itilizatè a, imèl la ak nimewo machann nan.",
+      fr: "Une de ces informations existe déjà. Vérifiez le nom d’utilisateur, l’adresse e-mail et le numéro du vendeur.",
+    },
     INVALID_COMMISSION_PERCENTAGE: {
       ht: "Pousantaj komisyon an dwe yon chif ant 0 ak 100.",
       fr: "Le taux de commission doit être un nombre entre 0 et 100.",

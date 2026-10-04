@@ -25,6 +25,7 @@ describe('sales PDF', () => {
       })),
       byGame: [{ gameCode: 'FL', gameName: 'Florida', count: 2, amount: '20.00' }],
       byBranch: [{ branchCode: 'M01', branchName: 'Biwo Santral', count: 3, amount: '30.50' }],
+      byMerchant: [{ merchantName: 'Machann Santral', merchantNumber: 'M01', commissionRate: '10%', count: 2, amount: '20.00', commission: '2.00' }],
       byDraw: [{
         drawDate: new Date('2026-01-01T20:00:00.000Z'),
         session: 'EVENING',
@@ -56,6 +57,8 @@ describe('sales PDF', () => {
     expect(usdReport).toContain('30,50 $');
     expect(usdReport).not.toContain('$US');
     expect(report).toContain('VANT PA TIRAJ');
+    expect(report).toContain('KOMISYON PA MACHANN');
+    expect(report).toContain('10%');
     expect(report).toContain('PI GWO TIKÈ GAYAN YO');
     expect(report).toContain('xref');
     expect(report).toMatch(/startxref\n\d+\n%%EOF/);

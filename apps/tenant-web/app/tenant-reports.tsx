@@ -264,6 +264,8 @@ export default function TenantReports({
         tickets: "Tickets vendus",
         payouts: "Gains payés",
         commission: "Commissions",
+        commissionRate: "Taux de commission",
+        byMerchant: "Commissions par vendeur",
         net: "Résultat net",
         byStatus: "Répartition par statut",
         byGame: "Ventes par loterie",
@@ -306,6 +308,8 @@ export default function TenantReports({
         tickets: "Tikè vann",
         payouts: "Gany ki peye",
         commission: "Komisyon",
+        commissionRate: "Pousantaj komisyon",
+        byMerchant: "Komisyon pa machann",
         net: "Rezilta nèt",
         byStatus: "Tikè pa estati",
         byGame: "Lavant pa lotri",
@@ -365,6 +369,10 @@ export default function TenantReports({
   const branchRows = useMemo(
     () => [...(report.byBranch ?? [])].sort((a: Row, b: Row) => Number(b.amount ?? 0) - Number(a.amount ?? 0)),
     [report.byBranch],
+  );
+  const merchantRows = useMemo(
+    () => [...(report.byMerchant ?? [])].sort((a: Row, b: Row) => Number(b.commission ?? 0) - Number(a.commission ?? 0)),
+    [report.byMerchant],
   );
   const sessions = (drawReport.byDraw ?? []).map((draw: Row) => ({
     ...draw,
@@ -568,6 +576,29 @@ export default function TenantReports({
                   <td><span>{draw.sessionLabel}</span><small className="tenant-report-subline">{draw.scheduleLabel || draw.drawNumber || "—"}</small></td>
                   <td>{Number(draw.count ?? 0).toLocaleString("fr-HT")}</td>
                   <td className="report-number-cell">{currencyValue(draw.amount, currency, language)}</td>
+                </tr>
+              )) : <tr><td colSpan={5} className="tenant-report-table-empty">{text.empty}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="tenant-report-card tenant-report-draw-card">
+        <div className="tenant-report-card-heading">
+          <div><span className="tenant-report-kicker">{language === "fr" ? "DÉTAIL PAR VENDEUR" : "DETAY PA MACHANN"}</span><h3>{text.byMerchant}</h3></div>
+          <span className="tenant-report-muted">{merchantRows.length} {french ? "vendeurs" : "machann"}</span>
+        </div>
+        <div className="tenant-report-table-wrap">
+          <table className="tenant-report-table">
+            <thead><tr><th>{text.merchant}</th><th>{text.commissionRate}</th><th>{text.tickets}</th><th>{text.sales}</th><th>{text.commission}</th></tr></thead>
+            <tbody>
+              {merchantRows.length ? merchantRows.map((merchant: Row) => (
+                <tr key={merchant.merchantId}>
+                  <td><strong>{merchant.merchantName}</strong><small className="tenant-report-subline">{merchant.merchantNumber || "—"}</small></td>
+                  <td>{merchant.commissionRate || "—"}</td>
+                  <td>{Number(merchant.count ?? 0).toLocaleString("fr-HT")}</td>
+                  <td className="report-number-cell">{currencyValue(merchant.amount, currency, language)}</td>
+                  <td className="report-number-cell">{currencyValue(merchant.commission, currency, language)}</td>
                 </tr>
               )) : <tr><td colSpan={5} className="tenant-report-table-empty">{text.empty}</td></tr>}
             </tbody>
