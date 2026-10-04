@@ -16,6 +16,7 @@ import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
 import TenantReports from "./tenant-reports";
 import TenantLotterySettings from "./tenant-lottery-settings";
 import { refreshWebSession } from "./session-refresh";
+import { brandingImageIssue, prepareBrandingImage, type BrandingImageIssue, type BrandingImageKind } from "./branding-image";
 const COUNTRIES: [string, string][] = [
   ["HT", "Haiti · HTG"],
   ["US", "United States · USD"],
@@ -67,6 +68,14 @@ const COUNTRIES: [string, string][] = [
   ["GH", "Ghana · GHS"],
   ["ZA", "South Africa · ZAR"],
 ];
+const COUNTRY_NAMES: Record<string, { ht: string; fr: string }> = {
+  HT:{ht:"Ayiti",fr:"Haïti"},US:{ht:"Etazini",fr:"États-Unis"},CA:{ht:"Kanada",fr:"Canada"},DO:{ht:"Repiblik Dominikèn",fr:"République dominicaine"},JM:{ht:"Jamayik",fr:"Jamaïque"},BS:{ht:"Bahamas",fr:"Bahamas"},BB:{ht:"Babados",fr:"Barbade"},BZ:{ht:"Beliz",fr:"Belize"},TT:{ht:"Trinidad ak Tobago",fr:"Trinité-et-Tobago"},GY:{ht:"Giyàn",fr:"Guyana"},SR:{ht:"Sirinam",fr:"Suriname"},MX:{ht:"Meksik",fr:"Mexique"},BR:{ht:"Brezil",fr:"Brésil"},AR:{ht:"Ajantin",fr:"Argentine"},BO:{ht:"Bolivi",fr:"Bolivie"},CL:{ht:"Chili",fr:"Chili"},CO:{ht:"Kolonbi",fr:"Colombie"},CR:{ht:"Kosta Rika",fr:"Costa Rica"},CU:{ht:"Kiba",fr:"Cuba"},EC:{ht:"Ekwatè",fr:"Équateur"},SV:{ht:"Salvadò",fr:"Salvador"},GT:{ht:"Gwatemala",fr:"Guatemala"},HN:{ht:"Ondiras",fr:"Honduras"},NI:{ht:"Nikaragwa",fr:"Nicaragua"},PA:{ht:"Panama",fr:"Panama"},PY:{ht:"Paragwe",fr:"Paraguay"},PE:{ht:"Pewou",fr:"Pérou"},UY:{ht:"Irigwe",fr:"Uruguay"},VE:{ht:"Venezyela",fr:"Venezuela"},PR:{ht:"Pòtoriko",fr:"Porto Rico"},GB:{ht:"Wayòm Ini",fr:"Royaume-Uni"},FR:{ht:"Lafrans",fr:"France"},ES:{ht:"Espay",fr:"Espagne"},DE:{ht:"Almay",fr:"Allemagne"},PT:{ht:"Pòtigal",fr:"Portugal"},IT:{ht:"Itali",fr:"Italie"},NL:{ht:"Peyiba",fr:"Pays-Bas"},BE:{ht:"Bèljik",fr:"Belgique"},CH:{ht:"Swis",fr:"Suisse"},IE:{ht:"Iland",fr:"Irlande"},AU:{ht:"Ostrali",fr:"Australie"},NZ:{ht:"Nouvèl Zelann",fr:"Nouvelle-Zélande"},JP:{ht:"Japon",fr:"Japon"},CN:{ht:"Lachin",fr:"Chine"},IN:{ht:"End",fr:"Inde"},PH:{ht:"Filipin",fr:"Philippines"},NG:{ht:"Nijerya",fr:"Nigéria"},GH:{ht:"Gana",fr:"Ghana"},ZA:{ht:"Afrik di Sid",fr:"Afrique du Sud"},
+};
+function countryLabel(code: string, label: string, language: "ht" | "fr") {
+  const currency = label.split(" · ").slice(1).join(" · ");
+  const name = COUNTRY_NAMES[code]?.[language] ?? label.split(" · ")[0];
+  return currency ? `${name} · ${currency}` : name;
+}
 const RAW_API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const API = RAW_API.replace(/\/$/, "").endsWith("/api/v1")
   ? RAW_API.replace(/\/$/, "")
@@ -1801,27 +1810,45 @@ function Printers({ data: d, submit, has }: any) {
 }
 function Branding({ data: d, submit, request, load, has, can }: any) {
   const [s = {}, domains = [], lotterySettings = [], offices = []] = d;
+  const { t, language } = useI18n();
   const [logo, setLogo] = useState(String(s.branding?.logoUrl ?? ""));
   const [favicon, setFavicon] = useState(String(s.branding?.faviconUrl ?? ""));
   const [primaryColor, setPrimaryColor] = useState(String(s.branding?.primaryColor ?? "#172554"));
   const [secondaryColor, setSecondaryColor] = useState(String(s.branding?.secondaryColor ?? "#f59e0b"));
   const [brandingMessage, setBrandingMessage] = useState("");
+  const [brandingBusy, setBrandingBusy] = useState(false);
   useEffect(() => { setLogo(String(s.branding?.logoUrl ?? "")); setFavicon(String(s.branding?.faviconUrl ?? "")); setPrimaryColor(String(s.branding?.primaryColor ?? "#172554")); setSecondaryColor(String(s.branding?.secondaryColor ?? "#f59e0b")); }, [s.branding?.logoUrl, s.branding?.faviconUrl, s.branding?.primaryColor, s.branding?.secondaryColor]);
-  function readImage(file: File, setValue: (value: string) => void) {
-    if (!file.type.startsWith("image/")) { setBrandingMessage("Chwazi yon fichye imaj."); return; }
-    if (file.size > 5 * 1024 * 1024) { setBrandingMessage("Logo/Favicon lan dwe pi piti pase 5 MB."); return; }
-    const reader = new FileReader(); reader.onload = () => setValue(String(reader.result ?? "")); reader.readAsDataURL(file);
+  function imageIssueMessage(issue: BrandingImageIssue) {
+    if (issue === "type") return t("branding.invalidType");
+    if (issue === "size") return t("branding.invalidSize");
+    if (issue === "decode") return t("branding.decodeError");
+    return t("branding.saveImageError");
+  }
+  async function readImage(file: File, setValue: (value: string) => void, kind: BrandingImageKind) {
+    const issue = brandingImageIssue(file.type, file.size);
+    if (issue) { setBrandingMessage(imageIssueMessage(issue)); return; }
+    setBrandingMessage("");
+    setBrandingBusy(true);
+    try {
+      setValue(await prepareBrandingImage(file, kind));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "encode";
+      const knownIssue: BrandingImageIssue = code === "decode" ? "decode" : "encode";
+      setBrandingMessage(imageIssueMessage(knownIssue));
+    } finally {
+      setBrandingBusy(false);
+    }
   }
   async function saveBranding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBrandingMessage("");
-    try { const values = Object.fromEntries(new FormData(event.currentTarget).entries()); await request("/settings/branding", { method: "PUT", body: JSON.stringify({ businessName: String(values.businessName ?? ""), logoUrl: logo || undefined, faviconUrl: favicon || undefined, primaryColor, secondaryColor }) }); setBrandingMessage("Branding sove."); await load("branding"); }
+    try { const values = Object.fromEntries(new FormData(event.currentTarget).entries()); await request("/settings/branding", { method: "PUT", body: JSON.stringify({ businessName: String(values.businessName ?? ""), logoUrl: logo || undefined, faviconUrl: favicon || undefined, primaryColor, secondaryColor }) }); setBrandingMessage(t("branding.saved")); await load("branding"); }
     catch (error) { setBrandingMessage(error instanceof Error ? error.message : String(error)); }
   }
   return (
     <>
       <div className="tenant-settings-page">
         <section className="panel tenant-settings-account">
-          <h2>Business settings</h2>
+          <h2>{t("branding.businessSettings")}</h2>
           <form
             className="form one"
             onSubmit={(e) =>
@@ -1830,20 +1857,20 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
                 "/settings",
                 (x: Row) => ({ ...x, countryCode: String(x.countryCode ?? "").trim().toUpperCase() }),
                 "PUT",
-                "Settings sove.",
+                t("branding.settingsSaved"),
               )
             }
           >
             <label>
-              Country · account currency
+              {t("branding.country")}
               <select name="countryCode" defaultValue={s.countryCode ?? ""} required>
-                <option value="" disabled>Select country</option>
-                {COUNTRIES.map(([code, label]) => <option value={code} key={code}>{label}</option>)}
+                <option value="" disabled>{t("branding.countryChoice")}</option>
+                {COUNTRIES.map(([code, label]) => <option value={code} key={code}>{countryLabel(code, label, language)}</option>)}
               </select>
-              <small>Currency is selected automatically from the country. Country and currency are locked after the first ticket sale.</small>
+              <small>{t("branding.countryHelp")}</small>
             </label>
             <label>
-              Timezone
+              {t("branding.timezone")}
               <input
                 name="timezone"
                 defaultValue={s.settings?.timezone ?? "America/Port-au-Prince"}
@@ -1851,7 +1878,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               />
             </label>
             <label>
-              Locale
+              {t("branding.locale")}
               <input
                 name="locale"
                 defaultValue={s.settings?.locale ?? "ht-HT"}
@@ -1859,14 +1886,14 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               />
             </label>
             <label>
-              Date format
+              {t("branding.dateFormat")}
               <input
                 name="dateFormat"
                 defaultValue={s.settings?.dateFormat ?? "DD/MM/YYYY"}
                 required
               />
             </label>
-            <button>Save settings</button>
+            <button>{t("branding.saveSettings")}</button>
           </form>
         </section>
         <TenantLotterySettings
@@ -1878,10 +1905,10 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
           canEdit={can("settings.edit")}
         />
         <section className="panel tenant-branding-settings">
-          <h2>Branding</h2>
+          <h2>{t("branding.title")}</h2>
           <form className="form one" onSubmit={saveBranding}>
             <label>
-              Business name
+              {t("branding.businessName")}
               <input
                 name="businessName"
                 defaultValue={s.branding?.businessName}
@@ -1889,17 +1916,19 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               />
             </label>
             <label>
-              Logo biznis (upload)
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImage(file, setLogo); }} />
+              {t("branding.logo")}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; input.value = ""; if (file) void readImage(file, setLogo, "logo"); }} />
             </label>
-            {logo && <img className="tenant-logo-preview" src={logo} alt="Logo biznis" />}
+            {logo && <div className="tenant-branding-image-preview tenant-branding-logo-preview"><img src={logo} alt={t("branding.logoAlt")} /></div>}
             <label>
-              Favicon (upload)
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImage(file, setFavicon); }} />
+              {t("branding.favicon")}
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; input.value = ""; if (file) void readImage(file, setFavicon, "favicon"); }} />
             </label>
-            {favicon && <img className="tenant-favicon-preview" src={favicon} alt="Favicon" />}
+            {favicon && <div className="tenant-branding-image-preview tenant-branding-favicon-preview"><img src={favicon} alt={t("branding.faviconAlt")} /></div>}
+            <small className="tenant-branding-upload-hint">{t("branding.uploadHint")}</small>
+            {brandingBusy && <p className="tenant-branding-uploading" role="status" aria-live="polite">{t("branding.uploading")}</p>}
             <label>
-              Primary color
+              {t("branding.primaryColor")}
               <input
                 name="primaryColor"
                 type="color"
@@ -1908,7 +1937,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
               />
             </label>
             <label>
-              Secondary color
+              {t("branding.secondaryColor")}
               <input
                 name="secondaryColor"
                 type="color"
@@ -1916,7 +1945,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
                 onChange={(event) => setSecondaryColor(event.target.value)}
               />
             </label>
-            <button disabled={!has("custom_branding")}>Save branding</button>
+            <button disabled={!has("custom_branding") || brandingBusy}>{t("branding.save")}</button>
           </form>
           {brandingMessage && <p className="message">{brandingMessage}</p>}
         </section>
