@@ -93,6 +93,11 @@ type Tab =
 const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
   [
     { id: "dashboard", label: "Dashboard" },
+    {
+      id: "branding",
+      label: "Settings & Domains",
+      permission: "settings.view",
+    },
     { id: "tickets", label: "Tickets", permission: "tickets.view" },
     { id: "lottery", label: "Loteries", permission: "tickets.view" },
     { id: "lotterySchedules", label: "Horaires des tirages", permission: "settings.view" },
@@ -116,11 +121,6 @@ const NAV: { id: Tab; label: string; permission?: string; feature?: string }[] =
     { id: "printers", label: "Printers", permission: "printers.view" },
     { id: "reports", label: "Reports", permission: "reports.view" },
     {
-      id: "branding",
-      label: "Settings & Domains",
-      permission: "settings.view",
-    },
-    {
       id: "audit",
       label: "Audit Logs",
       permission: "audit.view",
@@ -141,27 +141,15 @@ function money(v: any, currency = "USD") {
   const amount = Number(v ?? 0);
   const safeAmount = Number.isFinite(amount) ? amount : 0;
   try {
-    return new Intl.NumberFormat("fr-HT", {
-      style: "currency",
-      currency: code,
-      currencyDisplay: "narrowSymbol",
-    }).format(safeAmount);
+    const digits = new Intl.NumberFormat("en-US", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits;
+    return "$" + new Intl.NumberFormat("fr-HT", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(safeAmount);
   } catch {
-    return `${code} ${new Intl.NumberFormat("fr-HT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount)}`;
+    return `$${new Intl.NumberFormat("fr-HT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safeAmount)}`;
   }
 }
 
 function currencySymbol(value: unknown) {
-  const code = typeof value === "string" && /^[A-Z]{3}$/.test(value) ? value : "USD";
-  try {
-    return new Intl.NumberFormat("fr-HT", {
-      style: "currency",
-      currency: code,
-      currencyDisplay: "narrowSymbol",
-    }).formatToParts(0).find((part) => part.type === "currency")?.value ?? code;
-  } catch {
-    return code;
-  }
+  return typeof value === "string" && /^[A-Z]{3}$/.test(value) ? "$" : "$";
 }
 function haitiToday(value = new Date()) {
   const parts = Object.fromEntries(
@@ -220,7 +208,7 @@ function Table({
                         ? raw === "CENTRAL" ? "Santral" : "Biwo"
                         : c[0].toLowerCase() === "countrycode"
                           ? COUNTRIES.find(([code]) => code === raw)?.[1]?.split("·")[0].trim() ?? String(raw ?? "—")
-                      : /(amount|potentialwin|balance|sales|commission|payout|cash|price)/i.test(
+                      : /(amount|balance|sales|commission|payout|cash|price)/i.test(
                             c[0],
                           ) &&
                           raw != null &&
@@ -432,7 +420,7 @@ export default function TenantConsole() {
           `/reports/sales?from=${shiftDate(haitiToday(), -29)}&to=${haitiToday()}`,
           `/reports/draws?from=${shiftDate(haitiToday(), -29)}&to=${haitiToday()}`,
         ],
-        branding: ["/settings", "/domains", "/lottery/settings"],
+        branding: ["/settings", "/domains", "/lottery/settings", "/branches"],
         audit: ["/audit?limit=100"],
       };
       const values = await run(() =>
@@ -775,21 +763,23 @@ function Dashboard({
     dateStyle: "full",
   }).format(new Date());
   const currency = String(r.currency ?? trend.currency ?? "USD");
-  const formatAmount = (value: unknown) => {
-    try {
-      return new Intl.NumberFormat(french ? "fr-FR" : "fr-HT", {
-        style: "currency",
-        currency,
-        currencyDisplay: "narrowSymbol",
-        maximumFractionDigits: 2,
-      }).format(Number(value ?? 0));
-    } catch {
-      return money(value, currency);
-    }
-  };
-  const days = (trend.byDay ?? []) as Array<{ day: string; count: number; amount: string }>;
-  const maximum = Math.max(1, ...days.map((row) => Number(row.amount ?? 0)));
-  const weeklyTotal = days.reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const currencyTotals: Row[] = r.currencyTotals ?? [];
+  const multiCurrency = currencyTotals.length > 1;
+  const formatAmount = (value: unknown, code = currency) => money(value, code);
+  const formatMetric = (field: string, fallback: unknown) => multiCurrency
+    ? currencyTotals.map((row) => `${formatAmount(row[field], row.currencyCode)} ${row.currencyCode}`).join(" · ")
+    : formatAmount(currencyTotals[0]?.[field] ?? fallback, currencyTotals[0]?.currencyCode ?? currency);
+  const days = (trend.byDay ?? []) as Array<{ day: string; currencyCode?: string; count: number; amount: string }>;
+  const chartGroups = multiCurrency
+    ? currencyTotals.map((row) => ({ currencyCode: String(row.currencyCode), rows: days.filter((day) => day.currencyCode === row.currencyCode) }))
+    : [{ currencyCode: String(currencyTotals[0]?.currencyCode ?? currency), rows: days }];
+  const weeklyTotals = chartGroups.map((group) => ({
+    currencyCode: group.currencyCode,
+    amount: group.rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+  }));
+  const weeklyTotal = multiCurrency
+    ? weeklyTotals.map((row) => `${formatAmount(row.amount, row.currencyCode)} ${row.currencyCode}`).join(" · ")
+    : formatAmount(weeklyTotals[0]?.amount ?? 0, weeklyTotals[0]?.currencyCode ?? currency);
   const sales = Number(r.tickets?.sales ?? 0);
   const net = Number(r.accounting?.netSales ?? (
     sales - Number(r.payouts?.amount ?? 0) - Number(r.commission ?? 0)
@@ -837,7 +827,7 @@ function Dashboard({
         <div className="dashboard-hero-side">
           <div className="dashboard-hero-total">
             <span>{t("dashboard.today")}</span>
-            <strong>{formatAmount(sales)}</strong>
+            <strong>{formatMetric("sales", sales)}</strong>
             <small>{r.tickets?.count ?? tickets.length} {t("dashboard.tickets").toLowerCase()}</small>
           </div>
           <button type="button" className="dashboard-report-link" onClick={onViewReports}>
@@ -851,19 +841,19 @@ function Dashboard({
         <article className="dashboard-metric metric-blue">
           <span className="dashboard-metric-icon">↗</span>
           <span className="dashboard-metric-label">{t("dashboard.today")}</span>
-          <strong>{formatAmount(sales)}</strong>
+          <strong>{formatMetric("sales", sales)}</strong>
           <small>{r.tickets?.count ?? tickets.length} {t("dashboard.tickets").toLowerCase()}</small>
         </article>
         <article className="dashboard-metric metric-green">
           <span className="dashboard-metric-icon">◎</span>
           <span className="dashboard-metric-label">{t("dashboard.net")}</span>
-          <strong>{formatAmount(net)}</strong>
+          <strong>{formatMetric("netSales", net)}</strong>
           <small>{french ? "Après les paiements et commissions" : "Apre peman ak komisyon"}</small>
         </article>
         <article className="dashboard-metric metric-amber">
           <span className="dashboard-metric-icon">↙</span>
           <span className="dashboard-metric-label">{t("dashboard.payouts")}</span>
-          <strong>{formatAmount(r.payouts?.amount)}</strong>
+          <strong>{formatMetric("payouts", r.payouts?.amount)}</strong>
           <small>{r.payouts?.count ?? 0} {french ? "paiement(s)" : "peman"}</small>
         </article>
         <article className="dashboard-metric metric-violet">
@@ -888,28 +878,30 @@ function Dashboard({
         <section className="dashboard-card dashboard-sales-card">
           <div className="dashboard-card-heading">
             <div><span className="dashboard-eyebrow">{copy.weekly}</span><h3>{copy.weeklyHint}</h3></div>
-            <div className="dashboard-week-total"><small>{copy.weekTotal}</small><strong>{formatAmount(weeklyTotal)}</strong></div>
+            <div className="dashboard-week-total"><small>{copy.weekTotal}</small><strong>{weeklyTotal}</strong></div>
           </div>
-          {days.length ? (
-            <div className="dashboard-chart" role="img" aria-label={copy.weekly}>
-              {days.map((row) => {
-                const value = Number(row.amount ?? 0);
-                const height = Math.max(5, Math.round((value / maximum) * 100));
-                const day = new Date(row.day + "T12:00:00.000Z");
-                const label = new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", {
-                  timeZone: "America/Port-au-Prince",
-                  weekday: "short",
-                }).format(day).replace(".", "");
-                return (
-                  <div className="dashboard-chart-column" key={row.day} title={formatAmount(value)}>
-                    <strong>{formatAmount(value)}</strong>
+          {chartGroups.some((group) => group.rows.length) ? chartGroups.map((group) => {
+            const maximum = Math.max(1, ...group.rows.map((row) => Number(row.amount ?? 0)));
+            return <div className="dashboard-currency-trend" key={group.currencyCode}>
+              {multiCurrency && <span className="dashboard-currency-code">{group.currencyCode}</span>}
+              {group.rows.length ? <div className="dashboard-chart" role="img" aria-label={`${copy.weekly} ${group.currencyCode}`}>
+                {group.rows.map((row) => {
+                  const value = Number(row.amount ?? 0);
+                  const height = Math.max(5, Math.round((value / maximum) * 100));
+                  const day = new Date(row.day + "T12:00:00.000Z");
+                  const label = new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", {
+                    timeZone: "America/Port-au-Prince",
+                    weekday: "short",
+                  }).format(day).replace(".", "");
+                  return <div className="dashboard-chart-column" key={`${group.currencyCode}-${row.day}`} title={formatAmount(value, group.currencyCode)}>
+                    <strong>{formatAmount(value, group.currencyCode)}</strong>
                     <div className="dashboard-chart-track"><span style={{ height: height + "%" }} /></div>
                     <small>{label}</small>
-                  </div>
-                );
-              })}
-            </div>
-          ) : <div className="dashboard-chart-empty">{t("table.empty")}</div>}
+                  </div>;
+                })}
+              </div> : <div className="dashboard-chart-empty">{t("table.empty")}</div>}
+            </div>;
+          }) : <div className="dashboard-chart-empty">{t("table.empty")}</div>}
         </section>
 
         <section className="dashboard-card dashboard-highlights">
@@ -918,7 +910,7 @@ function Dashboard({
           </div>
           <div className="dashboard-highlight-row"><span>{french ? "Tickets émis" : "Tikè ki sòti"}</span><strong>{Number(r.tickets?.count ?? tickets.length).toLocaleString(french ? "fr-FR" : "fr-HT")}</strong></div>
           <div className="dashboard-highlight-row"><span>{french ? "Tickets annulés" : "Tikè anile"}</span><strong>{Number(r.accounting?.cancelledCount ?? 0).toLocaleString(french ? "fr-FR" : "fr-HT")}</strong></div>
-          <div className="dashboard-highlight-row"><span>{french ? "Commissions" : "Komisyon"}</span><strong>{formatAmount(r.commission)}</strong></div>
+          <div className="dashboard-highlight-row"><span>{french ? "Commissions" : "Komisyon"}</span><strong>{formatMetric("commission", r.commission)}</strong></div>
           <div className="dashboard-highlight-note"><span />{t("report.fromToday")}</div>
         </section>
       </div>
@@ -936,7 +928,7 @@ function Dashboard({
                 <tr key={ticket.id ?? ticket.ticketNumber ?? index}>
                   <td><strong>{ticket.ticketNumber ?? "—"}</strong><small>{ticket.merchant?.displayName ?? ticket.branch?.name ?? ""}</small></td>
                   <td><span className={"dashboard-ticket-status status-" + String(ticket.status ?? "pending").toLowerCase()}>{statusLabel(String(ticket.status ?? "PENDING"))}</span></td>
-                  <td className="dashboard-table-amount">{formatAmount(ticket.amount)}</td>
+                  <td className="dashboard-table-amount">{formatAmount(ticket.amount, ticket.currency ?? ticket.currencyCode ?? currency)}</td>
                   <td>{formatTicketDate(ticket.createdAt)}</td>
                 </tr>
               )) : <tr><td colSpan={4} className="dashboard-table-empty">{copy.empty}</td></tr>}
@@ -1328,7 +1320,7 @@ function Tickets({
 }) {
   const { language } = useI18n();
   const [tickets = [], draws = []] = d;
-  const rows = tickets.map((ticket: Row) => ({ ...ticket, currency }));
+  const rows = tickets.map((ticket: Row) => ({ ...ticket, currency: ticket.currency ?? ticket.currencyCode ?? currency }));
   const labels = language === "fr"
     ? { total: "Tickets chargés", draws: "Tirages ouverts", winners: "Gagnants", paid: "Payés", heading: "Tickets de l’entreprise", open: "Ouvrir" }
     : { total: "Tikè chaje", draws: "Tiraj ouvè", winners: "Gayan", paid: "Peye", heading: "Tikè biznis la", open: "Ouvri" };
@@ -1353,7 +1345,6 @@ function Tickets({
             ["ticketNumber", "Ticket"],
             ["status", "Status"],
             ["amount", "Amount"],
-            ["potentialWin", "Potential win"],
             ["createdAt", "Date"],
           ]}
           actions={(ticket) => (
@@ -1404,8 +1395,8 @@ function TicketDetailsDialog({
         </header>
         <div className="ticket-detail-summary">
           <article><small>{french ? "Statut" : "Estati"}</small><strong>{statusNames[ticket.status]?.[french ? "fr" : "ht"] ?? ticket.status}</strong></article>
-          <article><small>{french ? "Montant" : "Montan"}</small><strong>{money(ticket.amount, currency)}</strong></article>
-          <article><small>{french ? "Gain potentiel" : "Gany posib"}</small><strong>{money(ticket.potentialWin, currency)}</strong></article>
+          <article><small>{french ? "Montant" : "Montan"}</small><strong>{money(ticket.amount, ticket.currency ?? ticket.currencyCode ?? currency)}</strong></article>
+          {Number(ticket.winning?.winningAmount ?? 0) > 0 && <article><small>{french ? "Gain confirmé" : "Gany konfime"}</small><strong>{money(ticket.winning.winningAmount, ticket.currency ?? ticket.currencyCode ?? currency)}</strong></article>}
           <article><small>{french ? "Créé le" : "Kreye le"}</small><strong>{ticket.createdAt ? new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", { timeZone: "America/Port-au-Prince", dateStyle: "medium", timeStyle: "short" }).format(new Date(ticket.createdAt)) : "—"}</strong></article>
         </div>
         <section className="ticket-detail-section">
@@ -1416,7 +1407,7 @@ function TicketDetailsDialog({
         <section className="ticket-detail-section">
           <h3>{french ? "Lignes du ticket" : "Liy tikè a"}</h3>
           <div className="table-wrap"><table><thead><tr><th>{french ? "Type" : "Kalite"}</th><th>{french ? "Sélection" : "Chwa"}</th><th>{french ? "Mise" : "Miz"}</th><th>{french ? "Résultat" : "Rezilta"}</th></tr></thead><tbody>
-            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? <>{french ? "Gratuit" : "Gratis"}<small className="ticket-detail-promo-note">{french ? `Gain fixe ${money(line.potentialWin, currency)} si gagnant` : `Peye ${money(line.potentialWin, currency)} si li genyen`}</small></> : money(line.stake, currency)}</td><td>{line.isWinner ? (french ? "Gagnant" : "Gayan") : (french ? "En attente" : "An atant")}</td></tr>)}
+            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? (french ? "Gratuit" : "Gratis") : money(line.stake, ticket.currency ?? ticket.currencyCode ?? currency)}</td><td>{line.isWinner ? <>{french ? "Gagnant" : "Gayan"}{Number(line.winningAmount ?? 0) > 0 ? ` · ${money(line.winningAmount, ticket.currency ?? ticket.currencyCode ?? currency)}` : ""}</> : (french ? "En attente" : "An atant")}</td></tr>)}
             {!(ticket.lines ?? []).length && <tr><td colSpan={4}>—</td></tr>}
           </tbody></table></div>
         </section>
@@ -1837,7 +1828,7 @@ function Printers({ data: d, submit, has }: any) {
   );
 }
 function Branding({ data: d, submit, request, load, has, can }: any) {
-  const [s = {}, domains = [], lotterySettings = []] = d;
+  const [s = {}, domains = [], lotterySettings = [], offices = []] = d;
   const [logo, setLogo] = useState(String(s.branding?.logoUrl ?? ""));
   const [favicon, setFavicon] = useState(String(s.branding?.faviconUrl ?? ""));
   const [primaryColor, setPrimaryColor] = useState(String(s.branding?.primaryColor ?? "#172554"));
@@ -1856,8 +1847,8 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
   }
   return (
     <>
-      <div className="split">
-        <section className="panel">
+      <div className="tenant-settings-page">
+        <section className="panel tenant-settings-account">
           <h2>Business settings</h2>
           <form
             className="form one"
@@ -1906,7 +1897,14 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
             <button>Save settings</button>
           </form>
         </section>
-        <section className="panel">
+        <TenantLotterySettings
+          games={lotterySettings}
+          offices={offices}
+          request={request}
+          reload={() => load("branding")}
+          canEdit={can("settings.edit")}
+        />
+        <section className="panel tenant-branding-settings">
           <h2>Branding</h2>
           <form className="form one" onSubmit={saveBranding}>
             <label>
@@ -1949,14 +1947,7 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
           </form>
           {brandingMessage && <p className="message">{brandingMessage}</p>}
         </section>
-      </div>
-      <TenantLotterySettings
-        games={lotterySettings}
-        request={request}
-        reload={() => load("branding")}
-        canEdit={can("settings.edit")}
-      />
-      <section className="panel">
+        <section className="panel tenant-domain-settings">
         <h2>Custom domains</h2>
         <form className="inline" onSubmit={(e) => submit(e, "/domains")}>
           <input name="domain" placeholder="portal.customer.com" required />
@@ -1998,7 +1989,8 @@ function Branding({ data: d, submit, request, load, has, can }: any) {
             </div>
           </article>
         ))}
-      </section>
+        </section>
+      </div>
     </>
   );
 }

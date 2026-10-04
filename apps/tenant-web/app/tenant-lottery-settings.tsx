@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useI18n } from "./i18n";
 
 type Row = Record<string, any>;
@@ -148,11 +148,13 @@ function ScheduleCard({
 
 export default function TenantLotterySettings({
   games,
+  offices,
   request,
   reload,
   canEdit,
 }: {
   games: Row[];
+  offices: Row[];
   request: Request;
   reload: () => Promise<void>;
   canEdit: boolean;
@@ -167,9 +169,71 @@ export default function TenantLotterySettings({
   const schedules = games.flatMap((game) =>
     (game.schedules ?? []).map((schedule: Row) => ({ game, schedule })),
   );
+  const officeCountries = [...new Map((offices ?? []).filter((office: Row) => office.countryCode)
+    .map((office: Row) => [String(office.countryCode).toUpperCase(), { code: String(office.countryCode).toUpperCase(), currency: String(office.currency ?? "USD"), officeName: office.name }])).values()];
+  const [countryCode, setCountryCode] = useState(officeCountries[0]?.code ?? "HT");
+  const [freePolicy, setFreePolicy] = useState<Row | null>(null);
+  const [freePolicyMessage, setFreePolicyMessage] = useState("");
+  const [loadingFreePolicy, setLoadingFreePolicy] = useState(false);
+
+  useEffect(() => {
+    if (!officeCountries.some((country) => country.code === countryCode) && officeCountries[0]) setCountryCode(officeCountries[0].code);
+  }, [offices, countryCode]);
+
+  useEffect(() => {
+    let active = true;
+    if (!countryCode) return;
+    setLoadingFreePolicy(true);
+    setFreePolicyMessage("");
+    void request(`/lottery/free-maryaj-settings?countryCode=${encodeURIComponent(countryCode)}`)
+      .then((value) => { if (active) setFreePolicy(value); })
+      .catch((error) => { if (active) setFreePolicyMessage(error instanceof Error ? error.message : String(error)); })
+      .finally(() => { if (active) setLoadingFreePolicy(false); });
+    return () => { active = false; };
+  }, [countryCode, request]);
+
+  async function saveFreePolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+    setFreePolicyMessage("");
+    setLoadingFreePolicy(true);
+    try {
+      const updated = await request("/lottery/free-maryaj-settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          countryCode,
+          minimumAmount: String(values.minimumAmount ?? ""),
+          freeTicketCount: Number(values.freeTicketCount),
+          payoutAmount: String(values.payoutAmount ?? "").trim() || null,
+        }),
+      });
+      setFreePolicy(updated);
+      setFreePolicyMessage(french ? "La règle Maryaj gratuite a été enregistrée." : "Règ Maryaj gratis la anrejistre.");
+      await reload();
+    } catch (error) {
+      setFreePolicyMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingFreePolicy(false);
+    }
+  }
 
   return (
     <div className="tenant-settings-lottery">
+      <section className="tenant-settings-section">
+        <div className="tenant-settings-section-heading">
+          <div><span className="tenant-report-kicker">{french ? "PROMOTION PAR PAYS" : "KADO PA PEYI"}</span><h2>{french ? "Maryaj gratuits" : "Maryaj gratis"}</h2><p>{french ? "Les règles s’appliquent au pays du bureau. La devise suit le pays automatiquement." : "Règ yo aplike selon peyi biwo a. Lajan an swiv peyi a otomatikman."}</p></div>
+          <span className="tenant-settings-section-icon">★</span>
+        </div>
+        <form className="tenant-settings-payout-form" onSubmit={(event) => void saveFreePolicy(event)}>
+          <label><span>{french ? "Pays du bureau" : "Peyi biwo a"}<select value={countryCode} onChange={(event) => setCountryCode(event.target.value)} disabled={!canEdit || !officeCountries.length}>{officeCountries.map((country) => <option key={country.code} value={country.code}>{country.code} · {country.currency}</option>)}</select></span></label>
+          <label><span>{french ? "Vente minimum pour recevoir les lignes gratuites" : "Kantite minimòm lavant pou jwenn liy gratis yo"} ({freePolicy?.currency ?? officeCountries.find((country) => country.code === countryCode)?.currency ?? "USD"})</span><input name="minimumAmount" type="number" min="0.01" step="0.01" value={freePolicy?.minimumAmount ?? ""} onChange={(event) => setFreePolicy((current) => ({ ...(current ?? {}), minimumAmount: event.target.value }))} required disabled={!canEdit || loadingFreePolicy || !freePolicy} /></label>
+          <label><span>{french ? "Nombre de tickets Maryaj gratuits" : "Kantite tikè Maryaj gratis"}</span><input name="freeTicketCount" type="number" min="1" max="10" step="1" value={freePolicy?.freeTicketCount ?? ""} onChange={(event) => setFreePolicy((current) => ({ ...(current ?? {}), freeTicketCount: Number(event.target.value) }))} required disabled={!canEdit || loadingFreePolicy || !freePolicy} /></label>
+          <label><span>{french ? "Paiement par ticket gagnant" : "Peman pou chak tikè ki genyen"} ({freePolicy?.currency ?? "USD"})</span><input name="payoutAmount" type="number" min="0.01" step="0.01" value={freePolicy?.payoutAmount ?? ""} onChange={(event) => setFreePolicy((current) => ({ ...(current ?? {}), payoutAmount: event.target.value }))} disabled={!canEdit || loadingFreePolicy || !freePolicy} placeholder={french ? "Paiement Maryaj configuré" : "Peman Maryaj nòmal"} /></label>
+          {canEdit && <button type="submit" disabled={loadingFreePolicy || !freePolicy}>{loadingFreePolicy ? "…" : french ? "Enregistrer la règle" : "Sove règ la"}</button>}
+        </form>
+        <p className="tenant-settings-help">{french ? "Aux États-Unis, le réglage initial donne 2 tickets gratuits dès 20 $ et 50 $ par ticket gagnant. Laissez le paiement vide pour utiliser les cotes Maryaj configurées." : "Ozetazini, paramèt inisyal la bay 2 tikè gratis depi $20 epi $50 pou chak tikè ki genyen. Kite peman an vid pou itilize kòt Maryaj nòmal yo."}</p>
+        {freePolicyMessage && <p className="message" role="status">{freePolicyMessage}</p>}
+      </section>
       <section className="tenant-settings-section">
         <div className="tenant-settings-section-heading">
           <div><span className="tenant-report-kicker">{french ? "RÈGLES DE PAIEMENT" : "RÈG PEMAN"}</span><h2>{french ? "Paiement des boules Bolet" : "Peman boul Bolet"}</h2><p>{french ? "Définissez le multiplicateur payé pour le 1er, le 2e et le 3e résultat de chaque loterie." : "Chwazi miltiplikatè pou 1ye, 2yèm ak 3yèm rezilta pou chak lotri."}</p></div>
