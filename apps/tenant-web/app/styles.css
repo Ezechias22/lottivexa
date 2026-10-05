@@ -1155,3 +1155,4 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
 .tenant-branding-favicon-preview img { width: 100%; height: 100%; object-fit: contain; }
 .tenant-branding-upload-hint,.tenant-branding-uploading { color: #64748b; line-height: 1.5; }
 .tenant-branding-uploading { margin: 0; font-size: 12px; }
+.login-logo-wrap{display:flex;justify-content:center;margin:0 0 18px}.lottivexa-full-logo{display:block;width:148px;height:148px;max-width:100%;object-fit:contain}.lottivexa-brand{display:inline-flex;align-items:center;gap:9px;color:#f5b942}.lottivexa-brand img{display:block;width:34px;height:34px;max-width:34px;max-height:34px;object-fit:contain;flex:none}.login-logo-wrap+.login-logo-title{margin-top:0}

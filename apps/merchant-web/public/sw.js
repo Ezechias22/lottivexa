@@ -1,5 +1,5 @@
-const CACHE = 'lottivexa-merchant-shell-v1';
-const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'lottivexa-merchant-shell-v2';
+const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/lottivexa-logo.png'];
 const ROOT_URL = new URL('/', self.location.origin).toString();
 
 self.addEventListener('install', (event) => {

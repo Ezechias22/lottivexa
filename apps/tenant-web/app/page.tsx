@@ -516,7 +516,7 @@ export default function TenantConsole() {
   if (!token)
     return (
       <main className="login">
-        <div className="logo">LOTTIVEXA</div>
+        <div className="logo login-logo-wrap"><img className="lottivexa-full-logo" src="/lottivexa-logo.png" alt="LOTTIVEXA" /></div>
         <h1>Tenant Admin</h1>
         <p className="muted">
           Antre nan espas biznis ou. Pa gen enskripsyon merchant.
@@ -543,7 +543,7 @@ export default function TenantConsole() {
   if (force)
     return (
       <main className="login">
-        <div className="logo">LOTTIVEXA</div>
+        <div className="logo login-logo-wrap"><img className="lottivexa-full-logo" src="/lottivexa-logo.png" alt="LOTTIVEXA" /></div>
         <h1>Chanje modpas tanporè</h1>
         <p>Ou dwe mete yon nouvo modpas avan ou antre nan sistèm nan.</p>
         <form
@@ -581,7 +581,7 @@ export default function TenantConsole() {
   return (
     <div className="shell" style={{ "--tenant-primary": tenantBranding.primaryColor ?? "#172554", "--tenant-secondary": tenantBranding.secondaryColor ?? "#f59e0b" } as any}>
       <aside>
-        <div className="logo">{tenantBranding.logoUrl ? <img src={tenantBranding.logoUrl} alt={tenantBranding.businessName ?? "Logo"} /> : "LOTTIVEXA"}</div>
+        <div className="logo">{tenantBranding.logoUrl ? <img src={tenantBranding.logoUrl} alt={tenantBranding.businessName ?? "Logo"} /> : <span className="lottivexa-brand"><img src="/lottivexa-brand-mark-192.png" alt="" /><span>LOTTIVEXA</span></span>}</div>
         {NAV.filter(
           (n) =>
             (!n.permission || can(n.permission)) &&

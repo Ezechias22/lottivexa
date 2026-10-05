@@ -7,3 +7,4 @@
 .siteHeader nav { display: none; }
 body:has(.site-menu-panel) .siteHeader nav { display: grid; position: fixed; top: 66px; right: 12px; z-index: 10000; width: min(230px,calc(100vw - 24px)); gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 16px 38px rgba(16,46,38,.18); }
 body:has(.site-menu-panel) .siteHeader nav a { padding: 9px 10px; border-radius: 7px; }
+.brand-mark-image{display:block;width:36px;height:36px;object-fit:contain;flex:none}.brand.inverse .brand-mark-image{background:#fff;border-radius:9px;padding:2px}

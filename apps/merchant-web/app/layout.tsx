@@ -6,14 +6,13 @@ import WebMenu from './web-menu';
 import PwaRegister from './pwa-register';
 
 export const metadata: Metadata = {
-  title: 'Bolet — Point de vente',
+  title: 'LOTTIVEXA — Point de vente',
   description: 'Point de vente pour votre entreprise',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: '/icon-192.png',
   },

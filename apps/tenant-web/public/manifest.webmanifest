@@ -1,1 +1,22 @@
-{"name":"Bolet","short_name":"Bolet","start_url":"/","display":"standalone","background_color":"#f8fafc","theme_color":"#172554","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "LOTTIVEXA Tenant",
+  "short_name": "LOTTIVEXA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#172554",
+  "icons": [
+    {
+      "src": "/lottivexa-brand-mark-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/lottivexa-brand-mark-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

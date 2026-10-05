@@ -44,7 +44,7 @@ export default function Results() {
   }, []);
   return <main style={{ fontFamily: 'system-ui', maxWidth: 1000, margin: 'auto', padding: 24 }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-      <div><b>LOTTIVEXA</b><h1>{data.tenant?.businessName ?? 'Rezilta lotri'}</h1></div><span style={{ color: '#16803a' }}>● AN TAN REYÈL</span>
+      <div style={{display:"flex",alignItems:"center",gap:12}}><img src="/lottivexa-brand-mark-192.png" width="48" height="48" alt=""/><div><b>LOTTIVEXA</b><h1>{data.tenant?.businessName ?? 'Rezilta lotri'}</h1></div></div><span style={{ color: '#16803a' }}>● AN TAN REYÈL</span>
     </header>
     <form onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void load(); }} style={{ display: 'flex', gap: 8, margin: '20px 0' }}>
       <input aria-label="Tenant" value={tenant} onChange={event => setTenant(event.target.value)} placeholder="non tenant lan" required style={{ padding: 12, flex: 1 }} />

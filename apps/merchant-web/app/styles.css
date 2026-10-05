@@ -1455,3 +1455,4 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   font-size: 12px;
   line-height: 1.5;
 }
+.login-brand{display:flex;justify-content:center;margin:0 0 18px}.login-brand img{display:block;width:148px;height:148px;max-width:100%;object-fit:contain}.pos .web-menu-title img{object-fit:contain}
