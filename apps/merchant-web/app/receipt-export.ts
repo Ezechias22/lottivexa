@@ -7,6 +7,7 @@ type Language = 'ht' | 'fr';
 type ReceiptLine = { label: string; number: string; price: string; extra?: string };
 type PdfBlock =
   | { kind: 'text'; lines: string[]; size: number; bold: boolean; gap: number }
+  | { kind: 'logo'; dataUrl: string; width: number; height: number }
   | { kind: 'heading' }
   | { kind: 'qr' }
   | { kind: 'row'; line: ReceiptLine }
@@ -114,7 +115,7 @@ function wrapText(value: string, limit: number) {
   return lines.length ? lines : [''];
 }
 
-function pdfBlocks(ticket: Ticket, language: Language) {
+function pdfBlocks(ticket: Ticket, language: Language, logo?: { dataUrl: string; width: number; height: number }) {
   const blocks: PdfBlock[] = [];
   let bodyHeight = 0;
   const addText = (value: string, size = 8, bold = false, gap = 1.2) => {
@@ -137,6 +138,10 @@ function pdfBlocks(ticket: Ticket, language: Language) {
     bodyHeight += 6.1;
   };
 
+  if (logo) {
+    blocks.push({ kind: 'logo', ...logo });
+    bodyHeight += 15;
+  }
   addText(receiptBrandName(ticket), 12, true, 1.2);
   addText((language === 'fr' ? 'TICKET: ' : 'TIKÈ: ') + String(ticket.ticketNumber ?? ticket.id ?? ''), 8, true);
   addText((language === 'fr' ? 'TIRAGE: ' : 'TIRAJ: ') + receiptDrawName(ticket, language), 8, true);
@@ -161,8 +166,8 @@ function pdfBlocks(ticket: Ticket, language: Language) {
   return { blocks, height: Math.ceil(6 + bodyHeight + 5) };
 }
 
-export function makeTicketPdf(ticket: Ticket, language: Language) {
-  const layout = pdfBlocks(ticket, language);
+export function makeTicketPdf(ticket: Ticket, language: Language, logo?: { dataUrl: string; width: number; height: number }) {
+  const layout = pdfBlocks(ticket, language, logo);
   const pdf = new jsPDF({ unit: 'mm', format: [58, Math.max(65, layout.height)], compress: true });
   pdf.setFileId(stablePdfFileId(ticket));
   const createdAt = ticket.createdAt ? new Date(ticket.createdAt) : new Date('2000-01-01T00:00:00.000Z');
@@ -172,6 +177,14 @@ export function makeTicketPdf(ticket: Ticket, language: Language) {
   const right = 54;
   let y = 6;
   for (const block of layout.blocks) {
+    if (block.kind === 'logo') {
+      const scale = Math.min(42 / block.width, 12 / block.height);
+      const width = block.width * scale;
+      const height = block.height * scale;
+      try { pdf.addImage(block.dataUrl, 'PNG', (58 - width) / 2, y, width, height); } catch { /* Keep receipt text if a browser cannot decode the uploaded logo. */ }
+      y += 14;
+      continue;
+    }
     if (block.kind === 'rule') {
       pdf.setDrawColor(130, 145, 165);
       pdf.line(left, y, right, y);
@@ -226,8 +239,32 @@ export function makeTicketPdf(ticket: Ticket, language: Language) {
   return pdf;
 }
 
-export function downloadTicketPdf(ticket: Ticket, language: Language) {
-  const blob = ticketPdfBlob(ticket, language);
+async function loadReceiptLogo(ticket: Ticket): Promise<{ dataUrl: string; width: number; height: number } | undefined> {
+  const source = String(ticket.logoUrl ?? '').trim();
+  if (!source || (!source.startsWith('data:image/') && !source.startsWith('https://'))) return undefined;
+  try {
+    const image = new Image();
+    if (source.startsWith('https://')) image.crossOrigin = 'anonymous';
+    image.src = source;
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('LOGO_LOAD_FAILED')); });
+    const width = image.naturalWidth || image.width;
+    const height = image.naturalHeight || image.height;
+    if (!width || !height) return undefined;
+    const scale = Math.min(1, 512 / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return undefined;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+  } catch {
+    return undefined;
+  }
+}
+
+export async function downloadTicketPdf(ticket: Ticket, language: Language) {
+  const blob = await ticketPdfBlob(ticket, language);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -237,8 +274,9 @@ export function downloadTicketPdf(ticket: Ticket, language: Language) {
 }
 
 /** Both PDF actions share one renderer so their receipt bytes and QR are identical. */
-export function ticketPdfBlob(ticket: Ticket, language: Language): Blob {
-  return makeTicketPdf(ticket, language).output('blob');
+export async function ticketPdfBlob(ticket: Ticket, language: Language): Promise<Blob> {
+  const logo = await loadReceiptLogo(ticket);
+  return makeTicketPdf(ticket, language, logo).output('blob');
 }
 
 function stablePdfFileId(ticket: Ticket) {
@@ -265,6 +303,11 @@ export function ticketSvg(ticket: Ticket, language: Language) {
   };
   const addRule = (gap = 12) => { lines.push(rule(y)); y += gap; };
 
+  const logo = String(ticket.logoUrl ?? '').trim();
+  if (logo && (logo.startsWith('data:image/') || logo.startsWith('https://'))) {
+    lines.push('<image x="160" y="12" width="160" height="44" preserveAspectRatio="xMidYMid meet" href="' + esc(logo) + '"/>');
+    y = 74;
+  }
   addText(receiptBrandName(ticket), 24, 800, 8);
   addText((language === 'fr' ? 'TICKET: ' : 'TIKÈ: ') + String(ticket.ticketNumber ?? ticket.id ?? ''), 17, 700, 5);
   addText((language === 'fr' ? 'TIRAGE: ' : 'TIRAJ: ') + receiptDrawName(ticket, language), 16, 700, 5);
@@ -334,7 +377,7 @@ export async function downloadTicketImage(ticket: Ticket, language: Language) {
 }
 
 export async function shareTicket(ticket: Ticket, language: Language, format: 'pdf' | 'image') {
-  const blob = format === 'pdf' ? ticketPdfBlob(ticket, language) : await ticketImageBlob(ticket, language);
+  const blob = format === 'pdf' ? await ticketPdfBlob(ticket, language) : await ticketImageBlob(ticket, language);
   const extension = format === 'pdf' ? 'pdf' : 'png';
   const mime = format === 'pdf' ? 'application/pdf' : 'image/png';
   const file = new File([blob], 'lottivexa-ticket-' + (ticket.ticketNumber ?? ticket.id) + '.' + extension, { type: mime });

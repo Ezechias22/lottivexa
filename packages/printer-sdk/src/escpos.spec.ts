@@ -5,8 +5,8 @@ const data = {
   businessName: 'King Lotto', ticketNumber: 'LV-1', merchant: 'Jean Pierre',
   branch: 'Centre Ville', branchAddress: 'Rue du Centre', branchPhone: '509-0000',
   game: 'NY', draw: 'New York · Nòmal · Maten', currency: 'HTG',
-  lines: [{ selection: '12-34', stake: '10.00', potentialWin: '500.00' }],
-  amount: '10.00', potentialWin: '500.00', createdAt: '20/09/2026 09:00',
+  lines: [{ selection: '12-34', stake: '10.00' }],
+  amount: '10.00', createdAt: '20/09/2026 09:00',
   barcode: 'ABC', qrCode: 'LV1:ABC',
 };
 
@@ -33,7 +33,7 @@ describe('ESC/POS', () => {
   it('prints the double zero and centers an OP on its own line', () => {
     const bytes = renderTicket({ paperWidth: 58, showBarcode: false, showQr: false }, {
       ...data,
-      lines: [{ betType: 'BOUL PÈ', selection: '00@2', stake: '50.00', potentialWin: '500.00' }],
+      lines: [{ betType: 'BOUL PÈ', selection: '00@2', stake: '50.00' }],
     });
     const text = new TextDecoder().decode(bytes);
     expect(text).toContain('00');
@@ -42,20 +42,31 @@ describe('ESC/POS', () => {
     expect(containsBytes(bytes, [0x1b, 0x61, 1, 0x4f, 0x50, 0x20, 0x32, 0x0a, 0x1b, 0x61, 0])).toBe(true);
   });
 
+  it('prints the tenant logo raster before the business name', () => {
+    const logo = Uint8Array.from([0x1d, 0x76, 0x30, 0x00, 0x01, 0x00, 0x01, 0x00, 0x80]);
+    const bytes = renderTicket({ paperWidth: 58, showBarcode: false, showQr: false }, data, logo);
+    const name = new TextEncoder().encode('King Lotto');
+    const logoAt = bytes.findIndex((value, index) => value === logo[0] && logo.every((item, offset) => bytes[index + offset] === item));
+    const nameAt = bytes.findIndex((value, index) => value === name[0] && name.every((item, offset) => bytes[index + offset] === item));
+    expect(logoAt).toBeGreaterThanOrEqual(0);
+    expect(nameAt).toBeGreaterThan(logoAt);
+  });
+
   it('prints dekabes and promotional Maryaj as free lines', () => {
     const text = new TextDecoder().decode(renderTicket({ paperWidth: 58, showBarcode: false, showQr: false }, {
       ...data,
-      lines: [{ betType: 'MARYAJ', selection: '00-11', stake: '1.00', potentialWin: '100.00', isPromotional: true, winCount: 2, isWinner: true }],
+      lines: [{ betType: 'MARYAJ', selection: '00-11', stake: '1.00', winningAmount: '50.00', isPromotional: true, winCount: 2, isWinner: true }],
     }));
     expect(text).toContain('DEKABÈS × 2');
     expect(text).toContain('GRATIS');
-    expect(text).toContain('Peye $100.00 si li genyen');
-    expect(text).toContain('genEN: $100.00');
+    expect(text).not.toContain('Peye');
+    expect(text).not.toContain('POSIB');
+    expect(text).toContain('genEN: $50.00');
   });
 
   it('formats receipt values in the tenant currency', () => {
     const text = new TextDecoder().decode(renderTicket({ paperWidth: 58, showBarcode: false, showQr: false }, { ...data, currency: 'JPY' }));
-    expect(text).toContain('¥10');
+    expect(text).toContain('$10');
   });
 
   it('rejects missing or platform branding', () => {

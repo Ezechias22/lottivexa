@@ -35,7 +35,7 @@ class MainActivity : FlutterActivity() {
         "requestBluetoothPermission" -> requestBluetoothPermission(result)
         "openBluetoothSettings" -> { startActivity(Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)); result.success(null) }
         "discover" -> result.success(discover(call.argument<String>("type") ?: ""))
-        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), result)
+        "systemPrint" -> systemPrint(call.argument<String>("text") ?: "", call.argument<String>("businessName") ?: "Bolet", call.argument<String>("qrImageBase64"), call.argument<String>("logoDataUri"), result)
         "sharePdf" -> sharePdf(call.argument<ByteArray>("bytes") ?: throw IllegalArgumentException("PDF_BYTES_REQUIRED"), call.argument<String>("filename") ?: "lottivexa-report.pdf", result)
         "write" -> {
           val type = call.argument<String>("type") ?: ""
@@ -83,11 +83,12 @@ class MainActivity : FlutterActivity() {
 
   private fun requireBluetoothPermission() { if (Build.VERSION.SDK_INT >= 31 && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) throw SecurityException("BLUETOOTH_PERMISSION_REQUIRED") }
 
-  private fun systemPrint(text: String, businessName: String, qrImageBase64: String?, result: MethodChannel.Result) {
+  private fun systemPrint(text: String, businessName: String, qrImageBase64: String?, logoDataUri: String?, result: MethodChannel.Result) {
     val lines = text.lines().filter { it.isNotBlank() && !it.trim().matches(Regex("[-—_=]{5,}")) }
     val bodyLines = lines.drop(2)
     val renderedRows = bodyLines.sumOf { maxOf(1, ceil(it.length / 36.0).toInt()) }
-    val pageHeightMm = (40.0 + renderedRows * 4.0 + if (qrImageBase64.isNullOrBlank()) 0.0 else 34.0).coerceIn(85.0, 1200.0)
+    val safeLogo = logoDataUri?.takeIf { it.startsWith("data:image/png;base64,") || it.startsWith("data:image/jpeg;base64,") || it.startsWith("data:image/webp;base64,") }
+    val pageHeightMm = (40.0 + renderedRows * 4.0 + (if (qrImageBase64.isNullOrBlank()) 0.0 else 34.0) + (if (safeLogo.isNullOrBlank()) 0.0 else 16.0)).coerceIn(85.0, 1200.0)
     val pageHeightMils = (pageHeightMm * 39.3701).roundToInt()
     val pageHeightCss = String.format(Locale.US, "%.2f", pageHeightMm)
     val web = WebView(this)
@@ -96,6 +97,7 @@ class MainActivity : FlutterActivity() {
     val kind = android.text.TextUtils.htmlEncode(lines.getOrNull(1) ?: "FICH BOLET")
     web.webViewClient = object : android.webkit.WebViewClient() { override fun onPageFinished(view: WebView, url: String?) { try { val receiptMedia = PrintAttributes.MediaSize("LOTTIVEXA_RECEIPT_58MM", "Bolet 58 mm", 2283, pageHeightMils); val attributes = PrintAttributes.Builder().setMediaSize(receiptMedia).setMinMargins(PrintAttributes.Margins.NO_MARGINS).build(); (getSystemService(Context.PRINT_SERVICE) as PrintManager).print(documentName, view.createPrintDocumentAdapter(documentName), attributes); result.success(null) } catch (error: Exception) { result.error("SYSTEM_PRINT_FAILED", error.message, null) } } }
     val brand = android.text.TextUtils.htmlEncode(lines.firstOrNull() ?: businessName)
+    val logo = safeLogo?.let { "<img class=\"brand-logo\" src=\"${android.text.TextUtils.htmlEncode(it)}\"/>" } ?: ""
     val body = lines.drop(2).joinToString("") { raw ->
       val safe = android.text.TextUtils.htmlEncode(raw)
       val cls = when {
@@ -115,10 +117,10 @@ class MainActivity : FlutterActivity() {
     val qr = qrImageBase64?.takeIf { it.isNotBlank() }?.let { "<div class=\"qr\"><img alt=\"QR\" src=\"data:image/png;base64,$it\"></div>" } ?: ""
     val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
       @page{size:58mm ${pageHeightCss}mm;margin:0}*{box-sizing:border-box}html,body{width:58mm;margin:0;padding:0;background:#fff;color:#172033;font-family:Arial,sans-serif}
-      .receipt{width:58mm;padding:3mm 2.5mm 3mm}.brand{text-align:center;color:#132b4b;font-size:15pt;font-weight:900;line-height:1.08;overflow-wrap:anywhere}
+      .receipt{width:58mm;padding:3mm 2.5mm 3mm}.brand-logo{display:block;max-width:36mm;max-height:12mm;object-fit:contain;margin:0 auto 1.5mm}.brand{text-align:center;color:#132b4b;font-size:15pt;font-weight:900;line-height:1.08;overflow-wrap:anywhere}
       .kind{text-align:center;color:#a46b09;font-size:7.5pt;letter-spacing:1.5px;font-weight:800;margin:1.5mm 0 2mm}.line,.draw,.branch,.merchant,.ticket-number,.column-heading,.total,.status,.op,.winning{font-size:8.5pt;line-height:1.12;white-space:pre-wrap;overflow-wrap:anywhere}.op{text-align:center;color:#173b68;font-weight:900;letter-spacing:.1em}.winning{color:#168046;font-weight:900}
       .ticket-number{font-weight:800;padding:1.4mm 0}.draw,.branch,.merchant{font-size:8pt}.column-heading{border-top:1px dashed #789;padding-top:1mm;margin-top:1mm;font-weight:800}.total{border-top:1px solid #18365c;margin-top:1mm;padding-top:1.5mm;font-size:10pt;font-weight:900}.status{display:inline-block;background:#e8f2e9;color:#21653a;padding:.7mm 1.5mm;border-radius:2mm;margin:1mm 0}.line{padding:.25mm 0}.qr{text-align:center;padding:2mm 0}.qr img{width:27mm;height:27mm;image-rendering:pixelated}
-      </style></head><body><main class="receipt"><header><div class="brand">$brand</div><div class="kind">$kind</div></header>$body$qr</main></body></html>"""
+      </style></head><body><main class="receipt"><header>$logo<div class="brand">$brand</div><div class="kind">$kind</div></header>$body$qr</main></body></html>"""
     web.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
   }
 

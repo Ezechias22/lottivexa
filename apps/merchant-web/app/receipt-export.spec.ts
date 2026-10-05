@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeTicketPdf, receiptLineRows, ticketPdfBlob, ticketSvg } from './receipt-export';
+import { makeTicketPdf, receiptBrandName, receiptLineRows, ticketPdfBlob, ticketSvg } from './receipt-export';
 
 const ticket = {
   id: 'ticket-id',
@@ -20,7 +20,7 @@ const ticket = {
 
 describe('ticket PDF export', () => {
   it('shares and downloads the same PDF bytes with its QR code', async () => {
-    const shared = ticketPdfBlob(ticket, 'fr');
+    const shared = await ticketPdfBlob(ticket, 'fr');
     const downloaded = makeTicketPdf(ticket, 'fr').output('blob') as Blob;
 
     expect(shared.type).toBe('application/pdf');
@@ -48,5 +48,13 @@ describe('ticket PDF export', () => {
     expect(svg).toContain('TOTAL: $2,00');
     expect(svg).not.toContain('G$');
     expect(svg).not.toContain('$$');
+  });
+
+  it('puts the tenant business name and uploaded logo in exported receipts', () => {
+    const branded = { ...ticket, businessName: 'Bureau Soleil', logoUrl: 'data:image/webp;base64,AA==' };
+    expect(receiptBrandName(branded)).toBe('Bureau Soleil');
+    const svg = ticketSvg(branded, 'fr');
+    expect(svg).toContain('Bureau Soleil');
+    expect(svg).toContain('data:image/webp;base64,AA==');
   });
 });

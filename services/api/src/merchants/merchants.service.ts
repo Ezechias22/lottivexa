@@ -97,12 +97,12 @@ export class MerchantsService {
         }),
         prisma.tenant.findUniqueOrThrow({
           where: { id: merchant.tenantId },
-          select: { jurisdictionCode: true },
+          select: { jurisdictionCode: true, legalName: true },
         }),
       ]);
     return {
       businessDate,
-      businessName: branding?.businessName ?? "Bolet",
+      businessName: branding?.businessName?.trim() || settings?.legalName || "",
       logoUrl: branding?.logoUrl ?? null,
       currency: currencyForOffice(merchant.branch.settings, settings?.jurisdictionCode),
       merchant: {

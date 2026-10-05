@@ -60,6 +60,10 @@ class EscPosEncoder {
     final currency = normalizeCurrencyCode(ticket['currency']);
     final ticketNumber = ticket['ticketNumber'] ?? ticket['id'] ?? '';
     out.add([0x1b, 0x40, 0x1b, 0x61, 1, 0x1b, 0x45, 1]);
+    final logoRaster = ticket['logoRaster']?.toString();
+    if (logoRaster != null && logoRaster.isNotEmpty) {
+      try { out.add(base64Decode(logoRaster)); out.add([0x0a]); } catch (_) { /* A missing or outdated cached logo must not stop ticket printing. */ }
+    }
     final businessName = _requiredName(ticket);
     if (_showBusinessName(businessName)) _line(out, businessName);
     final french = ticket['language'] == 'fr';
