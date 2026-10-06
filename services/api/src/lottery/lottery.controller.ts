@@ -100,7 +100,9 @@ class ScheduleStatusDto {
 class ScheduleSlotStatusDto {
   @IsString() gameId!: string;
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) resultAt!: string;
-  @IsBoolean() enabled!: boolean;
+  @IsOptional() @IsBoolean() enabled?: boolean;
+  @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) opensAt?: string;
+  @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) closesAt?: string;
 }
 class RuleDto {
   @IsString() jurisdictionCode!: string;

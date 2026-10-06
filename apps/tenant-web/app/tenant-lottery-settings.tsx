@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useI18n } from "./i18n";
+import TenantScheduleSessions from "./tenant-schedule-sessions";
 
 type Row = Record<string, any>;
 type Request = (path: string, init?: RequestInit) => Promise<any>;
@@ -111,63 +112,6 @@ function PayoutCard({
   );
 }
 
-function ScheduleCard({
-  game,
-  schedule,
-  request,
-  reload,
-  canEdit,
-}: {
-  game: Row;
-  schedule: Row;
-  request: Request;
-  reload: () => Promise<void>;
-  canEdit: boolean;
-}) {
-  const { language } = useI18n();
-  const french = language === "fr";
-  const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
-  const weekdays = french
-    ? ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"]
-    : ["Dimanch", "Lendi", "Madi", "Mèkredi", "Jedi", "Vandredi", "Samdi"];
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-    setMessage("");
-    setSaving(true);
-    try {
-      await request(`/lottery/schedules/${schedule.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ opensAt: values.opensAt, closesAt: values.closesAt, resultAt: values.resultAt }),
-      });
-      setMessage(french ? "L’horaire du tirage a été mis à jour." : "Orè tiraj la mete ajou.");
-      await reload();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSaving(false);
-    }
-  }
-  const market = schedule.market?.name ? ` · ${schedule.market.name}` : "";
-
-  return (
-    <article className="tenant-settings-schedule-card">
-      <div className="tenant-settings-schedule-title">
-        <span className={`tenant-settings-schedule-dot ${schedule.active ? "is-active" : ""}`} />
-        <div><strong>{game.name}{market}</strong><small>{weekdays[Number(schedule.weekday)] ?? `${schedule.weekday}`} · {schedule.timezone}</small></div>
-      </div>
-      <form key={`${schedule.id}-${schedule.opensAt}-${schedule.closesAt}-${schedule.resultAt}`} className="tenant-settings-schedule-form" onSubmit={save}>
-        <label>{french ? "Ouverture" : "Ouvèti"}<input name="opensAt" type="time" defaultValue={String(schedule.opensAt ?? "").slice(0, 5)} required disabled={!canEdit} /></label>
-        <label>{french ? "Fermeture" : "Fèmti"}<input name="closesAt" type="time" defaultValue={String(schedule.closesAt ?? "").slice(0, 5)} required disabled={!canEdit} /></label>
-        <label>{french ? "Résultat" : "Rezilta"}<input name="resultAt" type="time" defaultValue={String(schedule.resultAt ?? "").slice(0, 5)} required disabled={!canEdit} /></label>
-        {canEdit && <button type="submit" disabled={saving}>{saving ? "…" : french ? "Enregistrer" : "Sove orè"}</button>}
-      </form>
-      {message && <p className="message" role="status">{message}</p>}
-    </article>
-  );
-}
-
 export default function TenantLotterySettings({
   games,
   offices,
@@ -183,15 +127,12 @@ export default function TenantLotterySettings({
   reload: () => Promise<void>;
   canEdit: boolean;
 }) {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const french = language === "fr";
   const payouts = games.flatMap((game) =>
     (game.betTypes ?? [])
       .filter((entry: Row) => entry.active !== false && entry.betType?.code === "BOLET")
       .map((entry: Row) => ({ game, betType: entry.betType })),
-  );
-  const schedules = games.flatMap((game) =>
-    (game.schedules ?? []).map((schedule: Row) => ({ game, schedule })),
   );
   const countryOptions = countries.map(([code, label]) => {
     const [name, currency = "USD"] = label.split("·").map((part) => part.trim());
@@ -277,16 +218,10 @@ export default function TenantLotterySettings({
 
       <section className="tenant-settings-section">
         <div className="tenant-settings-section-heading">
-          <div><span className="tenant-report-kicker">{french ? "CALENDRIER DES TIRAGES" : "KALANDRIYE TIRAJ YO"}</span><h2>{french ? "Heures d’ouverture et de fermeture" : "Lè tiraj yo ouvri ak fèmen"}</h2><p>{french ? "Ajustez les heures par loterie et par jour. Les changements concernent les prochains tirages." : "Ajiste lè yo pou chak lotri ak chak jou. Chanjman yo konsène pwochen tiraj yo."}</p></div>
+          <div><span className="tenant-report-kicker">{french ? "SÉANCES DE TIRAGE" : "SESYON TIRAJ YO"}</span><h2>{french ? "Séances ouvertes aux vendeurs" : "Sesyon machann yo ka vann"}</h2><p>{t("lottery.availabilityHelp")}</p></div>
           <span className="tenant-settings-section-icon">◷</span>
         </div>
-        {schedules.length ? (
-          <div className="tenant-settings-schedule-list">
-            {schedules.map(({ game, schedule }) => (
-              <ScheduleCard key={schedule.id} game={game} schedule={schedule} request={request} reload={reload} canEdit={canEdit} />
-            ))}
-          </div>
-        ) : <p className="tenant-report-card-empty">{french ? "Aucun horaire de tirage n’est configuré." : "Pa gen orè tiraj ki konfigire."}</p>}
+        <TenantScheduleSessions games={games} request={request} reload={reload} canEdit={canEdit} />
       </section>
     </div>
   );

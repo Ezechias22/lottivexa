@@ -723,6 +723,22 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
 .tenant-settings-schedule-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #c4ccd8; }.tenant-settings-schedule-dot.is-active { background: #31af7c; box-shadow: 0 0 0 4px #31af7c1b; }
 .tenant-settings-schedule-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tenant-settings-schedule-form input { min-width: 0; height: 36px; padding: 5px 7px; border: 1px solid #dfe6f0; border-radius: 8px; color: #283c5c; background: white; font: inherit; font-size: 12px; }
+.tenant-session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 12px; }
+.tenant-session-card { min-width: 0; padding: 16px; border: 1px solid #e5ebf3; border-radius: 14px; background: #fbfcff; }
+.tenant-session-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.tenant-session-heading strong { display: block; color: #2c3d58; font-size: 13px; }
+.tenant-session-heading small { display: block; margin-top: 4px; color: #8290a5; font-size: 10px; }
+.tenant-session-status { flex: 0 0 auto; padding: 5px 9px; border-radius: 20px; font-size: 10px; font-weight: 800; }
+.tenant-session-status.is-open { color: #117850; background: #e6f7ef; }
+.tenant-session-status.is-closed { color: #647188; background: #edf0f5; }
+.tenant-session-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 9px; }
+.tenant-session-form label { display: grid; gap: 5px; color: #68778e; font-size: 10px; font-weight: 700; }
+.tenant-session-form input { width: 100%; min-width: 0; height: 38px; box-sizing: border-box; padding: 5px 8px; border: 1px solid #dfe6f0; border-radius: 8px; color: #283c5c; background: white; font: inherit; font-size: 12px; }
+.tenant-session-save, .tenant-session-toggle { min-height: 37px; border: 0; border-radius: 8px; color: white; background: #2463eb; font-size: 11px; font-weight: 800; cursor: pointer; }
+.tenant-session-save { grid-column: 1 / -1; }
+.tenant-session-toggle { width: 100%; margin-top: 10px; }
+.tenant-session-toggle.is-close-action { color: #a23d48; border: 1px solid #f0dadd; background: #fff5f6; }
+.tenant-session-save:disabled, .tenant-session-toggle:disabled { cursor: wait; opacity: .65; }
 @media (max-width: 1120px) {
   .tenant-report-toolbar { align-items: flex-start; flex-direction: column; }
   .tenant-report-toolbar-actions { justify-content: flex-start; }
