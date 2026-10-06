@@ -97,6 +97,11 @@ class ScheduleStatusDto {
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) closesAt?: string;
   @IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) resultAt?: string;
 }
+class ScheduleSlotStatusDto {
+  @IsString() gameId!: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) resultAt!: string;
+  @IsBoolean() enabled!: boolean;
+}
 class RuleDto {
   @IsString() jurisdictionCode!: string;
   @IsString() key!: string;
@@ -136,6 +141,8 @@ export class LotteryController {
   market(@CurrentUser() u: Principal, @Body() dto: MarketDto) { return this.service.createMarket(u, dto); }
   @Post("schedules") @RequirePermissions("settings.edit")
   schedule(@CurrentUser() u: Principal, @Body() dto: ScheduleDto) { return this.service.createSchedule(u, dto); }
+  @Patch("schedules/slot") @RequirePermissions("settings.edit")
+  scheduleSlotStatus(@CurrentUser() u: Principal, @Body() dto: ScheduleSlotStatusDto) { return this.service.setScheduleSlotStatus(u, dto); }
   @Patch("schedules/:id") @RequirePermissions("settings.edit")
   scheduleStatus(@CurrentUser() u: Principal, @Param("id") id: string, @Body() dto: ScheduleStatusDto) {
     if (dto.opensAt || dto.closesAt || dto.resultAt) return this.service.updateScheduleTimes(u, id, dto);

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import ManualResults from './manual-results';
-import { describeDraw } from './draw-label';
+import { describeDraw, drawSessionLabel } from './draw-label';
 import { useI18n } from './i18n';
 
 type Row = Record<string, any>;
@@ -54,15 +54,83 @@ export function LotteryCompact({ games, request, reload, can }: { games: Row[]; 
 }
 
 export function LotterySchedules({ games, request, reload, can }: { games: Row[]; request: Request; reload: () => Promise<void>; can: (permission: string) => boolean }) {
-  const { t } = useI18n();
-  const schedules = games.flatMap(game => (game.schedules ?? []).map((schedule: Row) => ({ ...schedule, gameName: game.name })));
+  const { language, t } = useI18n();
+  const schedules = games.flatMap(game => (game.schedules ?? []).map((schedule: Row) => ({ ...schedule, gameId: game.id, gameCode: game.code, gameName: game.name })));
+  const slots = [...schedules.reduce((map, schedule) => {
+    const resultAt = String(schedule.resultAt ?? '').slice(0, 5);
+    const key = `${schedule.gameId}|${resultAt}`;
+    const current = map.get(key) ?? { gameId: schedule.gameId, gameCode: schedule.gameCode, gameName: schedule.gameName, resultAt, schedules: [] as Row[] };
+    current.schedules.push(schedule);
+    map.set(key, current);
+    return map;
+  }, new Map<string, { gameId: string; gameCode: string; gameName: string; resultAt: string; schedules: Row[] }>()).values()]
+    .sort((a, b) => a.gameName.localeCompare(b.gameName) || a.resultAt.localeCompare(b.resultAt));
   const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState('');
+  const weekdays = language === 'fr'
+    ? ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+    : ['Dimanch', 'Lendi', 'Madi', 'Mèkredi', 'Jedi', 'Vandredi', 'Samdi'];
+  async function toggleSlot(slot: typeof slots[number]) {
+    const enabled = !slot.schedules.every((schedule: Row) => schedule.active);
+    setSaving(`${slot.gameId}|${slot.resultAt}`);
+    try {
+      setMessage('');
+      await request('/lottery/schedules/slot', { method: 'PATCH', body: JSON.stringify({ gameId: slot.gameId, resultAt: slot.resultAt, enabled }) });
+      setMessage(t('lottery.scheduleUpdated'));
+      await reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving('');
+    }
+  }
   async function save(schedule: Row, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const x = Object.fromEntries(new FormData(event.currentTarget).entries());
-    try { setMessage(''); await request(`/lottery/schedules/${schedule.id}`, { method: 'PATCH', body: JSON.stringify({ opensAt: x.opensAt, closesAt: x.closesAt, resultAt: x.resultAt }) }); setMessage('Orè a mete ajou.'); await reload(); }
+    try { setMessage(''); await request(`/lottery/schedules/${schedule.id}`, { method: 'PATCH', body: JSON.stringify({ opensAt: x.opensAt, closesAt: x.closesAt, resultAt: x.resultAt }) }); setMessage(t('lottery.scheduleUpdated')); await reload(); }
     catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   }
-  return <section className="panel"><h2>{t('lottery.schedules')}</h2><p className="muted">Ajiste lè ouvèti, fèmti ak rezilta pou chak orè.</p>{schedules.map(schedule => <article className="domain" key={schedule.id}><div><b>{schedule.gameName}</b><small>{t('lottery.dayPrefix')} {schedule.weekday} · {schedule.active ? t('lottery.active') : t('lottery.inactive')}</small></div><form className="inline" onSubmit={event => void save(schedule, event)}><label>Ouvèti<input name="opensAt" type="time" defaultValue={String(schedule.opensAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label><label>{t('lottery.closeTime')}<input name="closesAt" type="time" defaultValue={String(schedule.closesAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label><label>{t('lottery.resultTime')}<input name="resultAt" type="time" defaultValue={String(schedule.resultAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label>{can('settings.edit') && <button>Save</button>}</form>{can('settings.edit') && <button className={schedule.active ? 'danger' : ''} onClick={() => void request(`/lottery/schedules/${schedule.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !schedule.active }) }).then(reload)}>{schedule.active ? t('lottery.closeDraw') : t('lottery.activateDraw')}</button>}</article>)}{!schedules.length && <p className="empty">{t('table.empty')}</p>}{message && <p className="message">{message}</p>}</section>;
+  async function toggleDay(schedule: Row) {
+    try {
+      setMessage('');
+      await request(`/lottery/schedules/${schedule.id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !schedule.active }) });
+      setMessage(t('lottery.scheduleUpdated'));
+      await reload();
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+  }
+  return <>
+    <section className="panel">
+      <h2>{t('lottery.availabilityTitle')}</h2>
+      <p className="muted">{t('lottery.availabilityHelp')}</p>
+      <div className="domain-list">
+        {slots.map(slot => {
+          const active = slot.schedules.filter((schedule: Row) => schedule.active).length;
+          const enabled = active === slot.schedules.length;
+          const session = drawSessionLabel({ drawNumber: `SLOT-20261006-${slot.resultAt.replace(':', '')}` }, language);
+          const identity = `${slot.gameId}|${slot.resultAt}`;
+          return <article className="domain" key={identity}>
+            <div><b>{slot.gameName} · {session} · {slot.resultAt}</b><small>{active}/{slot.schedules.length} {t('lottery.daysEnabled')}</small></div>
+            {can('settings.edit') && <button className={enabled ? 'danger' : ''} disabled={saving === identity} onClick={() => void toggleSlot(slot)}>{saving === identity ? '…' : enabled ? t('lottery.closeSession') : t('lottery.openSession')}</button>}
+          </article>;
+        })}
+      </div>
+      {!slots.length && <p className="empty">{t('table.empty')}</p>}
+    </section>
+    <section className="panel">
+      <h2>{t('lottery.schedules')} · {t('lottery.day')}</h2>
+      <div className="domain-list">{schedules.map(schedule => <article className="domain" key={schedule.id}>
+        <div><b>{schedule.gameName}</b><small>{weekdays[Number(schedule.weekday)] ?? `${t('lottery.dayPrefix')} ${schedule.weekday}`} · {schedule.active ? t('lottery.active') : t('lottery.inactive')}</small></div>
+        <form className="inline" onSubmit={event => void save(schedule, event)}>
+          <label>{t('lottery.opensAt')}<input name="opensAt" type="time" defaultValue={String(schedule.opensAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label>
+          <label>{t('lottery.closeTime')}<input name="closesAt" type="time" defaultValue={String(schedule.closesAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label>
+          <label>{t('lottery.resultTime')}<input name="resultAt" type="time" defaultValue={String(schedule.resultAt ?? '').slice(0, 5)} required disabled={!can('settings.edit')} /></label>
+          {can('settings.edit') && <button>{language === 'fr' ? 'Enregistrer' : 'Sove'}</button>}
+        </form>
+        {can('settings.edit') && <button className={schedule.active ? 'danger' : ''} onClick={() => void toggleDay(schedule)}>{schedule.active ? t('lottery.closeDraw') : t('lottery.activateDraw')}</button>}
+      </article>)}</div>
+      {!schedules.length && <p className="empty">{t('table.empty')}</p>}
+      {message && <p className="message" role="status">{message}</p>}
+    </section>
+  </>;
 }
 
 export function ManualResultsPage({ draws, request, reload }: { draws: Row[]; request: Request; reload: () => Promise<void> }) {

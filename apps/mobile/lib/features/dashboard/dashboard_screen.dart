@@ -29,7 +29,7 @@ class _State extends State<DashboardScreen> {
       final dashboardResponse = await dashboardFuture;
       final drawsResponse = await drawsFuture;
       final open = (drawsResponse.data ?? <dynamic>[])
-          .where((dynamic row) => row is Map && row['status'] == 'OPEN')
+          .where((dynamic row) => row is Map && row['status'] == 'OPEN' && row['scheduleEnabled'] != false)
           .take(4)
           .toList();
       if (mounted) setState(() {

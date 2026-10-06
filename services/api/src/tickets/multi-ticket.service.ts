@@ -3,6 +3,7 @@ import { prisma, Prisma } from '@lottivexa/database';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Principal } from '../common/guards/jwt-auth.guard';
 import { isBettingOpen } from '../lottery/lottery-policy';
+import { isConfiguredDrawEnabled } from '../lottery/draw-schedule-policy';
 import { blockedNumberMatches, chooseOdds, isNumberBlocked, normalizeSelection, priceLines, validateHaitianBetType } from './ticket-policy';
 import { presentTicketLines } from './ticket-line-flags';
 import { resolveFreeMaryajPolicy, randomFreeMaryajSelections } from './free-maryaj-policy';
@@ -35,7 +36,7 @@ export class MultiTicketService {
     let firstDraw: any;
     for (const group of groups) {
       const draw = await db.draw.findFirst({ where: { id: group.drawId, tenantId }, include: { game: true } });
-      if (!draw || !isBettingOpen(draw.status, draw.closesAt, draw.game.cutoffSeconds)) throw new BadRequestException('DRAW_CLOSED');
+      if (!draw || !isBettingOpen(draw.status, draw.closesAt, draw.game.cutoffSeconds) || !(await isConfiguredDrawEnabled(tenantId, draw))) throw new BadRequestException('DRAW_CLOSED');
       if (!firstDraw) firstDraw = draw;
       if (ticketDraws.some(item => item.drawId === draw.id)) throw new BadRequestException('DUPLICATE_DRAW');
       ticketDraws.push({ drawId: draw.id, tenantId });

@@ -42,7 +42,7 @@ class _NewTicketState extends State<NewTicketScreen> {
     try {
       final values = await Future.wait([widget.runtime.api.dio.get<List<dynamic>>('/api/v1/lottery/games'), widget.runtime.api.dio.get<List<dynamic>>('/api/v1/lottery/draws')]);
       games = values[0].data ?? [];
-      draws = (values[1].data ?? []).where((row) => row['status'] == 'OPEN').toList();
+      draws = (values[1].data ?? []).where((row) => row['status'] == 'OPEN' && row['scheduleEnabled'] != false).toList();
       try {
         final dashboard = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/merchants/me/dashboard');
         currency = '${dashboard.data?['currency'] ?? 'USD'}';
