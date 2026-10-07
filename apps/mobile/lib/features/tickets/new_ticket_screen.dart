@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/mobile_runtime.dart';
+import '../../core/localization/app_language.dart';
 import '../../core/draw_label.dart';
 import '../../core/formatters/currency_format.dart';
 

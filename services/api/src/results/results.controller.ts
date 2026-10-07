@@ -28,7 +28,7 @@ export class ResultsController{
   editMaster(@CurrentUser()u:Principal,@Param('drawId')id:string,@Body()dto:ResultDto){return this.service.editPlatform(u,id,dto)}
 
   @IS_PUBLIC()@Get('public/:tenantSlug')
-  latest(@Param('tenantSlug')slug:string){return this.service.latestPublic(slug)}
+  latest(@Param('tenantSlug')slug:string,@Query('date')date?:string){return this.service.latestPublic(slug,date)}
 
   @IS_PUBLIC()@Post('provider/lottery-results-feed/webhook')
   async lotteryResultsFeedWebhook(@Req()request:any,@Headers('signature')signature?:string){

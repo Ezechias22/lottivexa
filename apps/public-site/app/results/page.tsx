@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
+import { localResultDate, publishedResultsForDate } from './results-date';
 
 type Row = Record<string, any>;
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -26,28 +27,38 @@ function readableDraw(row: Row) {
 
 export default function Results() {
   const [tenant, setTenant] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [data, setData] = useState<Row>({ results: [] });
   const [error, setError] = useState('');
-  async function load(slug = tenant) {
-    if (!slug) return;
+  async function load(slug = tenant, date = selectedDate) {
+    if (!slug || !date) return;
     try {
-      const response = await fetch(`${API}/results/public/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+      const response = await fetch(`${API}/results/public/${encodeURIComponent(slug)}?date=${encodeURIComponent(date)}`, { cache: 'no-store' });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message ?? 'RESULTS_UNAVAILABLE');
-      setData(body); setError('');
+      setData({ ...body, results: publishedResultsForDate(Array.isArray(body.results) ? body.results : [], date) }); setError('');
     } catch (value) { setError(value instanceof Error ? value.message : String(value)); }
   }
   useEffect(() => {
     const slug = new URLSearchParams(location.search).get('tenant') ?? '';
     setTenant(slug);
-    if (slug) { void load(slug); const timer = setInterval(() => void load(slug), 15000); return () => clearInterval(timer); }
   }, []);
+  useEffect(() => {
+    if (!selectedDate) setSelectedDate(localResultDate());
+  }, [selectedDate]);
+  useEffect(() => {
+    if (!tenant || !selectedDate) return;
+    void load(tenant, selectedDate);
+    const timer = setInterval(() => void load(tenant, selectedDate), 15000);
+    return () => clearInterval(timer);
+  }, [tenant, selectedDate]);
   return <main style={{ fontFamily: 'system-ui', maxWidth: 1000, margin: 'auto', padding: 24 }}>
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
       <div style={{display:"flex",alignItems:"center",gap:12}}><img src="/lottivexa-brand-mark-192.png" width="48" height="48" alt=""/><div><b>LOTTIVEXA</b><h1>{data.tenant?.businessName ?? 'Rezilta lotri'}</h1></div></div><span style={{ color: '#16803a' }}>● AN TAN REYÈL</span>
     </header>
-    <form onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void load(); }} style={{ display: 'flex', gap: 8, margin: '20px 0' }}>
+    <form onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void load(tenant, selectedDate); }} style={{ display: 'flex', gap: 8, margin: '20px 0', flexWrap: 'wrap' }}>
       <input aria-label="Tenant" value={tenant} onChange={event => setTenant(event.target.value)} placeholder="non tenant lan" required style={{ padding: 12, flex: 1 }} />
+      <label style={{ display: 'grid', gap: 4, color: '#344054', fontSize: 12, fontWeight: 700 }}>Dat rezilta<input aria-label="Dat rezilta" type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} style={{ padding: 12, border: '1px solid #d0d5dd', borderRadius: 8 }} /></label>
       <button style={{ padding: '12px 20px' }}>Afiche rezilta</button>
     </form>
     {error && <p>{error}</p>}

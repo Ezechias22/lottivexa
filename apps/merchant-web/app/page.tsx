@@ -7,6 +7,7 @@ import {useMerchantLanguage,statusLabel} from './language-switcher';
 import {ticketBelongsInWinnersList,ticketDisplayStatus,ticketNeedsWinningReview,ticketWinningAmount} from './ticket-status';
 import {drawSaleClosingAt,formatDrawCountdown,isDrawOpenForSale} from './draw-countdown';
 import {drawLabel,ticketDrawLabels} from './draw-label';
+import {localResultDate,publishedResultsForDate} from './results-date';
 import {buildAutomaticBoulPe,buildAutomaticLoto4,buildAutomaticMaryaj,collectAutomaticNumbers} from './sell-tools';
 import {downloadTicketImage,downloadTicketPdf,shareTicket} from './receipt-export';
 import {buildTicketSalePayload} from './ticket-sale';
@@ -138,4 +139,22 @@ function HaitianPos({state:s,lines,setLines,gameForDraw,submit,online}:any){
   {manualOpen&&<ManualMaryajDialog language={language} onClose={()=>setManualOpen(false)} onAdd={(selection,stake)=>{const bet=bets.find((x:Row)=>x.code==='MARYAJ');if(!bet)return;setLines([...lines,{betTypeId:bet.id,betName:bet.name,selection:selection.join(' '),stake,drawId:draw}]);setManualOpen(false)}}/>}
  </section>
 }
-function LiveResults({request}:{request:(path:string)=>Promise<any>}){const{t,language}=useMerchantLanguage();const[rows,setRows]=useState<Row[]>([]),[error,setError]=useState('');useEffect(()=>{let active=true;const load=async()=>{try{const draws=await request('/lottery/draws');if(active){setRows(draws.filter((x:Row)=>x.status==='RESULT_PUBLISHED'));setError('')}}catch(e){if(active)setError(e instanceof Error?e.message:String(e))}};void load();const timer=setInterval(load,15000);return()=>{active=false;clearInterval(timer)}},[request]);const groups=[...rows.reduce((map,row:Row)=>{const key=row.game?.id??row.game?.code??row.game?.name??row.id,group=map.get(key)??{game:row.game,draws:[]};group.draws.push(row);map.set(key,group);return map},new Map<string,{game:Row;draws:Row[]}>()).values()];return <section className="panel merchant-results-panel"><div className="title"><div><h2>{t('live')}</h2><small>{t('updates')}</small></div><span className="merchant-results-count">{rows.length}</span></div>{error&&<p className="message">{error}</p>}<div className="merchant-results-list">{groups.map((group,index)=><article className="merchant-result-game" key={String(group.game?.id??group.game?.code??index)}><div className="merchant-result-brand">{group.game?.logoUrl?<img src={group.game.logoUrl} alt=""/>:<span>{String(group.game?.code??group.game?.name??'L').slice(0,2)}</span>}<b>{group.game?.name??'—'}</b></div><div className="merchant-result-sessions">{group.draws.map((row:Row)=>{const keys=(row.result?.winningKeys??[]).map((value:unknown)=>String(value).split('@')[0]),detail=drawLabel(row,language).split(' · ').slice(1).join(' · ');return <div className="merchant-result-session" key={row.id}><div><b>{detail||row.drawNumber}</b><small>{row.drawNumber}</small></div><div className="merchant-result-balls">{keys.length?keys.map((value:string,index:number)=><strong className={`merchant-result-ball ball-${index%3}`} key={`${value}-${index}`}>{value}</strong>):<span>—</span>}</div></div>})}</div></article>)}</div>{!rows.length&&!error&&<p>{t('noResults')}</p>}</section>}
+function LiveResults({request}:{request:(path:string)=>Promise<any>}){
+ const{t,language}=useMerchantLanguage();
+ const[rows,setRows]=useState<Row[]>([]),[error,setError]=useState(''),[selectedDate,setSelectedDate]=useState('');
+ useEffect(()=>{setSelectedDate(localResultDate())},[]);
+ useEffect(()=>{
+  if(!selectedDate)return;
+  let active=true;
+  const load=async()=>{
+   try{
+    const draws=await request('/lottery/draws?from='+encodeURIComponent(selectedDate)+'&to='+encodeURIComponent(selectedDate));
+    if(active){setRows(publishedResultsForDate(Array.isArray(draws)?draws:[],selectedDate));setError('')}
+   }catch(e){if(active)setError(e instanceof Error?e.message:String(e))}
+  };
+  void load();const timer=setInterval(load,15000);
+  return()=>{active=false;clearInterval(timer)}
+ },[request,selectedDate]);
+ const groups=[...rows.reduce((map,row:Row)=>{const key=row.game?.id??row.game?.code??row.game?.name??row.id,group=map.get(key)??{game:row.game,draws:[]};group.draws.push(row);map.set(key,group);return map},new Map<string,{game:Row;draws:Row[]}>()).values()];
+ return <section className="panel merchant-results-panel"><div className="title"><div><h2>{t('live')}</h2><small>{t('updates')}</small></div><label className="merchant-result-date">{t('date')}<input aria-label={t('date')} type="date" value={selectedDate} onChange={event=>setSelectedDate(event.target.value)}/></label><span className="merchant-results-count">{rows.length}</span></div>{error&&<p className="message">{error}</p>}<div className="merchant-results-list">{groups.map((group,index)=><article className="merchant-result-game" key={String(group.game?.id??group.game?.code??index)}><div className="merchant-result-brand">{group.game?.logoUrl?<img src={group.game.logoUrl} alt=""/>:<span>{String(group.game?.code??group.game?.name??'L').slice(0,2)}</span>}<b>{group.game?.name??'—'}</b></div><div className="merchant-result-sessions">{group.draws.map((row:Row)=>{const keys=(row.result?.winningKeys??[]).map((value:unknown)=>String(value).split('@')[0]),detail=drawLabel(row,language).split(' · ').slice(1).join(' · ');return <div className="merchant-result-session" key={row.id}><div><b>{detail||row.drawNumber}</b><small>{row.drawNumber}</small></div><div className="merchant-result-balls">{keys.length?keys.map((value:string,index:number)=><strong className={'merchant-result-ball ball-'+(index%3)} key={value+'-'+index}>{value}</strong>):<span>—</span>}</div></div>})}</div></article>)}</div>{!rows.length&&!error&&<p>{t('noResults')}</p>}</section>
+}

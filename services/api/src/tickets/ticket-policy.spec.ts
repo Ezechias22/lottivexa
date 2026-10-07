@@ -74,7 +74,13 @@ describe('selection formatting and cancellation', () => {
   it('matches normalized display digits while keeping the whole-number comparison exact', () => {
     expect(isWinningSelection('BOLET', '12', ['１２', '34', '56'])).toBe(true);
     expect(isWinningSelection('BOLET', '07', ['7', '34', '56'])).toBe(true);
-    expect(isWinningSelection('BOLET', '12', ['112', '34', '56'])).toBe(false);
+    expect(isWinningSelection('BOLET', '12', ['121', '34', '56'])).toBe(false);
+  });
+  it('matches a two-digit Bolet on the last two digits of a three-digit first result', () => {
+    expect(winningSelectionCount('BOLET', '55@1', ['255'])).toBe(1);
+    expect(isWinningSelection('BOLET', '25@1', ['255'])).toBe(false);
+    expect(isWinningSelection('BOLET', '55@2', ['255'])).toBe(false);
+    expect(isWinningSelection('BOUL_PE', '55', ['255'])).toBe(false);
   });
   it('allows tenant cancellation only for unresolved, unpaid tickets', () => {
     expect(isTenantCancellationEligible('VALID', false, false)).toBe(true);

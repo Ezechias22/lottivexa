@@ -155,7 +155,7 @@ export class LotteryController {
   @Post("games/:gameId/bet-types/:betTypeId") @RequirePermissions("settings.edit")
   attach(@CurrentUser() u: Principal, @Param("gameId") gameId: string, @Param("betTypeId") betTypeId: string) { return this.service.attachBetType(u, gameId, betTypeId); }
   @Get("draws") @RequirePermissions("tickets.view")
-  draws(@CurrentUser() u: Principal) { return this.service.draws(u); }
+  draws(@CurrentUser() u: Principal, @Query("from") from?: string, @Query("to") to?: string) { return this.service.draws(u, from, to); }
   @Post("draws") @RequirePermissions("settings.edit")
   draw(@CurrentUser() u: Principal, @Body() dto: DrawDto) { return this.service.createDraw(u, dto); }
   @Post("draws/:id/transition") @RequirePermissions("settings.edit")

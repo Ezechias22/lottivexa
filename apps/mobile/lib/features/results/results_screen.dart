@@ -13,17 +13,37 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsState extends State<ResultsScreen> {
   List<dynamic> rows = [], pending = [];
+  DateTime selectedDay = DateTime.now();
   String? error;
   Timer? timer;
 
   @override void initState() { super.initState(); load(); timer = Timer.periodic(const Duration(seconds: 15), (_) => load()); }
   @override void dispose() { timer?.cancel(); super.dispose(); }
 
-  Future<void> load() async {
+  String dateKey(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  Future<void> load([DateTime? requestedDay]) async {
     try {
-      final response = await widget.api.dio.get<List<dynamic>>('/api/v1/lottery/draws'), all = response.data ?? [];
+      final day = requestedDay ?? selectedDay;
+      final key = dateKey(day);
+      final response = await widget.api.dio.get<List<dynamic>>('/api/v1/lottery/draws', queryParameters: {'from': key, 'to': key});
+      final all = response.data ?? [];
       if (mounted) setState(() { rows = all.where((row) => row['status'] == 'RESULT_PUBLISHED').toList(); pending = all.where((row) => row['status'] == 'CLOSED' || row['status'] == 'RESULT_PENDING').toList(); error = null; });
     } catch (_) { if (mounted) setState(() => error = AppLanguage.tr('Rezilta yo pa disponib kounye a.')); }
+  }
+
+  Future<void> chooseDate() async {
+    final today = DateTime.now();
+    final selected = await showDatePicker(context: context, initialDate: selectedDay, firstDate: DateTime(2000), lastDate: today);
+    if (selected == null) return;
+    final day = DateTime(selected.year, selected.month, selected.day);
+    setState(() => selectedDay = day);
+    await load(day);
   }
 
   String drawLabel(Map<String, dynamic> row) => merchantDrawLabel(row, french: AppLanguage.current.value.languageCode == 'fr');
@@ -31,6 +51,8 @@ class _ResultsState extends State<ResultsScreen> {
 
   @override Widget build(BuildContext context) {
     final groups = <String, List<Map<String, dynamic>>>{};
+    final dateLabel = AppLanguage.tr('Dat rezilta');
+    final selectedDateLabel = dateKey(selectedDay).split('-').reversed.join('/');
     for (final value in rows) {
       final row = Map<String, dynamic>.from(value as Map), game = row['game'] is Map ? Map<String, dynamic>.from(row['game'] as Map) : <String, dynamic>{};
       final key = '${game['id'] ?? game['code'] ?? game['name'] ?? row['id']}';
@@ -38,6 +60,17 @@ class _ResultsState extends State<ResultsScreen> {
     }
     return RefreshIndicator(onRefresh: load, child: ListView(padding: const EdgeInsets.fromLTRB(12, 12, 12, 20), children: [
       Row(children: [IconButton(onPressed: () => context.go('/'), tooltip: AppLanguage.tr('Retounen'), icon: const Icon(Icons.arrow_back)), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(AppLanguage.tr('Rezilta yo'), style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)), Text(AppLanguage.tr('Mizajou otomatik chak 15 segonn'), style: const TextStyle(fontSize: 11))])), IconButton.filledTonal(onPressed: load, icon: const Icon(Icons.refresh))]),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: OutlinedButton.icon(
+            onPressed: chooseDate,
+            icon: const Icon(Icons.calendar_month),
+            label: Text('$dateLabel: $selectedDateLabel'),
+          ),
+        ),
+      ),
       if (error != null) Card(color: Theme.of(context).colorScheme.errorContainer, child: Padding(padding: const EdgeInsets.all(14), child: Text(error!))),
       ...groups.values.map((draws) {
         final game = draws.first['game'] is Map ? Map<String, dynamic>.from(draws.first['game'] as Map) : <String, dynamic>{}, logo = '${game['logoUrl'] ?? ''}';

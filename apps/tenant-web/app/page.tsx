@@ -670,7 +670,7 @@ export default function TenantConsole() {
         )}{" "}
         {tab === "lotterySchedules" && <LotterySchedules games={current[0] ?? []} request={request} reload={() => load("lotterySchedules")} can={can} />}{" "}
         {tab === "manualResults" && <ManualResultsPage draws={current[0] ?? []} request={request} reload={() => load("manualResults")} />}{" "}
-        {tab === "results" && <PublishedResults draws={current[0] ?? []} />}{" "}
+        {tab === "results" && <PublishedResults draws={current[0] ?? []} request={request} />}{" "}
         {tab === "tickets" && (
           <Tickets data={current} request={request} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onDelete={deleteTicket} />
         )}{" "}

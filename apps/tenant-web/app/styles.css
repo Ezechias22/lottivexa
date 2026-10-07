@@ -1183,3 +1183,6 @@ body:has(.lottivexa-language-switcher .languageMenu) .content header > .logout-b
 .ticket-delete-panel button{justify-self:start;min-height:42px;padding:10px 15px;border-radius:11px;font-weight:800}
 .ticket-delete-panel button:focus-visible{outline:3px solid #80adf5;outline-offset:2px}
 @media(max-width:720px){.ticket-delete-panel{margin-left:14px;margin-right:14px;margin-bottom:14px}}
+
+.tenant-result-date{display:flex;align-items:center;gap:8px;color:#52657e;font-size:12px;font-weight:800}.tenant-result-date input{min-height:38px;padding:7px 9px;border:1px solid #d5dfeb;border-radius:10px;background:#fff;color:#172b47;font:inherit}.tenant-result-date input:focus-visible{outline:3px solid #8cb5ed;outline-offset:2px}
+@media(max-width:720px){.tenant-results-heading{align-items:flex-start;flex-wrap:wrap}.tenant-result-date{order:3;width:100%;justify-content:space-between}.tenant-result-date input{flex:1;max-width:190px}}

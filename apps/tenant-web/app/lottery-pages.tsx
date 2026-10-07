@@ -5,6 +5,7 @@ import ManualResults from './manual-results';
 import { describeDraw, drawSessionLabel } from './draw-label';
 import { useI18n } from './i18n';
 import TenantScheduleSessions from './tenant-schedule-sessions';
+import { localResultDate, publishedResultsForDate } from './results-date';
 
 type Row = Record<string, any>;
 type Request = (path: string, init?: RequestInit) => Promise<any>;
@@ -69,15 +70,34 @@ export function ManualResultsPage({ draws, request, reload }: { draws: Row[]; re
   return <ManualResults draws={draws as any} request={request} reload={reload} showHistory={false} />;
 }
 
-export function PublishedResults({ draws }: { draws: Row[] }) {
+export function PublishedResults({ draws, request }: { draws: Row[]; request: Request }) {
   const { language, t } = useI18n();
-  const rows = draws.filter(draw => draw.status === 'RESULT_PUBLISHED');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [rows, setRows] = useState<Row[]>(() => publishedResultsForDate(draws, localResultDate()));
+  const [error, setError] = useState('');
+  useEffect(() => { setSelectedDate(localResultDate()); }, []);
+  useEffect(() => {
+    if (!selectedDate) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const result = await request(`/lottery/draws?from=${encodeURIComponent(selectedDate)}&to=${encodeURIComponent(selectedDate)}`);
+        if (active) { setRows(publishedResultsForDate(Array.isArray(result) ? result : [], selectedDate)); setError(''); }
+      } catch (value) {
+        if (active) setError(value instanceof Error ? value.message : String(value));
+      }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => { active = false; clearInterval(timer); };
+  }, [request, selectedDate]);
   const groups = [...rows.reduce((map, draw) => {
     const key = draw.game?.id ?? draw.game?.code ?? draw.game?.name ?? draw.id;
     const group = map.get(key) ?? { game: draw.game, draws: [] as Row[] };
     group.draws.push(draw); map.set(key, group); return map;
   }, new Map<string, { game: Row; draws: Row[] }>()).values()];
-  return <section className="panel tenant-results-panel"><div className="tenant-results-heading"><div><span className="eyebrow">{language === 'fr' ? 'RÉSULTATS DU JOUR' : 'REZILTA TIRAJ YO'}</span><h2>{language === 'fr' ? 'Résultats publiés' : 'Rezilta ki soti yo'}</h2></div><span className="tenant-results-count">{rows.length}</span></div>
+  return <section className="panel tenant-results-panel"><div className="tenant-results-heading"><div><span className="eyebrow">{language === 'fr' ? 'RÉSULTATS DU JOUR' : 'REZILTA TIRAJ YO'}</span><h2>{language === 'fr' ? 'Résultats publiés' : 'Rezilta ki soti yo'}</h2></div><label className="tenant-result-date">{language === 'fr' ? 'Date des résultats' : 'Dat rezilta'}<input aria-label={language === 'fr' ? 'Date des résultats' : 'Dat rezilta'} type="date" value={selectedDate} onChange={event => setSelectedDate(event.target.value)} /></label><span className="tenant-results-count">{rows.length}</span></div>
+    {error && <p className="message">{error}</p>}
     <div className="tenant-results-list">{groups.map((group, index) => <article className="tenant-result-game" key={String(group.game?.id ?? group.game?.code ?? index)}>
       <div className="tenant-result-brand">{group.game?.logoUrl ? <img src={group.game.logoUrl} alt="" /> : <span>{String(group.game?.code ?? group.game?.name ?? 'L').slice(0, 2)}</span>}<b>{group.game?.name ?? '—'}</b></div>
       <div className="tenant-result-sessions">{group.draws.map((draw: Row) => {

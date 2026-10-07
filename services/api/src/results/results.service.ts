@@ -6,6 +6,7 @@ import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEven
 import {evaluateTicketResults} from './results-policy';
 import {checkedDrawVersion,hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
 import {presentTicketLines} from '../tickets/ticket-line-flags';
+import {drawDateFilter} from '../lottery/draw-date-filter';
 
 @Injectable()
 export class ResultsService implements OnModuleInit{
@@ -147,10 +148,11 @@ export class ResultsService implements OnModuleInit{
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
-  async latestPublic(tenantSlug:string){
+  async latestPublic(tenantSlug:string,date?:string){
     const tenant=await prisma.tenant.findFirst({where:{slug:tenantSlug,status:'ACTIVE'},select:{id:true,branding:{select:{businessName:true,logoUrl:true}}}});
     if(!tenant)return[];
-    const draws=await prisma.draw.findMany({where:{tenantId:tenant.id,status:'RESULT_PUBLISHED'},include:{game:{select:{name:true,logoUrl:true,catalogCode:true}}},orderBy:{publishedAt:'desc'},take:50});
+    const dateRange=drawDateFilter(date,date);
+    const draws=await prisma.draw.findMany({where:{tenantId:tenant.id,status:'RESULT_PUBLISHED',...(dateRange?{drawDate:dateRange}:{})},include:{game:{select:{name:true,logoUrl:true,catalogCode:true}}},orderBy:{publishedAt:'desc'},take:200});
     return{tenant:tenant.branding,results:draws.map(draw=>({id:draw.id,drawNumber:draw.drawNumber,drawDate:draw.drawDate,game:draw.game,result:draw.result,publishedAt:draw.publishedAt}))};
   }
 

@@ -1488,3 +1488,6 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 .selected-draw-countdown .draw-countdown.urgent{color:#b45309}
 @media(max-width:520px){.selected-draw-countdown{margin:8px 0 12px;padding:10px 11px}.selected-draw-countdown .draw-countdown{font-size:13px}.draw-open{font-size:11px}.draw-countdown{font-size:9px}}
 .draw-closed-warning{margin:10px 0;padding:11px 13px;border:1px solid #f4c7c3;border-radius:12px;background:#fff7f6;color:#9b2c25;font-size:13px;font-weight:700;line-height:1.45}
+
+.merchant-result-date{display:flex;align-items:center;gap:8px;color:#52657e;font-size:12px;font-weight:800}.merchant-result-date input{min-height:38px;padding:7px 9px;border:1px solid #d5dfeb;border-radius:10px;background:#fff;color:#172b47;font:inherit}.merchant-result-date input:focus-visible{outline:3px solid #8cb5ed;outline-offset:2px}
+@media(max-width:720px){.merchant-results-panel>.title{align-items:flex-start;flex-wrap:wrap}.merchant-result-date{order:3;width:100%;justify-content:space-between}.merchant-result-date input{flex:1;max-width:190px}}
