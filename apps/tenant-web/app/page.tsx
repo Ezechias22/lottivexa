@@ -12,7 +12,7 @@ import {
   formatTenantApiError,
   normalizeMerchantCreateForm,
 } from "./tenant-api-feedback";
-import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
+import { tenantMobileTabs, tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
 import TenantReports from "./tenant-reports";
 import TenantLotterySettings from "./tenant-lottery-settings";
 import { refreshWebSession } from "./session-refresh";
@@ -246,7 +246,7 @@ function Table({
   );
 }
 export default function TenantConsole() {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const [token, setToken] = useState(""),
     [refresh, setRefresh] = useState(""),
     [force, setForce] = useState(false),
@@ -303,6 +303,7 @@ export default function TenantConsole() {
               ? { "content-type": "application/json" }
               : {}),
             authorization: `Bearer ${access}`,
+            "x-lottivexa-client-app": "tenant-web",
             ...init.headers,
           },
         });
@@ -352,6 +353,13 @@ export default function TenantConsole() {
         return result;
       } catch (e) {
         const code = e instanceof Error ? e.message : String(e);
+        const appMessages: Record<string, { ht: string; fr: string }> = {
+          NUMBER_BLOCKED: { ht: "Boul sa a bloke. Li entèdi pou jwe li.", fr: "Ce numéro est bloqué. Il est interdit de le jouer." },
+          MERCHANT_ACCOUNT_CANNOT_LOGIN_TENANT_APP: { ht: "Kont machann sa a dwe itilize aplikasyon Machann nan.", fr: "Ce compte vendeur doit utiliser l’application Marchand." },
+          TENANT_ACCOUNT_CANNOT_LOGIN_MERCHANT_APP: { ht: "Kont tenant sa a dwe itilize aplikasyon Tenant lan.", fr: "Ce compte administrateur doit utiliser l’application Tenant." },
+          MERCHANT_ACCOUNT_INACTIVE: { ht: "Kont machann sa a pa aktif. Kontakte administratè Tenant lan.", fr: "Ce compte vendeur est inactif. Contactez l’administrateur Tenant." },
+        };
+        if (appMessages[code]) { setMessage(appMessages[code][language]); return; }
         setMessage(code === "TENANT_COUNTRY_LOCKED_AFTER_FIRST_TICKET"
           ? language === "fr"
             ? "Le pays et la devise ne peuvent plus changer après la première vente, car cela modifierait l’historique financier."
@@ -435,7 +443,7 @@ export default function TenantConsole() {
   }, [tenantBranding.faviconUrl]);
   async function login(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const body = val(e.currentTarget);
+    const body = { ...val(e.currentTarget), clientApp: "tenant-web" };
     const result = await run(async () => {
       const response = await fetch(`${API}/auth/login`, {
           method: "POST",
@@ -452,6 +460,8 @@ export default function TenantConsole() {
         throw new Error(
           code === "ACCOUNT_DISABLED_CONTACT_ADMIN"
             ? "Kont sa a dezaktive. Kontakte administratè ki sou tèt ou."
+            : code === "MERCHANT_ACCOUNT_CANNOT_LOGIN_TENANT_APP" || code === "TENANT_ACCOUNT_CANNOT_LOGIN_MERCHANT_APP"
+              ? formatTenantApiError(payload, 401, language)
             : code,
         );
       }
@@ -650,7 +660,7 @@ export default function TenantConsole() {
         {tab === "manualResults" && <ManualResultsPage draws={current[0] ?? []} request={request} reload={() => load("manualResults")} />}{" "}
         {tab === "results" && <PublishedResults draws={current[0] ?? []} />}{" "}
         {tab === "tickets" && (
-          <Tickets data={current} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onCancel={cancelTicket} />
+          <Tickets data={current} request={request} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onCancel={cancelTicket} />
         )}{" "}
         {tab === "finance" && <Finance data={current} submit={submit} />}{" "}
         {tab === "devices" && (
@@ -680,6 +690,9 @@ export default function TenantConsole() {
         )}{" "}
         {tab === "audit" && <Audit data={current} />}
       </main>
+      <nav className="tenant-bottom-nav" aria-label={language === "fr" ? "Navigation principale" : "Navigasyon prensipal"}>
+        {tenantMobileTabs(availableTabs).map((id) => <button key={id} type="button" className={tab === id ? "active" : ""} aria-current={tab === id ? "page" : undefined} onClick={() => navigateTab(id as Tab)}><span className={`tenant-tab-icon icon-${id}`} aria-hidden="true">{id === "dashboard" ? "⌂" : id === "results" ? "●" : id === "reports" ? "▤" : "▣"}</span><span>{t(`nav.${id}` as any)}</span></button>)}
+      </nav>
       {ticketDetails && (
         <TicketDetailsDialog
           ticket={ticketDetails}
@@ -1288,12 +1301,14 @@ function LegacyLottery({ data: d, submit, request, load, can }: any) {
 }
 function Tickets({
   data: d,
+  request,
   can,
   currency,
   onOpen,
   onCancel,
 }: {
   data: any[];
+  request: (path: string, init?: RequestInit) => Promise<any>;
   can: (permission: string) => boolean;
   currency: string;
   onOpen: (ticket: Row) => void;
@@ -1301,10 +1316,13 @@ function Tickets({
 }) {
   const { language } = useI18n();
   const [tickets = [], draws = []] = d;
-  const rows = tickets.map((ticket: Row) => ({ ...ticket, currency: ticket.currency ?? ticket.currencyCode ?? currency }));
+  const [winners, setWinners] = useState<Row[]>([]), [winnersPage, setWinnersPage] = useState(1), [winnersTotal, setWinnersTotal] = useState(0), [showWinners, setShowWinners] = useState(false), [winnersBusy, setWinnersBusy] = useState(false);
+  async function loadWinners(page = 1) { setWinnersBusy(true); try { const result = await request(`/tickets/winners?page=${page}`); setWinners(result.items ?? []); setWinnersTotal(result.total ?? 0); setWinnersPage(result.page ?? page); setShowWinners(true); } finally { setWinnersBusy(false); } }
+  const sourceRows = showWinners ? winners : tickets;
+  const rows = sourceRows.map((ticket: Row) => ({ ...ticket, currency: ticket.currency ?? ticket.currencyCode ?? currency }));
   const labels = language === "fr"
-    ? { total: "Tickets chargés", draws: "Tirages ouverts", winners: "Gagnants", paid: "Payés", heading: "Tickets de l’entreprise", open: "Ouvrir" }
-    : { total: "Tikè chaje", draws: "Tiraj ouvè", winners: "Gayan", paid: "Peye", heading: "Tikè biznis la", open: "Ouvri" };
+        ? { total: "Tickets chargés", draws: "Tirages ouverts", winners: "Gagnants", paid: "Payés", heading: showWinners ? "Tous les tickets gagnants" : "Tickets de l’entreprise", open: "Ouvrir", all: "Tous les tickets", next: "Suivant", previous: "Précédent" }
+    : { total: "Tikè chaje", draws: "Tiraj ouvè", winners: "Gayan", paid: "Peye", heading: showWinners ? "Tout tikè ki genyen yo" : "Tikè biznis la", open: "Ouvri", all: "Tout tikè", next: "Pwochen", previous: "Anvan" };
   return (
     <>
       <div className="tenant-ticket-summary">
@@ -1319,7 +1337,7 @@ function Tickets({
         <article><span>{labels.paid}</span><strong>{tickets.filter((x: Row) => x.status === "PAID").length}</strong></article>
       </div>
       <section className="panel tenant-ticket-list-panel">
-        <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><span>{tickets.length} / 100</span></div>
+        <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><div className="tenant-ticket-filters"><button type="button" className={!showWinners ? "active" : "secondary"} onClick={() => setShowWinners(false)}>{labels.all}</button><button type="button" className={showWinners ? "active" : "secondary"} onClick={() => void loadWinners(1)}>{labels.winners}</button><span>{showWinners ? `${winners.length} / ${winnersTotal}` : `${tickets.length} / 100`}</span></div></div>
         <Table
           rows={rows}
           columns={[
@@ -1334,6 +1352,7 @@ function Tickets({
             </button>
           )}
         />
+        {showWinners && <div className="tenant-ticket-pagination"><button className="secondary" disabled={winnersBusy || winnersPage <= 1} onClick={() => void loadWinners(winnersPage - 1)}>{labels.previous}</button><span>{winnersPage}</span><button className="secondary" disabled={winnersBusy || winnersPage * 50 >= winnersTotal} onClick={() => void loadWinners(winnersPage + 1)}>{labels.next}</button></div>}
       </section>
     </>
   );

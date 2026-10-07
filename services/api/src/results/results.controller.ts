@@ -1,4 +1,4 @@
-import {BadRequestException,Body,Controller,Get,Headers,Param,Patch,Post,Req,UnauthorizedException} from '@nestjs/common';
+import {BadRequestException,Body,Controller,Get,Headers,Param,Patch,Post,Query,Req,UnauthorizedException} from '@nestjs/common';
 import {IsArray,IsString} from 'class-validator';
 import {CurrentUser} from '../common/decorators/current-user.decorator';
 import {IS_PUBLIC,PlatformOnly,RequirePermissions} from '../common/decorators/access.decorators';
@@ -17,6 +17,9 @@ export class ResultsController{
 
   @PlatformOnly()@Get('master/draws')@RequirePermissions('settings.view')
   masterDraws(){return this.service.platformDraws()}
+
+  @PlatformOnly()@Get('master/winning-tickets')@RequirePermissions('settings.view')
+  masterWinningTickets(@Query('page')page?:string){return this.service.platformWinningTickets(Number(page??1))}
 
   @PlatformOnly()@Post('master/draws/:drawId/publish')@RequirePermissions('settings.edit')
   publishMaster(@CurrentUser()u:Principal,@Param('drawId')id:string,@Body()dto:ResultDto){return this.service.publishPlatform(u,id,dto)}

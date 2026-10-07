@@ -17,7 +17,9 @@ export default function ResultsManager({draws,request,reload}:Props){
     }catch(error){alert(error instanceof Error?error.message:'Could not save result');}
     finally{setBusy('');}
   }
-  return <section className="panel">
+  const published=draws.filter(draw=>draw.status==='RESULT_PUBLISHED');
+  return <section className="panel master-results-manager">
+    <div className="master-results-overview"><div className="master-results-heading"><div><small>LIVE RESULTS</small><h2>Published results</h2></div><span>{published.length}</span></div><div className="master-results-list">{published.map(draw=><article className="master-result-card" key={`published-${draw.id}`}><div className="master-result-brand">{draw.game?.logoUrl?<img src={draw.game.logoUrl} alt=""/>:<span>{String(draw.game?.code??draw.game?.name??'L').slice(0,2)}</span>}<b>{draw.game?.name??'—'}</b><small>{draw.tenant?.legalName??draw.tenant?.slug??'—'}</small></div><div className="master-result-row"><div><strong>{draw.drawNumber}</strong><small>{new Date(draw.publishedAt??draw.drawDate).toLocaleString()}</small></div><div className="master-result-balls">{(draw.result?.winningKeys??[]).map((key:string,index:number)=><b className={`ball-${index%3}`} key={`${draw.id}-${index}`}>{String(key).split('@')[0]}</b>)}</div></div></article>)}</div>{!published.length&&<p className="muted">No results published yet.</p>}</div>
     <h2>Manual draw results</h2>
     <p className="muted">Publish results for closed draws, or correct an unpublished payout calculation.</p>
     <div className="table-wrap"><table className="table"><thead><tr><th>Tenant</th><th>Lottery</th><th>Draw</th><th>Status</th><th>Winning numbers</th><th>Action</th></tr></thead><tbody>

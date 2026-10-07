@@ -11,3 +11,7 @@ export function tenantTabHref(href: string, tab: string): string {
   url.searchParams.set("tab", tab);
   return `${url.pathname}${url.search}${url.hash}`;
 }
+
+export function tenantMobileTabs(availableTabs: readonly string[]): string[] {
+  return ["dashboard", "results", "reports", "tickets"].filter((tab) => availableTabs.includes(tab));
+}

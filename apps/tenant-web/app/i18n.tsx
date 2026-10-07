@@ -4,7 +4,7 @@ import {createContext, useContext, useEffect, useState, type ReactNode} from 're
 
 export const messages = {
   ht: {
-    'nav.dashboard': 'Tablo de bò', 'nav.tickets': 'Tikè', 'nav.lottery': 'Lotri ak tiraj',
+    'nav.dashboard': 'Akèy', 'nav.tickets': 'Tikè', 'nav.results': 'Rezilta', 'nav.lottery': 'Lotri ak tiraj',
     'nav.merchants': 'Machann', 'nav.branches': 'Biwo', 'nav.users': 'Itilizatè ak wòl',
     'nav.finance': 'Finans', 'nav.devices': 'Aparèy', 'nav.printers': 'Enprimant',
     'nav.reports': 'Rapò', 'nav.branding': 'Paramèt ak domèn', 'nav.audit': 'Jounal odit',
@@ -27,7 +27,7 @@ export const messages = {
     'branding.title':'Idantite vizyèl','branding.businessSettings':'Paramèt biznis','branding.country':'Peyi · lajan kont lan','branding.countryChoice':'Chwazi peyi','branding.countryHelp':'Lajan kont lan chwazi otomatikman dapre peyi a. Peyi a ak lajan an vin bloke apre premye tikè a.','branding.currency':'Lajan kont lan','branding.timezone':'Zòn lè','branding.locale':'Lang ak rejyon','branding.dateFormat':'Fòma dat','branding.saveSettings':'Sove paramèt','branding.settingsSaved':'Paramèt yo sove.','branding.businessName':'Non biznis la','branding.logo':'Logo biznis la','branding.favicon':'Ti logo navigatè a (favicon)','branding.primaryColor':'Koulè prensipal','branding.secondaryColor':'Dezyèm koulè','branding.save':'Sove idantite biznis la','branding.logoAlt':'Aperçu logo biznis la','branding.faviconAlt':'Aperçu ti logo navigatè a','branding.uploadHint':'N ap redimansyone epi konprese imaj la otomatikman anvan li sove.','branding.uploading':'Preparasyon imaj la…','branding.saved':'Idantite biznis la sove.','branding.invalidType':'Chwazi yon imaj PNG, JPG, WebP oswa SVG.','branding.invalidSize':'Imaj la dwe pi piti pase 5 MB.','branding.decodeError':'Nou pa kapab louvri imaj sa a. Chwazi yon lòt fichye.','branding.saveImageError':'Nou pa kapab prepare imaj la pou sove. Chwazi yon imaj ki pi senp.'
   },
   fr: {
-    'nav.dashboard': 'Tableau de bord', 'nav.tickets': 'Tickets', 'nav.lottery': 'Loteries et tirages',
+    'nav.dashboard': 'Accueil', 'nav.tickets': 'Tickets', 'nav.results': 'Résultats', 'nav.lottery': 'Loteries et tirages',
     'nav.merchants': 'Vendeurs', 'nav.branches': 'Bureaux / centrales', 'nav.users': 'Utilisateurs et rôles',
     'nav.finance': 'Finances', 'nav.devices': 'Appareils', 'nav.printers': 'Imprimantes',
     'nav.reports': 'Rapports', 'nav.branding': 'Paramètres et domaines', 'nav.audit': 'Journal d’audit',

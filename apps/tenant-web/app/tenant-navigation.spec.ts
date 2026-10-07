@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
+import { tenantMobileTabs, tenantTabFromSearch, tenantTabHref } from "./tenant-navigation";
 
 const tabs = ["dashboard", "reports", "branding"];
 
@@ -15,5 +15,10 @@ describe("tenant page navigation", () => {
   it("keeps the current tenant route when changing pages", () => {
     expect(tenantTabHref("https://tenant.example.com/console?x=1#main", "reports"))
       .toBe("/console?x=1&tab=reports#main");
+  });
+
+  it("orders the mobile tabs as home, results, reports, and tickets", () => {
+    expect(tenantMobileTabs(["tickets", "reports", "dashboard", "results", "branding"]))
+      .toEqual(["dashboard", "results", "reports", "tickets"]);
   });
 });

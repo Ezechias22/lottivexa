@@ -72,5 +72,19 @@ export function ManualResultsPage({ draws, request, reload }: { draws: Row[]; re
 export function PublishedResults({ draws }: { draws: Row[] }) {
   const { language, t } = useI18n();
   const rows = draws.filter(draw => draw.status === 'RESULT_PUBLISHED');
-  return <section className="panel"><h2>Résultats publiés</h2><div className="table-wrap"><table><thead><tr><th>{t('result.lottery')}</th><th>{t('result.draw')}</th><th>{t('result.numbers')}</th></tr></thead><tbody>{rows.map(draw => <tr key={draw.id}><td><span className="result-game">{draw.game?.logoUrl && <img src={draw.game.logoUrl} alt="" />}{draw.game?.name ?? '—'}</span></td><td>{describeDraw(draw, language)}</td><td><strong>{draw.result?.winningKeys?.join(', ') ?? '—'}</strong></td></tr>)}{!rows.length && <tr><td colSpan={3} className="empty">{t('table.empty')}</td></tr>}</tbody></table></div></section>;
+  const groups = [...rows.reduce((map, draw) => {
+    const key = draw.game?.id ?? draw.game?.code ?? draw.game?.name ?? draw.id;
+    const group = map.get(key) ?? { game: draw.game, draws: [] as Row[] };
+    group.draws.push(draw); map.set(key, group); return map;
+  }, new Map<string, { game: Row; draws: Row[] }>()).values()];
+  return <section className="panel tenant-results-panel"><div className="tenant-results-heading"><div><span className="eyebrow">{language === 'fr' ? 'RÉSULTATS DU JOUR' : 'REZILTA TIRAJ YO'}</span><h2>{language === 'fr' ? 'Résultats publiés' : 'Rezilta ki soti yo'}</h2></div><span className="tenant-results-count">{rows.length}</span></div>
+    <div className="tenant-results-list">{groups.map((group, index) => <article className="tenant-result-game" key={String(group.game?.id ?? group.game?.code ?? index)}>
+      <div className="tenant-result-brand">{group.game?.logoUrl ? <img src={group.game.logoUrl} alt="" /> : <span>{String(group.game?.code ?? group.game?.name ?? 'L').slice(0, 2)}</span>}<b>{group.game?.name ?? '—'}</b></div>
+      <div className="tenant-result-sessions">{group.draws.map((draw: Row) => {
+        const keys = (draw.result?.winningKeys ?? []).map((key: unknown) => String(key).split('@')[0]);
+        const detail = describeDraw(draw, language).split(' · ').slice(1).join(' · ');
+        return <div className="tenant-result-session" key={draw.id}><div className="tenant-result-session-label"><b>{detail || drawSessionLabel(draw, language)}</b><small>{draw.drawNumber}</small></div><div className="tenant-result-balls">{keys.length ? keys.map((key: string, ball: number) => <strong className={`result-ball ball-${ball % 3}`} key={`${key}-${ball}`}>{key}</strong>) : <span className="tenant-result-empty">—</span>}</div></div>;
+      })}</div>
+    </article>)}{!rows.length && <p className="empty">{t('table.empty')}</p>}</div>
+  </section>;
 }

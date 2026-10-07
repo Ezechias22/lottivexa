@@ -57,6 +57,12 @@ assert.match(merchantDashboard, /payout: true, draw: \{ include: \{ game: true \
 assert.match(ticketSearch, /payout:true,draw:\{include:\{game:true\}\}/);
 assert.match(ticketSearch, /ticketDraws:\{include:\{draw:\{include:\{game:true\}\}\}\}/);
 assert.match(app, /hasPermission\('tickets\.create'\)/);
+assert.match(app, /if \(canResults\) '\/results'/);
+assert.match(app, /NavigationBar/);
+assert.match(tickets, /tickets\/winners/);
+assert.match(tickets, /Tikè gagnan yo/);
+assert.match(results, /width: 40, height: 34/);
+assert.match(sell, /Boul sa a bloke\. Li entèdi pou jwe li\./);
 assert.match(encoder, /selectionKey/);
 assert.match(encoder, /RECEIPT_BUSINESS_NAME_REQUIRED/);
 assert.doesNotMatch(encoder, /LV1:/);

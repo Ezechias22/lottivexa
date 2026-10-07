@@ -46,6 +46,9 @@ export class TicketsController {
   @Post(':reference/cancel') @RequirePermissions('tickets.cancel')
   cancel(@CurrentUser() user: Principal, @Param('reference') reference: string, @Body() body?: TicketCancellationDto) { return this.service.cancel(user, reference, body); }
 
+  @Get('winners') @RequirePermissions('tickets.view')
+  winners(@CurrentUser() user: Principal, @Query('page') page?: string) { return this.service.winners(user, Number(page ?? 1)); }
+
   @Get(':reference') @RequirePermissions('tickets.view')
   get(@CurrentUser() user: Principal, @Param('reference') reference: string) { return this.service.get(user, reference); }
 

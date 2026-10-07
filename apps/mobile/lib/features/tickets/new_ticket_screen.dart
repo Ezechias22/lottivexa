@@ -256,7 +256,19 @@ class _NewTicketState extends State<NewTicketScreen> {
       } else if (mounted && error.response == null) {
         setState(() => message = 'Koneksyon koupe. Pa rekreye vant sa a; verifye lis tikè a sou sèvè a lè entènèt retounen. Vant offline mande yon katalòg ajou ak yon aparèy otorize.');
       }
-      else if (mounted) setState(() => message = 'Server refize tikè a: ${error.response?.data}.');
+      else if (mounted) {
+        final data = error.response?.data;
+        final envelope = data is Map ? (data['error'] is Map ? data['error'] as Map : data) : const {};
+        final code = '${envelope['code'] ?? ''}';
+        final french = AppLanguage.current.value.languageCode == 'fr';
+        final text = switch (code) {
+          'NUMBER_BLOCKED' => french ? 'Ce numéro est bloqué. Il est interdit de le jouer.' : 'Boul sa a bloke. Li entèdi pou jwe li.',
+          'DRAW_CLOSED' => french ? 'Ce tirage est fermé. Choisissez un tirage ouvert.' : 'Tiraj sa a fèmen. Chwazi yon tiraj ki ouvè.',
+          'INVALID_BET_TYPE' => french ? 'Ce type de jeu n’est pas disponible pour ce tirage.' : 'Kalite jwèt sa a pa disponib sou tiraj sa a.',
+          _ => french ? 'Le serveur a refusé le ticket. Vérifiez les numéros et les limites du tirage.' : 'Sèvè a refize tikè a. Verifye nimewo yo ak limit tiraj la.',
+        };
+        setState(() => message = text);
+      }
     } finally { if (mounted) setState(() => busy = false); }
   }
 

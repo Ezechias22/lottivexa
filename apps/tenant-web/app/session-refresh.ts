@@ -29,7 +29,7 @@ export function refreshWebSession(
     const response = await fetch(`${apiBase.replace(/\/$/, "")}/auth/refresh`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ refreshToken: currentRefresh }),
+      body: JSON.stringify({ refreshToken: currentRefresh, clientApp: app === "tenant" ? "tenant-web" : "merchant-web" }),
     });
     if (response.status === 401) return null;
     if (!response.ok) throw new Error(`SESSION_REFRESH_UNAVAILABLE_${response.status}`);

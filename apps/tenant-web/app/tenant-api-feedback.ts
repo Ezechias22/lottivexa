@@ -64,6 +64,10 @@ export function formatTenantApiError(
   }
 
   const messages: Record<string, { ht: string; fr: string }> = {
+    NUMBER_BLOCKED: { ht: "Boul sa a bloke. Li entèdi pou jwe li.", fr: "Ce numéro est bloqué. Il est interdit de le jouer." },
+    MERCHANT_ACCOUNT_CANNOT_LOGIN_TENANT_APP: { ht: "Kont machann sa a dwe itilize aplikasyon Machann nan.", fr: "Ce compte vendeur doit utiliser l’application Marchand." },
+    TENANT_ACCOUNT_CANNOT_LOGIN_MERCHANT_APP: { ht: "Kont tenant sa a dwe itilize aplikasyon Tenant lan.", fr: "Ce compte administrateur doit utiliser l’application Tenant." },
+    MERCHANT_ACCOUNT_INACTIVE: { ht: "Kont machann sa a pa aktif. Kontakte administratè Tenant lan.", fr: "Ce compte vendeur est inactif. Contactez l’administrateur Tenant." },
     INVALID_BRANCH: {
       ht: "Biwo ou chwazi a pa valab oswa li pa aktif. Chwazi yon biwo aktif epi eseye ankò.",
       fr: "La succursale choisie est invalide ou inactive. Sélectionnez une succursale active puis réessayez.",

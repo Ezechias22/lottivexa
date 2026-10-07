@@ -14,6 +14,7 @@ import {
   passwordResetUsable,
 } from "./password-reset-policy";
 import { refreshTokenExpiry } from "./refresh-token-policy";
+import { webAppAccessError, type WebClientApp } from './web-app-access';
 @Injectable()
 export class AuthService {
   constructor(private jwt: JwtService) {}
@@ -22,6 +23,7 @@ export class AuthService {
     username: string;
     password: string;
     deviceId?: string;
+    clientApp?: WebClientApp;
   }) {
     const tenantKey = input.tenant.trim().toLowerCase(),
       identifier = input.username.trim(),
@@ -39,6 +41,7 @@ export class AuthService {
             : { tenant: { slug: tenantKey } }),
         },
         include: {
+          merchantAccount: { select: { status: true } },
           roles: {
             include: {
               role: {
@@ -56,7 +59,11 @@ export class AuthService {
       !(await argon2.verify(user.passwordHash, input.password))
     )
       throw new UnauthorizedException("INVALID_CREDENTIALS");
-    const tokens = await this.issue(user, input.deviceId);
+    if (input.clientApp) {
+      const accessError = webAppAccessError(input.clientApp, user);
+      if (accessError) throw new UnauthorizedException(accessError);
+    }
+    const tokens = await this.issue(user, input.deviceId, input.clientApp);
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
@@ -75,12 +82,13 @@ export class AuthService {
     ]);
     return { ...tokens, forcePasswordChange: user.forcePasswordChange };
   }
-  async refresh(raw: string) {
+  async refresh(raw: string, clientApp?: WebClientApp) {
     const record = await prisma.refreshToken.findUnique({
       where: { tokenHash: this.hash(raw) },
       include: {
         user: {
           include: {
+            merchantAccount: { select: { status: true } },
             roles: {
               include: {
                 role: {
@@ -105,6 +113,10 @@ export class AuthService {
       record.user.status !== "ACTIVE"
     )
       throw new UnauthorizedException("INVALID_REFRESH_TOKEN");
+    if (clientApp) {
+      const accessError = webAppAccessError(clientApp, record.user);
+      if (accessError) throw new UnauthorizedException(accessError);
+    }
     return prisma.$transaction(async (tx) => {
       const claimed = await tx.refreshToken.updateMany({
         where: { id: record.id, revokedAt: null },
@@ -122,7 +134,7 @@ export class AuthService {
         },
       });
       return {
-        accessToken: await this.access(record.user),
+        accessToken: await this.access(record.user, clientApp),
         refreshToken: rawNext,
       };
     });
@@ -280,7 +292,7 @@ export class AuthService {
     ]);
     return { revoked: true };
   }
-  private async issue(user: any, deviceId?: string) {
+  private async issue(user: any, deviceId?: string, clientApp?: WebClientApp) {
     const raw = randomBytes(48).toString("base64url");
     await prisma.refreshToken.create({
       data: {
@@ -290,9 +302,9 @@ export class AuthService {
         expiresAt: refreshTokenExpiry(),
       },
     });
-    return { accessToken: await this.access(user), refreshToken: raw };
+    return { accessToken: await this.access(user, clientApp), refreshToken: raw };
   }
-  private access(user: any) {
+  private access(user: any, clientApp?: WebClientApp) {
     const permissions = [
       ...new Set<string>(
         user.roles.flatMap((x: any) =>
@@ -307,6 +319,7 @@ export class AuthService {
         permissions,
         platform: user.tenantId === null,
         tokenVersion: user.tokenVersion,
+        ...(clientApp ? { clientApp } : {}),
       },
       { secret: process.env.JWT_ACCESS_SECRET, expiresIn: "15m" },
     );

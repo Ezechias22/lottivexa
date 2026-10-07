@@ -74,4 +74,11 @@ describe("tenant API feedback", () => {
       "ht",
     )).toContain("Non itilizatè sa a deja egziste");
   });
+
+  it("explains blocked numbers and wrong-app logins", () => {
+    expect(formatTenantApiError({ error: { code: "NUMBER_BLOCKED" } }, 400, "ht"))
+      .toBe("Boul sa a bloke. Li entèdi pou jwe li.");
+    expect(formatTenantApiError({ error: { code: "MERCHANT_ACCOUNT_CANNOT_LOGIN_TENANT_APP" } }, 401, "fr"))
+      .toContain("application Marchand");
+  });
 });

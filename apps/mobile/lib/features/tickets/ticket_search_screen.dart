@@ -17,15 +17,7 @@ bool ticketLineWon(dynamic raw) {
 
 double ticketWinningAmount(Map<String, dynamic> value) {
   final stored = double.tryParse('${value['winning']?['winningAmount']}') ?? 0;
-  if (stored > 0) return stored;
-  final lines = value['lines'] as List<dynamic>? ?? [];
-  return lines.fold<double>(0, (sum, raw) {
-    final line = raw as Map<String, dynamic>;
-    final count = int.tryParse('${line['winCount'] ?? 0}') ?? 0;
-    if (!ticketLineWon(line)) return sum;
-    final potential = double.tryParse('${line['potentialWin'] ?? 0}') ?? 0;
-    return sum + potential * (count > 0 ? count : 1);
-  });
+  return stored > 0 ? stored : 0;
 }
 
 String _ticketDrawLabel(Map<String, dynamic> value) {
@@ -47,22 +39,35 @@ class _TicketState extends State<TicketSearchScreen> {
   Map<String, dynamic>? ticket;
   String? message;
   bool busy = false;
+  bool showWinners = false;
+  int winnersPage = 1, winnersTotal = 0;
   String currency = 'USD';
 
   @override void initState() { super.initState(); load(); }
   @override void dispose() { reference.dispose(); super.dispose(); }
 
   Future<void> load() async {
-    setState(() => busy = true);
+    setState(() { busy = true; showWinners = false; });
     try {
       final response = await widget.runtime.api.dio.get<List<dynamic>>('/api/v1/tickets');
       try {
         final dashboard = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/merchants/me/dashboard');
         currency = '${dashboard.data?['currency'] ?? currency}';
       } catch (_) {}
-      final loaded = (response.data ?? []).map((raw) => <String, dynamic>{...Map<String, dynamic>.from(raw as Map), 'currency': currency}).toList();
+      final loaded = (response.data ?? []).map((raw) { final row = Map<String, dynamic>.from(raw as Map); return <String, dynamic>{...row, 'currency': row['currency'] ?? row['currencyCode'] ?? currency}; }).toList();
       if (mounted) setState(() { rows = loaded; message = null; });
     } catch (_) { if (mounted) setState(() => message = 'Lis tikè yo pa disponib.'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+
+  Future<void> loadWinners([int page = 1]) async {
+    setState(() { busy = true; showWinners = true; message = null; });
+    try {
+      final response = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/tickets/winners', queryParameters: {'page': page});
+      final body = response.data ?? const <String, dynamic>{};
+      final loaded = (body['items'] as List<dynamic>? ?? []).map((raw) { final row = Map<String, dynamic>.from(raw as Map); return <String, dynamic>{...row, 'currency': row['currency'] ?? row['currencyCode'] ?? currency}; }).toList();
+      if (mounted) setState(() { rows = loaded; winnersPage = (body['page'] as num?)?.toInt() ?? page; winnersTotal = (body['total'] as num?)?.toInt() ?? 0; });
+    } catch (_) { if (mounted) setState(() => message = 'Lis tikè gagnan yo pa disponib.'); }
     finally { if (mounted) setState(() => busy = false); }
   }
 
@@ -72,7 +77,7 @@ class _TicketState extends State<TicketSearchScreen> {
     setState(() => busy = true);
     try {
       final response = await widget.runtime.api.dio.get<Map<String, dynamic>>('/api/v1/tickets/${Uri.encodeComponent(ref)}');
-      if (mounted) setState(() { ticket = {...response.data!, 'currency': currency}; reference.text = ref; message = null; });
+      if (mounted) setState(() { ticket = {...response.data!, 'currency': response.data?['currency'] ?? response.data?['currencyCode'] ?? currency}; reference.text = ref; message = null; });
     } catch (_) { if (mounted) setState(() { ticket = null; message = 'Tikè a pa jwenn oswa ou pa gen aksè.'; }); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -132,14 +137,19 @@ class _TicketState extends State<TicketSearchScreen> {
   };
 
   @override Widget build(BuildContext context) => RefreshIndicator(
-    onRefresh: () async { await load(); if (ticket != null) await search('${ticket!['ticketNumber']}'); },
+    onRefresh: () async { if (showWinners) { await loadWinners(winnersPage); } else { await load(); } if (ticket != null) await search('${ticket!['ticketNumber']}'); },
     child: ListView(padding: const EdgeInsets.all(16), children: [
       const Text('Tikè yo', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
       const SizedBox(height: 12),
       TextField(controller: reference, onSubmitted: search, decoration: InputDecoration(labelText: 'Nimewo tikè / barcode / QR', border: const OutlineInputBorder(), prefixIcon: IconButton(tooltip: 'Eskane QR', onPressed: busy ? null : scan, icon: const Icon(Icons.qr_code_scanner)), suffixIcon: IconButton(onPressed: busy ? null : search, icon: const Icon(Icons.search)))),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, children: [
+        ChoiceChip(label: const Text('Dènye tikè yo'), selected: !showWinners, onSelected: busy ? null : (_) => load()),
+        ChoiceChip(label: Text('Tikè gagnan yo${winnersTotal > 0 ? ' · $winnersTotal' : ''}'), selected: showWinners, onSelected: busy ? null : (_) => loadWinners(1)),
+      ]),
       if (message != null) Padding(padding: const EdgeInsets.all(12), child: Text(message!)),
       if (ticket != null) TicketDetails(ticket: {...ticket!, '_displayStatus': _displayTicketStatus(ticket!)}, statusLabel: statusLabel, statusColor: statusColor, onReplay: () => context.go('/new-ticket', extra: ticket), onPrint: () => widget.runtime.printer.queueConfirmedTicket(ticket!), onPay: _displayTicketStatus(ticket!) == 'WINNER' && ticket!['payout'] == null && (double.tryParse('${ticket!['winning']?['winningAmount']}') ?? 0) > 0 && (ticket!['lines'] as List<dynamic>? ?? []).any(ticketLineWon) ? pay : null),
-      const Padding(padding: EdgeInsets.only(top: 18, bottom: 8), child: Text('Dènye tikè yo', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+      Padding(padding: const EdgeInsets.only(top: 18, bottom: 8), child: Text(showWinners ? 'Tout tikè ki genyen yo' : 'Dènye tikè yo', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
       ...rows.map((row) {
         final ticketRow = Map<String, dynamic>.from(row as Map);
         final displayStatus = _displayTicketStatus(ticketRow);
@@ -154,6 +164,7 @@ class _TicketState extends State<TicketSearchScreen> {
         ));
       }),
       if (rows.isEmpty && !busy) const Padding(padding: EdgeInsets.all(24), child: Text('Pa gen tikè.')),
+      if (showWinners && winnersTotal > 50) Row(mainAxisAlignment: MainAxisAlignment.center, children: [TextButton(onPressed: busy || winnersPage <= 1 ? null : () => loadWinners(winnersPage - 1), child: const Text('Anvan')), Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text('$winnersPage · $winnersTotal')), TextButton(onPressed: busy || winnersPage * 50 >= winnersTotal ? null : () => loadWinners(winnersPage + 1), child: const Text('Pwochen'))]),
     ]),
   );
 }
@@ -202,7 +213,7 @@ class TicketDetails extends StatelessWidget {
     final decided = line['isWinner'] != null || winCount > 0;
     final key = '${line['selectionKey'] ?? ''}'.split('@');
     final selection = key.first.replaceAll('-', ' × ');
-    final lineWinningAmount = (double.tryParse('${line['potentialWin'] ?? 0}') ?? 0) * (winCount > 0 ? winCount : won ? 1 : 0);
+    final lineWinningAmount = won ? (double.tryParse('${line['winningAmount'] ?? 0}') ?? 0) : 0;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
@@ -219,8 +230,8 @@ class TicketDetails extends StatelessWidget {
           Text(selection, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900, fontFamily: 'monospace')),
           if (key.length > 1) Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Text('OP ${key[1]}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xff2451c7)))),
           if (won) Text('✓ GENYEN${lineWinningAmount > 0 ? ' · ${_money(lineWinningAmount)}' : ''}', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          if (line['isPromotional'] == true) Text('GRATIS · Peye ${_money(line['potentialWin'])} si li genyen', style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
-          Text('Pri: ${_money(line['stake'])} · Kòt: ${line['odds']}'),
+          if (line['isPromotional'] == true) const Text('GRATIS', style: TextStyle(fontWeight: FontWeight.w900, color: Colors.green)),
+          Text(line['isPromotional'] == true ? 'Pri: GRATIS' : 'Pri: ${_money(line['stake'])}'),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text(won ? '✓ GENYEN' : decided ? 'PÈDI' : 'ANNATANT', style: TextStyle(fontWeight: FontWeight.w900, color: won ? Colors.green : null)),

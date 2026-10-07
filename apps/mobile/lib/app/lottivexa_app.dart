@@ -63,9 +63,10 @@ class AppShell extends StatelessWidget {
     final admin = runtime.session.isTenantAdmin;
     final canSell = runtime.session.hasPermission('tickets.create');
     final canReports = runtime.session.hasPermission('reports.view');
+    final canResults = runtime.session.hasPermission('tickets.view');
     final paths = admin
-        ? <String>['/', '/admin', if (canSell) '/new-ticket', '/tickets', if (canReports) '/reports', '/settings']
-        : <String>['/', '/new-ticket', '/tickets', if (canReports) '/reports', '/settings'];
+        ? <String>['/', if (canResults) '/results', if (canReports) '/reports', '/tickets']
+        : <String>[if (canResults) '/results', '/', if (canSell) '/new-ticket', '/tickets', if (canReports) '/reports'];
     final destinations = paths.map(_destination).toList();
     final selected = paths.indexOf(currentPath);
     final businessName = runtime.store.setting('receipt_business_name_${runtime.session.tenantId}') ?? 'Bolet';
@@ -76,6 +77,7 @@ class AppShell extends StatelessWidget {
             actions: [
               if (runtime.pendingCount > 0) Badge(label: Text('${runtime.pendingCount}'), child: const Icon(Icons.sync_problem)),
               if (canReports) IconButton(onPressed: () => context.go('/reports'), icon: const Icon(Icons.analytics)),
+              if (admin) IconButton(onPressed: () => context.go('/admin'), tooltip: AppLanguage.tr('Admin'), icon: const Icon(Icons.admin_panel_settings_outlined)),
               IconButton(onPressed: () => context.go('/notifications'), icon: const Icon(Icons.notifications)),
               IconButton(onPressed: () => context.go('/settings'), tooltip: AppLanguage.tr('Paramèt'), icon: const Icon(Icons.settings)),
             ],

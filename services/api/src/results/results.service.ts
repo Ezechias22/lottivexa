@@ -5,6 +5,7 @@ import {resultWinningKeys} from '../tickets/ticket-policy';
 import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
 import {evaluateTicketResults} from './results-policy';
 import {hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
+import {presentTicketLines} from '../tickets/ticket-line-flags';
 
 @Injectable()
 export class ResultsService implements OnModuleInit{
@@ -84,6 +85,12 @@ export class ResultsService implements OnModuleInit{
 
   async platformDraws(){
     return prisma.draw.findMany({where:{status:{in:['CLOSED','RESULT_PENDING','RESULT_PUBLISHED']}},include:{game:{select:{name:true,code:true,logoUrl:true}},tenant:{select:{id:true,slug:true,legalName:true}}},orderBy:{drawDate:'desc'},take:200});
+  }
+
+  async platformWinningTickets(page=1){
+    const pageSize=50,safePage=Number.isInteger(page)&&page>0?Math.min(page,100000):1,where={status:{in:['WINNER','PAID'] as any}};
+    const[rows,total]=await Promise.all([prisma.ticket.findMany({where,orderBy:{createdAt:'desc'},skip:(safePage-1)*pageSize,take:pageSize,include:{tenant:{select:{slug:true,legalName:true}},merchant:{select:{displayName:true,merchantNumber:true,branch:{select:{name:true}}}},draw:{include:{game:{select:{name:true,code:true,logoUrl:true}}}},ticketDraws:{include:{draw:{include:{game:{select:{name:true,code:true,logoUrl:true}}}}}},winning:true,payout:true,events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},lines:{include:{betType:true}}}}),prisma.ticket.count({where})]);
+    return{items:rows.map(presentTicketLines),total,page:safePage,pageSize};
   }
 
   async publishPlatform(u:Principal,drawId:string,result:{winningKeys:string[]}){
