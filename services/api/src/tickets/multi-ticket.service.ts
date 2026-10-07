@@ -6,6 +6,7 @@ import { isBettingOpen } from '../lottery/lottery-policy';
 import { isConfiguredDrawEnabled } from '../lottery/draw-schedule-policy';
 import { blockedNumberMatches, chooseOdds, isNumberBlocked, normalizeSelection, priceLines, validateHaitianBetType } from './ticket-policy';
 import { presentTicketLines } from './ticket-line-flags';
+import { isOperationallyDeleted } from './ticket-visibility-policy';
 import { resolveFreeMaryajPolicy, randomFreeMaryajSelections } from './free-maryaj-policy';
 import { currencyForOffice } from '../branches/office-currency-policy';
 import { officeCountryFromSettings } from '../branches/office-location-policy';
@@ -29,7 +30,10 @@ export class MultiTicketService {
       if (!device) throw new ForbiddenException('DEVICE_NOT_AUTHORIZED');
     }
     const existing = await db.ticket.findUnique({ where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: dto.idempotencyKey } }, include: { lines: { include: { betType: true } }, events: true } });
-    if (existing) return presentTicketLines(existing as any);
+    if (existing) {
+      if (isOperationallyDeleted(existing.events)) throw new ForbiddenException('TICKET_DELETED');
+      return presentTicketLines(existing as any);
+    }
 
     const allLines: any[] = [];
     const ticketDraws: any[] = [];
@@ -109,7 +113,10 @@ export class MultiTicketService {
     return prisma.$transaction(async (tx: any) => {
       await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', tenantId + ':' + dto.idempotencyKey);
       const concurrent = await tx.ticket.findUnique({ where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: dto.idempotencyKey } }, include: { lines: { include: { betType: true } }, events: true } });
-      if (concurrent) return presentTicketLines(concurrent as any);
+      if (concurrent) {
+        if (isOperationallyDeleted(concurrent.events)) throw new ForbiddenException('TICKET_DELETED');
+        return presentTicketLines(concurrent as any);
+      }
       const ticket = await tx.ticket.create({ data: {
         tenantId, ticketNumber, idempotencyKey: dto.idempotencyKey, branchId: merchant.branchId, merchantId: merchant.id, deviceId: dto.deviceId,
         gameId: firstDraw.gameId, drawId: firstDraw.id, amount, currencyCode, potentialWin, barcode: token, qrCode: `LV1:${tenantId}:${token}`,

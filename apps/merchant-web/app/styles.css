@@ -1472,3 +1472,19 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
   body.web-menu-enabled .pos>nav.pos-tabs .nav-mobile-label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
   body.web-menu-enabled .pos main{padding-bottom:calc(92px + env(safe-area-inset-bottom))!important}
 }
+
+/* POS updates: responsive feedback, readable controls, and draw closing timers. */
+.pos button{border-radius:12px;font-weight:750;transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease,color .16s ease}
+.pos button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 7px 18px #10233f1c}
+.pos button:focus-visible{outline:3px solid #80adf5;outline-offset:2px}
+.pos button:disabled{cursor:not-allowed;opacity:.56}
+.pos .nav-mobile button{box-shadow:none}
+.pos .nav-mobile button:hover:not(:disabled){transform:none;box-shadow:none}
+.draw-open{display:grid;justify-items:end;gap:5px;white-space:nowrap}
+.draw-countdown{display:block;color:#62748b;font-size:10px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.draw-countdown.urgent{color:#b45309}
+.selected-draw-countdown{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 14px;padding:11px 13px;border:1px solid #dbe6f2;border-radius:12px;background:linear-gradient(110deg,#f8fbff,#fff);color:#53667d;font-size:12px;font-weight:750}
+.selected-draw-countdown .draw-countdown{color:#173f70;font-size:14px}
+.selected-draw-countdown .draw-countdown.urgent{color:#b45309}
+@media(max-width:520px){.selected-draw-countdown{margin:8px 0 12px;padding:10px 11px}.selected-draw-countdown .draw-countdown{font-size:13px}.draw-open{font-size:11px}.draw-countdown{font-size:9px}}
+.draw-closed-warning{margin:10px 0;padding:11px 13px;border:1px solid #f4c7c3;border-radius:12px;background:#fff7f6;color:#9b2c25;font-size:13px;font-weight:700;line-height:1.45}

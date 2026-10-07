@@ -374,7 +374,7 @@ export default function TenantConsole() {
     [language],
   );
   const load = useCallback(
-    async (current: Tab = tab) => {
+    async (current: Tab = tab, silent = false) => {
       const endpoints: Record<Tab, string[]> = {
         dashboard: [
           `/reports/sales?from=${haitiToday()}&to=${haitiToday()}`,
@@ -412,9 +412,12 @@ export default function TenantConsole() {
         branding: ["/settings", "/domains", "/lottery/settings", "/branches"],
         audit: ["/audit?limit=100"],
       };
-      const values = await run(() =>
-        Promise.all(endpoints[current].map((x) => request(x))),
-      );
+      const fetchValues = () => Promise.all(endpoints[current].map((x) => request(x)));
+      if (silent === true) {
+        try { const latest = await fetchValues(); setData((old) => ({ ...old, [current]: latest })); } catch {}
+        return;
+      }
+      const values = await run(fetchValues);
       if (values) setData((old) => ({ ...old, [current]: values }));
     },
     [tab, request, run],
@@ -434,6 +437,18 @@ export default function TenantConsole() {
   useEffect(() => {
     if (tabReady && token && !force) void load(tab);
   }, [tab, tabReady, token, force, load]);
+  useEffect(() => {
+    if (!tabReady || !token || force) return;
+    const refresh = () => { if (!document.hidden) void load(tab, true); };
+    const timer = window.setInterval(refresh, 15000);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [tabReady, token, force, tab, load]);
   const tenantBranding = data.branding?.[0]?.branding ?? {};
   useEffect(() => {
     if (!tenantBranding.faviconUrl) return;
@@ -502,25 +517,22 @@ export default function TenantConsole() {
     const detail = await run(() => request(`/tickets/${encodeURIComponent(ticket.ticketNumber)}`));
     if (detail) setTicketDetails(detail);
   }
-  async function cancelTicket(ticket: Row, reason: string) {
-    if (
-      !window.confirm(
-        `Anile definitivman tikè ${ticket.ticketNumber}? Li pap efase nan audit finansye a.`,
-      )
-    )
-      return;
+  async function deleteTicket(ticket: Row) {
+    const prompt = language === "fr"
+      ? `Supprimer le ticket ${ticket.ticketNumber} des listes ? Son historique financier et d’audit sera conservé.`
+      : `Siprime tikè ${ticket.ticketNumber} nan lis yo? Dosye finansye ak audit li ap konsève.`;
+    if (!window.confirm(prompt)) return;
+    const success = language === "fr"
+      ? "Ticket supprimé des listes. Les écritures financières restent conservées."
+      : "Tikè a siprime nan lis yo. Dosye finansye yo rete konsève.";
     const result = await run(
-      () =>
-        request(`/tickets/${encodeURIComponent(ticket.ticketNumber)}/cancel`, {
-          method: "POST",
-          body: JSON.stringify({ reason }),
-        }),
-      "Tikè a anile definitivement; dosye audit la rete.",
+      () => request(`/tickets/${encodeURIComponent(ticket.ticketNumber)}`, { method: "DELETE" }),
+      success,
     );
     if (result) {
-      setTicketDetails(result);
-      await load("tickets");
-      setMessage("Tikè a anile definitivement; dosye audit la rete.");
+      setTicketDetails(null);
+      await load("tickets", true);
+      setMessage(success);
     }
   }
   if (!token)
@@ -660,7 +672,7 @@ export default function TenantConsole() {
         {tab === "manualResults" && <ManualResultsPage draws={current[0] ?? []} request={request} reload={() => load("manualResults")} />}{" "}
         {tab === "results" && <PublishedResults draws={current[0] ?? []} />}{" "}
         {tab === "tickets" && (
-          <Tickets data={current} request={request} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onCancel={cancelTicket} />
+          <Tickets data={current} request={request} can={can} currency={data.dashboard?.[0]?.currency ?? "USD"} onOpen={openTicket} onDelete={deleteTicket} />
         )}{" "}
         {tab === "finance" && <Finance data={current} submit={submit} />}{" "}
         {tab === "devices" && (
@@ -697,9 +709,9 @@ export default function TenantConsole() {
         <TicketDetailsDialog
           ticket={ticketDetails}
           currency={data.dashboard?.[0]?.currency ?? "USD"}
-          canCancel={can("tickets.cancel")}
+          canDelete={can("tickets.cancel")}
           onClose={() => setTicketDetails(null)}
-          onCancel={cancelTicket}
+          onDelete={deleteTicket}
         />
       )}
     </div>
@@ -1299,125 +1311,62 @@ function LegacyLottery({ data: d, submit, request, load, can }: any) {
     </>
   );
 }
-function Tickets({
-  data: d,
-  request,
-  can,
-  currency,
-  onOpen,
-  onCancel,
-}: {
-  data: any[];
-  request: (path: string, init?: RequestInit) => Promise<any>;
-  can: (permission: string) => boolean;
-  currency: string;
-  onOpen: (ticket: Row) => void;
-  onCancel: (ticket: Row, reason: string) => void;
-}) {
-  const { language } = useI18n();
-  const [tickets = [], draws = []] = d;
-  const [winners, setWinners] = useState<Row[]>([]), [winnersPage, setWinnersPage] = useState(1), [winnersTotal, setWinnersTotal] = useState(0), [showWinners, setShowWinners] = useState(false), [winnersBusy, setWinnersBusy] = useState(false);
-  async function loadWinners(page = 1) { setWinnersBusy(true); try { const result = await request(`/tickets/winners?page=${page}`); setWinners(result.items ?? []); setWinnersTotal(result.total ?? 0); setWinnersPage(result.page ?? page); setShowWinners(true); } finally { setWinnersBusy(false); } }
-  const sourceRows = showWinners ? winners : tickets;
-  const rows = sourceRows.map((ticket: Row) => ({ ...ticket, currency: ticket.currency ?? ticket.currencyCode ?? currency }));
-  const labels = language === "fr"
-        ? { total: "Tickets chargés", draws: "Tirages ouverts", winners: "Gagnants", paid: "Payés", heading: showWinners ? "Tous les tickets gagnants" : "Tickets de l’entreprise", open: "Ouvrir", all: "Tous les tickets", next: "Suivant", previous: "Précédent" }
-    : { total: "Tikè chaje", draws: "Tiraj ouvè", winners: "Gayan", paid: "Peye", heading: showWinners ? "Tout tikè ki genyen yo" : "Tikè biznis la", open: "Ouvri", all: "Tout tikè", next: "Pwochen", previous: "Anvan" };
-  return (
-    <>
-      <div className="tenant-ticket-summary">
-        <article><span>{labels.total}</span><strong>{tickets.length}</strong></article>
-        <article>
-          <span>{labels.draws}</span>
-          <strong>
-            {draws.filter((x: Row) => x.status === "OPEN").length}
-          </strong>
-        </article>
-        <article><span>{labels.winners}</span><strong>{tickets.filter((x: Row) => x.status === "WINNER").length}</strong></article>
-        <article><span>{labels.paid}</span><strong>{tickets.filter((x: Row) => x.status === "PAID").length}</strong></article>
-      </div>
-      <section className="panel tenant-ticket-list-panel">
-        <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><div className="tenant-ticket-filters"><button type="button" className={!showWinners ? "active" : "secondary"} onClick={() => setShowWinners(false)}>{labels.all}</button><button type="button" className={showWinners ? "active" : "secondary"} onClick={() => void loadWinners(1)}>{labels.winners}</button><span>{showWinners ? `${winners.length} / ${winnersTotal}` : `${tickets.length} / 100`}</span></div></div>
-        <Table
-          rows={rows}
-          columns={[
-            ["ticketNumber", "Ticket"],
-            ["status", "Status"],
-            ["amount", "Amount"],
-            ["createdAt", "Date"],
-          ]}
-          actions={(ticket) => (
-            <button className="tenant-ticket-open-button" onClick={() => onOpen(ticket)}>
-              {labels.open}
-            </button>
-          )}
-        />
-        {showWinners && <div className="tenant-ticket-pagination"><button className="secondary" disabled={winnersBusy || winnersPage <= 1} onClick={() => void loadWinners(winnersPage - 1)}>{labels.previous}</button><span>{winnersPage}</span><button className="secondary" disabled={winnersBusy || winnersPage * 50 >= winnersTotal} onClick={() => void loadWinners(winnersPage + 1)}>{labels.next}</button></div>}
-      </section>
-    </>
-  );
+function tenantTicketDisplayStatus(ticket: Row): string {
+  const raw = String(ticket?.status ?? "VALID");
+  if (ticket?.payout || raw === "PAID") return "PAID";
+  if (["CANCELLED", "VOID", "EXPIRED"].includes(raw)) return raw;
+  const linked = Array.isArray(ticket?.ticketDraws) ? ticket.ticketDraws.map((item: Row) => item?.draw).filter(Boolean) : [];
+  const draws = linked.length ? linked : ticket?.draw ? [ticket.draw] : [];
+  const resolved = draws.length > 0 && draws.every((draw: Row) => draw?.status === "RESULT_PUBLISHED" || Boolean(draw?.result?.winningKeys?.length));
+  if (draws.length && !resolved) return "PENDING";
+  const lines = Array.isArray(ticket?.lines) ? ticket.lines : [];
+  if (resolved && lines.length && lines.every((line: Row) => typeof line?.isWinner === "boolean")) return lines.some((line: Row) => line.isWinner) ? "WINNER" : "LOSER";
+  if (lines.some((line: Row) => line?.isWinner === true) || Number(ticket?.winning?.winningAmount ?? 0) > 0) return "WINNER";
+  if (raw === "WINNER" || raw === "LOSER") return raw;
+  return "PENDING";
 }
 
-function TicketDetailsDialog({
-  ticket,
-  currency,
-  canCancel,
-  onClose,
-  onCancel,
-}: {
-  ticket: Row;
-  currency: string;
-  canCancel: boolean;
-  onClose: () => void;
-  onCancel: (ticket: Row, reason: string) => void;
-}) {
-  const { language } = useI18n();
-  const [reason, setReason] = useState("");
-  const french = language === "fr";
-  const draws = (ticket.ticketDraws ?? []).map((item: Row) => item.draw).filter(Boolean);
-  const ticketDraws = draws.length ? draws : ticket.draw ? [ticket.draw] : [];
-  const eligible = ticket.status === "VALID" && !ticket.payout && !ticket.winning;
-  const statusNames: Record<string, { ht: string; fr: string }> = {
-    VALID: { ht: "Valab", fr: "Valide" },
-    WINNER: { ht: "Gayan", fr: "Gagnant" },
-    LOSER: { ht: "Pèdi", fr: "Perdu" },
-    PAID: { ht: "Peye", fr: "Payé" },
-    CANCELLED: { ht: "Anile", fr: "Annulé" },
-    VOID: { ht: "Anile", fr: "Annulé" },
-    PENDING: { ht: "An atant", fr: "En attente" },
-  };
-  return (
-    <div className="ticket-detail-overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="ticket-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="tenant-ticket-dialog-title">
-        <header className="ticket-detail-heading">
-          <div><span className="tenant-report-kicker">{french ? "DOSSIER DU TICKET" : "DOSYE TIKÈ A"}</span><h2 id="tenant-ticket-dialog-title">{ticket.ticketNumber}</h2></div>
-          <button className="secondary" onClick={onClose}>{french ? "Fermer" : "Fèmen"}</button>
-        </header>
-        <div className="ticket-detail-summary">
-          <article><small>{french ? "Statut" : "Estati"}</small><strong>{statusNames[ticket.status]?.[french ? "fr" : "ht"] ?? ticket.status}</strong></article>
-          <article><small>{french ? "Montant" : "Montan"}</small><strong>{money(ticket.amount, ticket.currency ?? ticket.currencyCode ?? currency)}</strong></article>
-          {Number(ticket.winning?.winningAmount ?? 0) > 0 && <article><small>{french ? "Gain confirmé" : "Gany konfime"}</small><strong>{money(ticket.winning.winningAmount, ticket.currency ?? ticket.currencyCode ?? currency)}</strong></article>}
-          <article><small>{french ? "Créé le" : "Kreye le"}</small><strong>{ticket.createdAt ? new Intl.DateTimeFormat(french ? "fr-FR" : "fr-HT", { timeZone: "America/Port-au-Prince", dateStyle: "medium", timeStyle: "short" }).format(new Date(ticket.createdAt)) : "—"}</strong></article>
-        </div>
-        <section className="ticket-detail-section">
-          <h3>{french ? "Lotteries et tirages" : "Lotri ak tiraj"}</h3>
-          {ticketDraws.length ? <div className="ticket-detail-draws">{ticketDraws.map((draw: Row) => <span key={draw.id ?? draw.drawNumber}>{describeDraw(draw, language)}{draw.drawNumber ? ` · ${draw.drawNumber}` : ""}</span>)}</div> : <p>—</p>}
-          <p className="ticket-detail-byline">{ticket.merchant?.displayName ?? "—"}{ticket.merchant?.branch?.name ? ` · ${ticket.merchant.branch.name}` : ""}</p>
-        </section>
-        <section className="ticket-detail-section">
-          <h3>{french ? "Lignes du ticket" : "Liy tikè a"}</h3>
-          <div className="table-wrap"><table><thead><tr><th>{french ? "Type" : "Kalite"}</th><th>{french ? "Sélection" : "Chwa"}</th><th>{french ? "Mise" : "Miz"}</th><th>{french ? "Résultat" : "Rezilta"}</th></tr></thead><tbody>
-            {(ticket.lines ?? []).map((line: Row) => <tr key={line.id}><td>{line.betType?.name ?? "Bolet"}</td><td><strong>{String(line.selectionKey ?? line.selection ?? "—").replace(/@/g, " · OP ").replace(/-/g, " × ")}</strong></td><td>{line.isPromotional ? (french ? "Gratuit" : "Gratis") : money(line.stake, ticket.currency ?? ticket.currencyCode ?? currency)}</td><td>{line.isWinner ? <>{french ? "Gagnant" : "Gayan"}{Number(line.winningAmount ?? 0) > 0 ? ` · ${money(line.winningAmount, ticket.currency ?? ticket.currencyCode ?? currency)}` : ""}</> : (french ? "En attente" : "An atant")}</td></tr>)}
-            {!(ticket.lines ?? []).length && <tr><td colSpan={4}>—</td></tr>}
-          </tbody></table></div>
-        </section>
-        {canCancel && <section className="ticket-cancel-panel">
-          <div><h3>{french ? "Annulation définitive" : "Anilasyon definitif"}</h3><p>{french ? "Le ticket ne pourra plus être utilisé. Son historique financier et d’audit restera conservé." : "Yo pap ka itilize tikè a ankò. Dosye finansye ak audit li ap rete konsève."}</p></div>
-          {eligible ? <><label>{french ? "Motif obligatoire" : "Rezon obligatwa"}<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={5} maxLength={240} placeholder={french ? "Expliquez pourquoi vous annulez ce ticket" : "Eksplike poukisa w ap anile tikè sa a"} /></label><button className="danger" disabled={reason.trim().length < 5} onClick={() => onCancel(ticket, reason.trim())}>{french ? "Annuler définitivement" : "Anile definitivement"}</button></> : <p className="ticket-cancel-locked">{french ? "Seuls les tickets valides non payés et sans gain enregistré peuvent être annulés." : "Se tikè ki valab, ki poko peye e ki pa gen gany anrejistre ki ka anile."}</p>}
-        </section>}
-      </section>
+function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];request:(path:string,init?:RequestInit)=>Promise<any>;can:(permission:string)=>boolean;currency:string;onOpen:(ticket:Row)=>void;onDelete:(ticket:Row)=>void}) {
+  const {language}=useI18n();
+  const tickets:Row[]=d[0]??[],draws:Row[]=d[1]??[];
+  const [winners,setWinners]=useState<Row[]>([]),[winnersPage,setWinnersPage]=useState(1),[winnersTotal,setWinnersTotal]=useState(0),[showWinners,setShowWinners]=useState(false),[winnersBusy,setWinnersBusy]=useState(false);
+  const loadWinners=useCallback(async(page=1,silent=false)=>{if(!silent)setWinnersBusy(true);try{const result=await request(`/tickets/winners?page=${page}`);setWinners((result.items??[]).filter((ticket:Row)=>["WINNER","PAID"].includes(tenantTicketDisplayStatus(ticket))));setWinnersTotal(result.total??0);setWinnersPage(result.page??page);setShowWinners(true)}finally{if(!silent)setWinnersBusy(false)}},[request]);
+  useEffect(()=>{if(showWinners)void loadWinners(winnersPage,true)},[d,showWinners,winnersPage,loadWinners]);
+  const sourceRows=showWinners?winners:tickets;
+  const rows=sourceRows.map((ticket:Row)=>({...ticket,status:showWinners?tenantTicketDisplayStatus(ticket):ticket.status,currency:ticket.currency??ticket.currencyCode??currency}));
+  const labels=language==="fr"
+    ?{total:"Tickets chargés",draws:"Tirages ouverts",winners:"Gagnants",paid:"Payés",heading:showWinners?"Tickets gagnants":"Tickets de l’entreprise",open:"Ouvrir",all:"Tous les tickets",next:"Suivant",previous:"Précédent"}
+    :{total:"Tikè chaje",draws:"Tiraj ouvè",winners:"Gayan",paid:"Peye",heading:showWinners?"Tikè ki genyen yo":"Tikè biznis la",open:"Ouvri",all:"Tout tikè",next:"Pwochen",previous:"Anvan"};
+  return <>
+    <div className="tenant-ticket-summary">
+      <article><span>{labels.total}</span><strong>{tickets.length}</strong></article>
+      <article><span>{labels.draws}</span><strong>{draws.filter((x:Row)=>x.status==="OPEN").length}</strong></article>
+      <article><span>{labels.winners}</span><strong>{tickets.filter((x:Row)=>tenantTicketDisplayStatus(x)==="WINNER").length}</strong></article>
+      <article><span>{labels.paid}</span><strong>{tickets.filter((x:Row)=>tenantTicketDisplayStatus(x)==="PAID").length}</strong></article>
     </div>
-  );
+    <section className="panel tenant-ticket-list-panel">
+      <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><div className="tenant-ticket-filters"><button type="button" className={!showWinners?"active":"secondary"} onClick={()=>setShowWinners(false)}>{labels.all}</button><button type="button" className={showWinners?"active":"secondary"} onClick={()=>void loadWinners(1)}>{labels.winners}</button><span>{showWinners?`${winners.length} / ${winnersTotal}`:`${tickets.length} / 100`}</span></div></div>
+      <Table rows={rows} columns={[["ticketNumber","Ticket"],["status","Status"],["amount","Amount"],["createdAt","Date"]]} actions={(ticket)=><button className="tenant-ticket-open-button" onClick={()=>onOpen(ticket)}>{labels.open}</button>} />
+      {showWinners&&<div className="tenant-ticket-pagination"><button className="secondary" disabled={winnersBusy||winnersPage<=1} onClick={()=>void loadWinners(winnersPage-1)}>{labels.previous}</button><span>{winnersPage}</span><button className="secondary" disabled={winnersBusy||winnersPage*50>=winnersTotal} onClick={()=>void loadWinners(winnersPage+1)}>{labels.next}</button></div>}
+    </section>
+  </>;
+}
+
+function TicketDetailsDialog({ticket,currency,canDelete,onClose,onDelete}:{ticket:Row;currency:string;canDelete:boolean;onClose:()=>void;onDelete:(ticket:Row)=>void}) {
+  const {language}=useI18n();
+  const french=language==="fr";
+  const draws=(ticket.ticketDraws??[]).map((item:Row)=>item.draw).filter(Boolean);
+  const ticketDraws=draws.length?draws:ticket.draw?[ticket.draw]:[];
+  const statusNames:Record<string,{ht:string;fr:string}>={VALID:{ht:"Valab",fr:"Valide"},WINNER:{ht:"Gayan",fr:"Gagnant"},LOSER:{ht:"Pèdi",fr:"Perdu"},PAID:{ht:"Peye",fr:"Payé"},CANCELLED:{ht:"Anile",fr:"Annulé"},VOID:{ht:"Anile",fr:"Annulé"},PENDING:{ht:"An atant",fr:"En attente"}};
+  return <div className="ticket-detail-overlay" onMouseDown={(event)=>event.target===event.currentTarget&&onClose()}>
+    <section className="ticket-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="tenant-ticket-dialog-title">
+      <header className="ticket-detail-heading"><div><span className="tenant-report-kicker">{french?"DOSSIER DU TICKET":"DOSYE TIKÈ A"}</span><h2 id="tenant-ticket-dialog-title">{ticket.ticketNumber}</h2></div><button className="secondary" onClick={onClose}>{french?"Fermer":"Fèmen"}</button></header>
+      <div className="ticket-detail-summary"><article><small>{french?"Statut":"Estati"}</small><strong>{statusNames[tenantTicketDisplayStatus(ticket)]?.[french?"fr":"ht"]??tenantTicketDisplayStatus(ticket)}</strong></article><article><small>{french?"Montant":"Montan"}</small><strong>{money(ticket.amount,ticket.currency??ticket.currencyCode??currency)}</strong></article>{Number(ticket.winning?.winningAmount??0)>0&&<article><small>{french?"Gain confirmé":"Gany konfime"}</small><strong>{money(ticket.winning.winningAmount,ticket.currency??ticket.currencyCode??currency)}</strong></article>}<article><small>{french?"Créé le":"Kreye le"}</small><strong>{ticket.createdAt?new Intl.DateTimeFormat(french?"fr-FR":"fr-HT",{timeZone:"America/Port-au-Prince",dateStyle:"medium",timeStyle:"short"}).format(new Date(ticket.createdAt)):"—"}</strong></article></div>
+      <section className="ticket-detail-section"><h3>{french?"Loteries et tirages":"Lotri ak tiraj"}</h3>{ticketDraws.length?<div className="ticket-detail-draws">{ticketDraws.map((draw:Row)=><span key={draw.id??draw.drawNumber}>{describeDraw(draw,language)}{draw.drawNumber?` · ${draw.drawNumber}`:""}</span>)}</div>:<p>—</p>}<p className="ticket-detail-byline">{ticket.merchant?.displayName??"—"}{ticket.merchant?.branch?.name?` · ${ticket.merchant.branch.name}`:""}</p></section>
+      <section className="ticket-detail-section"><h3>{french?"Lignes du ticket":"Liy tikè a"}</h3><div className="table-wrap"><table><thead><tr><th>{french?"Type":"Kalite"}</th><th>{french?"Sélection":"Chwa"}</th><th>{french?"Mise":"Miz"}</th><th>{french?"Résultat":"Rezilta"}</th></tr></thead><tbody>{(ticket.lines??[]).map((line:Row)=><tr key={line.id}><td>{line.betType?.name??"Bolet"}</td><td><strong>{String(line.selectionKey??line.selection??"—").replace(/@/g," · OP ").replace(/-/g," × ")}</strong></td><td>{line.isPromotional?(french?"Gratuit":"Gratis"):money(line.stake,ticket.currency??ticket.currencyCode??currency)}</td><td>{line.isWinner?<>{french?"Gagnant":"Gayan"}{Number(line.winningAmount??0)>0?` · ${money(line.winningAmount,ticket.currency??ticket.currencyCode??currency)}`:""}</>:(french?"En attente":"An atant")}</td></tr>)}{!(ticket.lines??[]).length&&<tr><td colSpan={4}>—</td></tr>}</tbody></table></div></section>
+      {canDelete&&<section className="ticket-delete-panel"><div><h3>{french?"Suppression définitive":"Siprime tikè a definitivman"}</h3><p>{french?"Le ticket disparaîtra des listes du vendeur et du tenant. Les écritures financières et l’audit restent conservés.":"Tikè a ap disparèt nan lis machann nan ak tenant lan. Dosye finansye ak audit la ap rete konsève."}</p></div><button className="danger" onClick={()=>onDelete(ticket)}>{french?"Supprimer définitivement":"Siprime definitivement"}</button></section>}
+    </section>
+  </div>;
 }
 function Finance({ data: d, submit }: any) {
   const [accounts = [], ledger = [], balance = [], sessions = []] = d;

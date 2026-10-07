@@ -17,7 +17,7 @@ describe('merchant POS', () => {
   });
 
   it('connects the full sale and ticket lifecycle', () => {
-    for (const path of ['/merchants/me/dashboard', '/lottery/draws', '/tickets', '/payouts', '/cancel', '/printing/jobs']) {
+    for (const path of ['/merchants/me/dashboard', '/lottery/draws', '/tickets', '/payouts', '/printing/jobs']) {
       expect(source).toContain(path);
     }
   });
@@ -40,8 +40,22 @@ describe('merchant POS', () => {
     expect(source).toMatch(/disabled=\{!online(?:\|\|[^}]*)?\}/);
   });
 
+  it('orders Home first and refreshes merchant data without manual reloads', () => {
+    expect(source).toContain("mobileNav:[Screen,string,string][]=[['dashboard'");
+    expect(source).toContain("setInterval(refresh,15000)");
+    expect(source).toContain("document.addEventListener('visibilitychange',refresh)");
+  });
+
+  it('removes a ticket through the audited delete action and filters the winners view', () => {
+    expect(source).toContain("method:'DELETE'");
+    expect(source).toContain('onClick={deleteTicket}');
+    expect(source).toContain('filter(ticketBelongsInWinnersList)');
+    expect(source).toContain("DRAW_CLOSED:'Tiraj sa a fèmen.");
+    expect(source).toContain('closedDrawLines.length>0');
+  });
+
   it('shows the five requested phone tabs above the safe area', () => {
-    expect(source).toContain("mobileNav:[Screen,string,string][]=[['results'");
+    expect(source).toContain("mobileNav:[Screen,string,string][]=[['dashboard'");
     for (const value of ["['dashboard',language==='fr'?'Accueil':'Akèy'", "['sell',language==='fr'?'Vendre':'Vann'", "['history',t('history')", "['reports',t('reports')"] ) {
       expect(source).toContain(value);
     }
@@ -73,7 +87,7 @@ describe('Haitian selling desk', () => {
   });
 
   it('refreshes remote configuration and live results', () => {
-    expect(source).toContain('setInterval(()=>void load(),60000)');
+    expect(source).toContain('setInterval(refresh,15000)');
     expect(source).toContain('setInterval(load,15000)');
   });
 });

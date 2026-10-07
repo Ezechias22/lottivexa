@@ -90,7 +90,7 @@ export class MerchantsService {
           include: { movements: true },
         }),
         prisma.ticket.findMany({
-          where: { tenantId: merchant.tenantId, merchantId: merchant.id },
+          where: { tenantId: merchant.tenantId, merchantId: merchant.id, events: { none: { type: 'DELETED' } } },
           orderBy: { createdAt: "desc" },
           take: 12,
           include: { winning: true, payout: true, draw: { include: { game: true } }, events: { select: { type: true, metadata: true, createdAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }, lines: { select: { id: true, isWinner: true } }, ticketDraws: { include: { draw: { include: { game: true } } } } },

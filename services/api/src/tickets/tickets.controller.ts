@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -45,6 +45,9 @@ export class TicketsController {
 
   @Post(':reference/cancel') @RequirePermissions('tickets.cancel')
   cancel(@CurrentUser() user: Principal, @Param('reference') reference: string, @Body() body?: TicketCancellationDto) { return this.service.cancel(user, reference, body); }
+
+  @Delete(':reference') @RequirePermissions('tickets.cancel')
+  deleteTicket(@CurrentUser() user: Principal, @Param('reference') reference: string) { return this.service.deleteTicket(user, reference); }
 
   @Get('winners') @RequirePermissions('tickets.view')
   winners(@CurrentUser() user: Principal, @Query('page') page?: string) { return this.service.winners(user, Number(page ?? 1)); }

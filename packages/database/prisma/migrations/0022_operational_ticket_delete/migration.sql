@@ -1,0 +1,1 @@
+ALTER TYPE "TicketEventType" ADD VALUE 'DELETED';

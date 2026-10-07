@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ticketDisplayStatus, ticketNeedsWinningReview, ticketWinningAmount } from './ticket-status';
+import { ticketBelongsInWinnersList, ticketDisplayStatus, ticketNeedsWinningReview, ticketWinningAmount } from './ticket-status';
 
 describe('ticket result status presentation', () => {
   it('keeps Gagnant visible without displaying an unconfirmed amount', () => {
@@ -49,5 +49,17 @@ describe('ticket result status presentation', () => {
 
   it('shows paid when a payout exists even if the ticket status is stale', () => {
     expect(ticketDisplayStatus({ status: 'WINNER', payout: { amount: '50' } })).toBe('PAID');
+  });
+
+  it('keeps losing, cancelled, and unresolved tickets out of the winners list', () => {
+    expect(ticketBelongsInWinnersList({ status: 'LOSER' })).toBe(false);
+    expect(ticketBelongsInWinnersList({ status: 'CANCELLED' })).toBe(false);
+    expect(ticketBelongsInWinnersList({ status: 'VALID', draw: { status: 'OPEN' } })).toBe(false);
+    expect(ticketBelongsInWinnersList({ status: 'WINNER', ticketDraws: [{ draw: { status: 'RESULT_PUBLISHED' } }, { draw: { status: 'RESULT_PENDING' } }], lines: [{ isWinner: true }] })).toBe(false);
+  });
+
+  it('includes only confirmed winners and paid winners', () => {
+    expect(ticketBelongsInWinnersList({ status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: true }] })).toBe(true);
+    expect(ticketBelongsInWinnersList({ status: 'PAID', payout: { amount: '50' } })).toBe(true);
   });
 });
