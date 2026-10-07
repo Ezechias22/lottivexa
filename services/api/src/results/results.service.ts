@@ -84,7 +84,7 @@ export class ResultsService implements OnModuleInit{
   providerStatus(){let bindingCount=0,bindingsValid=true;try{bindingCount=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS).length}catch{bindingsValid=false}return{pollEnabled:process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED==='true',tokenConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_TOKEN),bindingCount,bindingsValid,lastPollAt:this.lastProviderPoll?new Date(this.lastProviderPoll).toISOString():null,webhookConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_WEBHOOK_SECRET)}}
 
   async platformDraws(){
-    return prisma.draw.findMany({where:{status:{in:['CLOSED','RESULT_PENDING','RESULT_PUBLISHED']}},include:{game:{select:{name:true,code:true,logoUrl:true}},tenant:{select:{id:true,slug:true,legalName:true}}},orderBy:{drawDate:'desc'},take:200});
+    return prisma.draw.findMany({where:{status:{in:['CLOSED','RESULT_PENDING']}},include:{game:{select:{id:true,name:true,code:true,catalogCode:true}}},orderBy:[{resultAt:'desc'},{drawNumber:'desc'}],take:1000});
   }
 
   async platformWinningTickets(page=1){
@@ -94,9 +94,38 @@ export class ResultsService implements OnModuleInit{
   }
 
   async publishPlatform(u:Principal,drawId:string,result:{winningKeys:string[]}){
-    const draw=await prisma.draw.findUnique({where:{id:drawId},select:{tenantId:true}});
-    if(!draw)throw new ConflictException('DRAW_NOT_FOUND');
-    return this.publish({...u,tenantId:draw.tenantId,platform:true},drawId,result);
+    const winningKeys=resultWinningKeys(result);
+    const source=await prisma.draw.findUnique({where:{id:drawId},include:{game:{select:{id:true,code:true,catalogCode:true}}}});
+    if(!source)throw new ConflictException('DRAW_NOT_FOUND');
+    const games=await prisma.game.findMany({
+      where:source.game.catalogCode?{catalogCode:source.game.catalogCode}:{id:source.game.id},
+      select:{id:true},
+    });
+    const prefix=`${source.game.code}-`;
+    const encoded=source.drawNumber.match(/(?:^|[-_])(\d{8}[-_]\d{4})$/)?.[1];
+    const scheduleSuffix=source.drawNumber.startsWith(prefix)?source.drawNumber.slice(prefix.length):(encoded??source.drawNumber);
+    const matchingDraws=await prisma.draw.findMany({
+      where:{gameId:{in:games.map(game=>game.id)},drawNumber:{endsWith:scheduleSuffix},status:{in:['CLOSED','RESULT_PENDING','RESULT_PUBLISHED']}},
+      select:{id:true,tenantId:true,status:true,result:true},
+      orderBy:{tenantId:'asc'},
+    });
+    if(!matchingDraws.length)throw new ConflictException('DRAW_NOT_READY_FOR_RESULT');
+    for(const draw of matchingDraws){
+      if(draw.status!=='RESULT_PUBLISHED')continue;
+      const publishedKeys=(draw.result as {winningKeys?:unknown}|null)?.winningKeys;
+      if(!Array.isArray(publishedKeys)||publishedKeys.length!==winningKeys.length||publishedKeys.some((key,index)=>key!==winningKeys[index])){
+        throw new ConflictException('DRAW_RESULT_ALREADY_PUBLISHED_DIFFERENTLY');
+      }
+    }
+    let drawsProcessed=0,ticketsProcessed=0,winners=0;
+    for(const draw of matchingDraws){
+      if(draw.status==='RESULT_PUBLISHED')continue;
+      const outcome=await this.publish({...u,tenantId:draw.tenantId,platform:true},draw.id,result);
+      drawsProcessed++;
+      ticketsProcessed+=outcome.ticketsProcessed;
+      winners+=outcome.winners;
+    }
+    return{drawId,drawsProcessed:drawsProcessed||matchingDraws.length,ticketsProcessed,winners,alreadyPublished:drawsProcessed===0};
   }
 
   async editPlatform(u:Principal,drawId:string,result:{winningKeys:string[]}){

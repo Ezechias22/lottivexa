@@ -5,6 +5,7 @@ const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
 const language = readFileSync(new URL('./language-switcher.tsx', import.meta.url), 'utf8');
 const reports = readFileSync(new URL('./merchant-reports.tsx', import.meta.url), 'utf8');
 const sessionRefresh = readFileSync(new URL('./session-refresh.ts', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
   it('has login only and no public account creation', () => {
@@ -37,6 +38,16 @@ describe('merchant POS', () => {
   it('shows live connectivity and disables online-only sale while offline', () => {
     expect(source).toContain("addEventListener('offline'");
     expect(source).toMatch(/disabled=\{!online(?:\|\|[^}]*)?\}/);
+  });
+
+  it('shows the five requested phone tabs above the safe area', () => {
+    expect(source).toContain("mobileNav:[Screen,string,string][]=[['results'");
+    for (const value of ["['dashboard',language==='fr'?'Accueil':'Akèy'", "['sell',language==='fr'?'Vendre':'Vann'", "['history',t('history')", "['reports',t('reports')"] ) {
+      expect(source).toContain(value);
+    }
+    expect(source).toContain('className="pos-tabs"');
+    expect(styles).toContain('body.web-menu-enabled .pos>nav.pos-tabs{display:block!important;position:fixed!important');
+    expect(styles).toContain('env(safe-area-inset-bottom)');
   });
 });
 
