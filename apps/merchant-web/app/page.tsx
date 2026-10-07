@@ -83,7 +83,8 @@ function Check({selected:t,lookup,pay,deleteTicket,printTicket,downloadPdf,downl
  const displayStatus=ticketDisplayStatus(t);
  const needsWinningReview=ticketNeedsWinningReview(t);
  const storedWinningAmount=Number(t?.winning?.winningAmount??0);
- const verified=displayStatus==='WINNER'&&storedWinningAmount>0&&winningAmount>0&&!needsWinningReview;
+ const amountConfirmed=displayStatus==='WINNER'&&storedWinningAmount>0&&winningAmount>0;
+ const verified=amountConfirmed&&!needsWinningReview;
  const currency=t?.currency??t?.currencyCode??tenantCurrency??'USD';
  return <>
   <section className="panel">
@@ -94,15 +95,15 @@ function Check({selected:t,lookup,pay,deleteTicket,printTicket,downloadPdf,downl
    <div className="ticket-head"><h2>{t.ticketNumber}</h2><b className={displayStatus.toLowerCase()}>{statusLabel(displayStatus,language)}</b></div>
    <p>{ticketDrawLabels(t,language)||t.game?.name}</p>
    {(t.lines??[]).map((line:Row)=>{
-    const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0);
+    const parts=String(line.selectionKey??'').split('@'),count=Number(line.winCount??0),lineWon=line.isWinner===true||count>0,linePayout=Number(line.winningAmount??0);
     return <div className="ticket-line" key={line.id}>
-     <div className="ticket-selection"><small>{line.betType?.name??'Bolet'}{line.isPromotional?' · '+(language==='fr'?'GRATUIT':'GRATIS'):''}</small><b>{parts[0].replaceAll('-',' × ')}</b>{parts[1]&&<strong className="ticket-position-display">OP {parts[1]}</strong>}{count>1&&<small className="receipt-dekabes">DEKABÈS × {count}</small>}</div>
+     <div className="ticket-selection"><small>{line.betType?.name??'Bolet'}{line.isPromotional?' · '+(language==='fr'?'GRATUIT':'GRATIS'):''}</small><b className={lineWon?'ticket-winning-number':''}>{parts[0].replaceAll('-',' × ')}{lineWon?' ✓':''}</b>{parts[1]&&<strong className="ticket-position-display">OP {parts[1]}</strong>}{count>1&&<small className="receipt-dekabes">DEKABÈS × {count}</small>}{lineWon&&<small className="ticket-line-win">{language==='fr'?'GAGNANT':'GENYEN'}{linePayout>0?` · ${currencyMark(currency)}${cash(linePayout,currency)}`:''}</small>}</div>
      <span>{line.isPromotional?(language==='fr'?'GRATUIT':'GRATIS'):`${currencyMark(currency)}${cash(line.stake,currency)}`}</span>
     </div>;
    })}
    <div className="total"><span>{tr('amount')} <b>{currencyMark(currency)}{cash(t.amount,currency)}</b></span></div>
-   {verified&&<p className="winner">{language==='fr'?'Gain confirmé':'Gany konfime'}: {currencyMark(currency)}{cash(winningAmount,currency)}</p>}
-   {needsWinningReview&&<p className="status-warning">{language==='fr'?'Gagnant · montant non confirmé dans le système. Le paiement reste bloqué jusqu’à confirmation.':'Gayan · montan an poko konfime nan sistèm nan. Peman an rete bloke jiskaske sistèm nan konfime li.'}</p>}
+   {amountConfirmed&&<p className="winner">{language==='fr'?'Gain confirmé':'Gany konfime'}: {currencyMark(currency)}{cash(winningAmount,currency)}</p>}
+   {needsWinningReview&&<p className="status-warning">{amountConfirmed?(language==='fr'?'Ticket gagnant et montant confirmé, mais les lignes ne sont pas encore recalculées. Le paiement reste bloqué.':'Tikè a genyen epi montan an konfime, men liy boul yo poko rekalkile. Peman an rete bloke.'):language==='fr'?'Gagnant · montant non confirmé dans le système. Le paiement reste bloqué jusqu’à confirmation.':'Gayan · montan an poko konfime nan sistèm nan. Peman an rete bloke jiskaske sistèm nan konfime li.'}</p>}
    <div className="buttons receipt-actions">{can('tickets.pay')&&verified&&!t.payout&&<button onClick={pay}>{tr('pay')}</button>}{can('tickets.cancel')&&<button className="danger" onClick={deleteTicket}>{language==='fr'?'Supprimer le ticket':'Siprime tikè a'}</button>}<button className="secondary" onClick={()=>replay(t)}>{tr('copy')}</button><button className="secondary" onClick={downloadPdf}>{tr('downloadTicketPdf')}</button><button className="secondary" onClick={downloadImage}>{tr('downloadTicketImage')}</button>{can('tickets.reprint')&&<button className="secondary" onClick={printTicket}>{tr('print')}</button>}<details className="share-menu"><summary className="button secondary">{tr('share')}</summary><div><button type="button" onClick={()=>share('pdf')}>{tr('sharePdf')}</button><button type="button" onClick={()=>share('image')}>{tr('shareImage')}</button></div></details></div>
   </section>}
  </>;

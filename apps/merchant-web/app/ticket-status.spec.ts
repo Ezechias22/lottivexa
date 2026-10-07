@@ -43,8 +43,10 @@ describe('ticket result status presentation', () => {
     expect(ticketDisplayStatus({ status: 'PENDING', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('LOSER');
   });
 
-  it('lets completed losing line outcomes override a stale WINNER status in history', () => {
-    expect(ticketDisplayStatus({ status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('LOSER');
+  it('keeps the server WINNER status when line flags are stale, while requiring review', () => {
+    const ticket = { status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, winning: { winningAmount: '0' }, lines: [{ isWinner: false }] };
+    expect(ticketDisplayStatus(ticket)).toBe('WINNER');
+    expect(ticketNeedsWinningReview(ticket)).toBe(true);
   });
 
   it('shows paid when a payout exists even if the ticket status is stale', () => {
@@ -53,6 +55,10 @@ describe('ticket result status presentation', () => {
 
   it('does not label a confirmed winning amount as lost because line flags are stale', () => {
     expect(ticketDisplayStatus({ status: 'LOSER', winning: { winningAmount: '50' }, draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('WINNER');
+  });
+
+  it('reads the confirmed ticket amount from the top-level API field when provided', () => {
+    expect(ticketWinningAmount({ status: 'WINNER', winningAmount: '50' })).toBe(50);
   });
 
   it('keeps losing, cancelled, and unresolved tickets out of the winners list', () => {

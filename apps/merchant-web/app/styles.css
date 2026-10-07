@@ -1079,6 +1079,19 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 .ticket-selection small {
   color: #64748b;
 }
+.ticket-winning-number {
+  color: #15803d;
+}
+.ticket-line-win {
+  display: block;
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534 !important;
+  font-size: 11px;
+  font-weight: 800;
+}
 .ticket-position-display {
   display: block;
   text-align: center;
