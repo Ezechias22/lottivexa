@@ -3,6 +3,12 @@ type ResultCheckEvent = {
   metadata?: unknown;
 };
 
+export const RESULT_EVALUATION_VERSION = 2;
+
+export function checkedDrawVersion(drawId: string, publishedAt: Date | null) {
+  return { drawId, publishedAt: publishedAt?.toISOString() ?? null, evaluationVersion: RESULT_EVALUATION_VERSION };
+}
+
 export function needsWinnerRepair(status: string, winningAmount: number, hasWinningLine: boolean): boolean {
   return status === 'WINNER' && (!(winningAmount > 0) || !hasWinningLine);
 }
@@ -23,7 +29,9 @@ export function hasCurrentResultCheck(
     return checkedDrawVersions.some(value => {
       if (!value || typeof value !== 'object') return false;
       const checked = value as Record<string, unknown>;
-      return checked.drawId === drawId && checked.publishedAt === version;
+      return checked.drawId === drawId
+        && checked.publishedAt === version
+        && checked.evaluationVersion === RESULT_EVALUATION_VERSION;
     });
   });
 }

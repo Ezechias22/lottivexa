@@ -71,6 +71,11 @@ describe('selection formatting and cancellation', () => {
     expect(isTicketCancellationAllowed(new Date('2026-01-01T00:00:59.999Z'),deadline)).toBe(true);
     expect(isTicketCancellationAllowed(deadline,deadline)).toBe(false);
   });
+  it('matches normalized display digits while keeping the whole-number comparison exact', () => {
+    expect(isWinningSelection('BOLET', '12', ['１２', '34', '56'])).toBe(true);
+    expect(isWinningSelection('BOLET', '07', ['7', '34', '56'])).toBe(true);
+    expect(isWinningSelection('BOLET', '12', ['112', '34', '56'])).toBe(false);
+  });
   it('allows tenant cancellation only for unresolved, unpaid tickets', () => {
     expect(isTenantCancellationEligible('VALID', false, false)).toBe(true);
     expect(isTenantCancellationEligible('VALID', true, false)).toBe(false);

@@ -1319,6 +1319,7 @@ function tenantTicketDisplayStatus(ticket: Row): string {
   const draws = linked.length ? linked : ticket?.draw ? [ticket.draw] : [];
   const resolved = draws.length > 0 && draws.every((draw: Row) => draw?.status === "RESULT_PUBLISHED" || Boolean(draw?.result?.winningKeys?.length));
   if (draws.length && !resolved) return "PENDING";
+  if (Number(ticket?.winning?.winningAmount ?? 0) > 0) return "WINNER";
   const lines = Array.isArray(ticket?.lines) ? ticket.lines : [];
   if (resolved && lines.length && lines.every((line: Row) => typeof line?.isWinner === "boolean")) return lines.some((line: Row) => line.isWinner) ? "WINNER" : "LOSER";
   if (lines.some((line: Row) => line?.isWinner === true) || Number(ticket?.winning?.winningAmount ?? 0) > 0) return "WINNER";

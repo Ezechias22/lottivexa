@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasCurrentResultCheck, needsWinnerRepair } from './results-reconciliation-policy';
+import { checkedDrawVersion, hasCurrentResultCheck, needsWinnerRepair, RESULT_EVALUATION_VERSION } from './results-reconciliation-policy';
 
 describe('automatic ticket result reconciliation policy', () => {
   const publishedAt = new Date('2026-10-02T18:30:00.000Z');
@@ -16,8 +16,14 @@ describe('automatic ticket result reconciliation policy', () => {
 
   it('accepts a result check for the same draw and published version', () => {
     expect(hasCurrentResultCheck([
-      { type: 'RESULT_CHECKED', metadata: { checkedDrawVersions: [{ drawId: 'draw-1', publishedAt: publishedAt.toISOString() }] } },
+      { type: 'RESULT_CHECKED', metadata: { checkedDrawVersions: [checkedDrawVersion('draw-1', publishedAt)] } },
     ], 'draw-1', publishedAt)).toBe(true);
+  });
+
+  it('rechecks old result evaluations after the calculation version changes', () => {
+    const oldEvent = { type: 'RESULT_CHECKED', metadata: { checkedDrawVersions: [{ drawId: 'draw-1', publishedAt: publishedAt.toISOString(), evaluationVersion: RESULT_EVALUATION_VERSION - 1 }] } };
+    expect(hasCurrentResultCheck([oldEvent], 'draw-1', publishedAt)).toBe(false);
+    expect(hasCurrentResultCheck([{ type: 'RESULT_CHECKED', metadata: { checkedDrawVersions: [checkedDrawVersion('draw-1', publishedAt)] } }], 'draw-1', publishedAt)).toBe(true);
   });
 
   it('rechecks when a draw result is edited or the event belongs to another draw', () => {

@@ -51,6 +51,10 @@ describe('ticket result status presentation', () => {
     expect(ticketDisplayStatus({ status: 'WINNER', payout: { amount: '50' } })).toBe('PAID');
   });
 
+  it('does not label a confirmed winning amount as lost because line flags are stale', () => {
+    expect(ticketDisplayStatus({ status: 'LOSER', winning: { winningAmount: '50' }, draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('WINNER');
+  });
+
   it('keeps losing, cancelled, and unresolved tickets out of the winners list', () => {
     expect(ticketBelongsInWinnersList({ status: 'LOSER' })).toBe(false);
     expect(ticketBelongsInWinnersList({ status: 'CANCELLED' })).toBe(false);

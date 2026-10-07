@@ -51,7 +51,10 @@ export function resultWinningKeys(result: unknown): string[] {
   return keys as string[];
 }
 
-function clean(value: string) { return value.trim().replace(/^0+(?=\d)/, ''); }
+function clean(value: string) {
+  const normalized = value.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+  return normalized.replace(/^0+(?=\d)/, '');
+}
 
 export function winningSelectionCount(betTypeCode: string, storedSelectionKey: string, winningKeys: readonly string[] | Set<string>) {
   const ordered = [...winningKeys].map(clean);

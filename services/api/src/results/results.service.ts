@@ -4,7 +4,7 @@ import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
 import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
 import {evaluateTicketResults} from './results-policy';
-import {hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
+import {checkedDrawVersion,hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
 import {presentTicketLines} from '../tickets/ticket-line-flags';
 
 @Injectable()
@@ -36,7 +36,7 @@ export class ResultsService implements OnModuleInit{
     let cursor:string|undefined,rechecked=0;
     for(;;){
       const tickets=await prisma.ticket.findMany({
-        where:{tenantId:draw.tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null},...(cursor?{id:{gt:cursor}}:{}),AND:[{OR:[{drawId:draw.id},{ticketDraws:{some:{drawId:draw.id}}}]},{OR:[{events:{none:{type:'RESULT_CHECKED',metadata:{path:['checkedDrawVersions'],array_contains:[{drawId:draw.id,publishedAt:draw.publishedAt!.toISOString()}]}}}},{status:'WINNER',winning:{is:null}},{status:'WINNER',winning:{is:{winningAmount:{lte:0}}}},{status:'WINNER',lines:{none:{isWinner:true}}}]}]},
+        where:{tenantId:draw.tenantId,status:{in:['VALID','PENDING','WINNER','LOSER']},payout:{is:null},...(cursor?{id:{gt:cursor}}:{}),AND:[{OR:[{drawId:draw.id},{ticketDraws:{some:{drawId:draw.id}}}]},{OR:[{events:{none:{type:'RESULT_CHECKED',metadata:{path:['checkedDrawVersions'],array_contains:[checkedDrawVersion(draw.id,draw.publishedAt)]}}}},{status:'WINNER',winning:{is:null}},{status:'WINNER',winning:{is:{winningAmount:{lte:0}}}},{status:'WINNER',lines:{none:{isWinner:true}}}]}]},
         select:{id:true},
         orderBy:{id:'asc'},take:100,
       });
@@ -273,7 +273,7 @@ export class ResultsService implements OnModuleInit{
     const allLinesResolved=evaluation.lineResults.every(item=>item.isWinner!==null);
     const allDrawsResolved=evaluation.allDrawsResolved&&allLinesResolved&&evaluation.drawIds.every(id=>drawById.has(id));
     const lineWinCounts=evaluation.lineResults.map(item=>({lineId:item.lineId,drawId:item.drawId,winCount:item.winCount}));
-    const checkedDrawVersions=[...resultKeysByDraw.keys()].map(id=>({drawId:id,publishedAt:drawById.get(id)?.publishedAt?.toISOString()??null}));
+    const checkedDrawVersions=[...resultKeysByDraw.keys()].map(id=>checkedDrawVersion(id,drawById.get(id)?.publishedAt??null));
     await tx.ticketEvent.create({data:{tenantId:ticket.tenantId,ticketId:ticket.id,type:'RESULT_CHECKED',userId:actorId,metadata:{drawId:changedDrawId,checkedDrawVersions,lineWinCounts}}});
 
     if(!allDrawsResolved){

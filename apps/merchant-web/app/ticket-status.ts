@@ -17,6 +17,7 @@ export function ticketDisplayStatus(ticket: TicketStatusView): string {
     draw?.status === 'RESULT_PUBLISHED' || Boolean(draw?.result?.winningKeys?.length),
   );
   if (draws.length > 0 && !allDrawsResolved) return 'PENDING';
+  if (Number(ticket?.winning?.winningAmount ?? 0) > 0) return 'WINNER';
 
   const lines = Array.isArray(ticket?.lines) ? ticket.lines : [];
   if (allDrawsResolved && lines.length > 0 && lines.every((line: TicketStatusView) => typeof line?.isWinner === 'boolean')) {
