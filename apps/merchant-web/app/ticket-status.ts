@@ -4,34 +4,11 @@ export function ticketDisplayStatus(ticket: TicketStatusView): string {
   const raw = String(ticket?.status ?? 'VALID');
   if (ticket?.payout || raw === 'PAID') return 'PAID';
   if (['CANCELLED', 'VOID', 'EXPIRED'].includes(raw)) return raw;
-
-  const linkedDraws = Array.isArray(ticket?.ticketDraws)
-    ? ticket.ticketDraws.map((item: TicketStatusView) => item?.draw).filter(Boolean)
-    : [];
-  const draws = linkedDraws.length
-    ? linkedDraws
-    : Array.isArray(ticket?.draws) && ticket.draws.length
-      ? ticket.draws
-      : ticket?.draw ? [ticket.draw] : [];
-  const allDrawsResolved = draws.length > 0 && draws.every((draw: TicketStatusView) =>
-    draw?.status === 'RESULT_PUBLISHED' || Boolean(draw?.result?.winningKeys?.length),
-  );
-  if (draws.length > 0 && !allDrawsResolved) return 'PENDING';
-  const winningAmount = Number(ticket?.winning?.winningAmount ?? ticket?.winningAmount ?? 0);
-  if (Number.isFinite(winningAmount) && winningAmount > 0) return 'WINNER';
+  if (ticket?.resultEvaluationConfirmed !== true) return 'PENDING';
 
   const lines = Array.isArray(ticket?.lines) ? ticket.lines : [];
-  // The API ticket status is authoritative. Stale line flags must not turn a
-  // persisted WINNER ticket into LOSER in the merchant preview. The missing
-  // amount/line confirmation is still surfaced by ticketNeedsWinningReview,
-  // which keeps payout actions blocked until reconciliation is complete.
-  if (raw === 'WINNER') return 'WINNER';
-  if (allDrawsResolved && lines.length > 0 && lines.every((line: TicketStatusView) => typeof line?.isWinner === 'boolean')) {
-    return lines.some((line: TicketStatusView) => line.isWinner === true) ? 'WINNER' : 'LOSER';
-  }
-  if (lines.some((line: TicketStatusView) => line?.isWinner === true || Number(line?.winCount ?? 0) > 0)) return 'WINNER';
-  if (raw === 'LOSER') return 'LOSER';
-  return 'PENDING';
+  if (!lines.length || lines.some((line: TicketStatusView) => line?.resultConfirmed !== true || typeof line?.isWinner !== 'boolean')) return 'PENDING';
+  return lines.some((line: TicketStatusView) => line.isWinner === true) ? 'WINNER' : 'LOSER';
 }
 
 export function ticketBelongsInWinnersList(ticket: TicketStatusView): boolean {
@@ -40,14 +17,17 @@ export function ticketBelongsInWinnersList(ticket: TicketStatusView): boolean {
 }
 
 export function ticketWinningAmount(ticket: TicketStatusView): number {
-  const stored = Number(ticket?.winning?.winningAmount ?? ticket?.winningAmount ?? 0);
-  return Number.isFinite(stored) && stored > 0 ? stored : 0;
+  const paidAmount = Number(ticket?.payout?.amount ?? ticket?.winning?.winningAmount ?? ticket?.winningAmount ?? 0);
+  if (ticket?.payout || ticket?.status === 'PAID') return Number.isFinite(paidAmount) && paidAmount > 0 ? paidAmount : 0;
+  if (ticket?.resultEvaluationConfirmed !== true || ticketDisplayStatus(ticket) !== 'WINNER') return 0;
+  const confirmed = Number(ticket?.winning?.winningAmount ?? ticket?.winningAmount ?? 0);
+  return Number.isFinite(confirmed) && confirmed > 0 ? confirmed : 0;
 }
 
 export function ticketNeedsWinningReview(ticket: TicketStatusView): boolean {
   if (ticketDisplayStatus(ticket) !== 'WINNER') return false;
   const storedAmount = Number(ticket?.winning?.winningAmount ?? 0);
   const hasWinningLine = (Array.isArray(ticket?.lines) ? ticket.lines : [])
-    .some((line: TicketStatusView) => line?.isWinner === true || Number(line?.winCount ?? 0) > 0);
+    .some((line: TicketStatusView) => line?.resultConfirmed === true && line?.isWinner === true && Number(line?.winningAmount ?? 0) > 0);
   return storedAmount <= 0 || ticketWinningAmount(ticket) <= 0 || !hasWinningLine;
 }

@@ -2,74 +2,42 @@ import { describe, expect, it } from 'vitest';
 import { ticketBelongsInWinnersList, ticketDisplayStatus, ticketNeedsWinningReview, ticketWinningAmount } from './ticket-status';
 
 describe('ticket result status presentation', () => {
-  it('keeps Gagnant visible without displaying an unconfirmed amount', () => {
-    const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: true, winCount: 2 }] };
-    expect(ticketDisplayStatus(ticket)).toBe('WINNER');
-    expect(ticketWinningAmount(ticket)).toBe(0);
-    expect(ticketNeedsWinningReview(ticket)).toBe(true);
+  it('keeps stale winner and loser records out of the winners list until evaluated', () => {
+    for (const status of ['WINNER', 'LOSER']) {
+      const ticket = { status, winning: { winningAmount: '500' }, draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: true, winCount: 1 }] };
+      expect(ticketDisplayStatus(ticket)).toBe('PENDING');
+      expect(ticketWinningAmount(ticket)).toBe(0);
+      expect(ticketBelongsInWinnersList(ticket)).toBe(false);
+    }
   });
 
-  it('signals an unconfirmed winning amount without changing the status', () => {
-    const ticket = { status: 'WINNER', winning: { winningAmount: '0' }, lines: [{ isWinner: false }] };
+  it('shows a winner and exact amount only after the API confirms current line results', () => {
+    const ticket = { status: 'WINNER', resultEvaluationConfirmed: true, winning: { winningAmount: '25' }, lines: [{ resultConfirmed: true, isWinner: true, winCount: 1, winningAmount: '25' }] };
     expect(ticketDisplayStatus(ticket)).toBe('WINNER');
-    expect(ticketNeedsWinningReview(ticket)).toBe(true);
+    expect(ticketWinningAmount(ticket)).toBe(25);
+    expect(ticketBelongsInWinnersList(ticket)).toBe(true);
+    expect(ticketNeedsWinningReview(ticket)).toBe(false);
   });
 
-  it('uses linked draws to keep a multi-draw ticket pending until every draw is published', () => {
-    const ticket = {
-      status: 'VALID',
-      ticketDraws: [{ draw: { status: 'RESULT_PUBLISHED' } }, { draw: { status: 'RESULT_PENDING' } }],
-      lines: [{ isWinner: false }],
-    };
+  it('shows a losing result only when every line result is confirmed', () => {
+    expect(ticketDisplayStatus({ status: 'LOSER', resultEvaluationConfirmed: true, lines: [{ resultConfirmed: true, isWinner: false }] })).toBe('LOSER');
+    expect(ticketDisplayStatus({ status: 'WINNER', resultEvaluationConfirmed: true, lines: [{ resultConfirmed: false, isWinner: true }] })).toBe('PENDING');
+  });
+
+  it('keeps any multi-draw ticket pending until the server confirms all line outcomes', () => {
+    const ticket = { status: 'WINNER', ticketDraws: [{ draw: { status: 'RESULT_PUBLISHED' } }, { draw: { status: 'RESULT_PENDING' } }], lines: [{ isWinner: true }] };
     expect(ticketDisplayStatus(ticket)).toBe('PENDING');
   });
 
-  it('uses resolved line outcomes to show a winner or loser for a valid ticket', () => {
-    const draw = { status: 'RESULT_PUBLISHED' };
-    expect(ticketDisplayStatus({ status: 'VALID', draw, lines: [{ isWinner: true }] })).toBe('WINNER');
-    expect(ticketDisplayStatus({ status: 'VALID', draw, lines: [{ isWinner: false }] })).toBe('LOSER');
+  it('shows paid tickets and retains the payout amount', () => {
+    const ticket = { status: 'WINNER', payout: { amount: '50' } };
+    expect(ticketDisplayStatus(ticket)).toBe('PAID');
+    expect(ticketWinningAmount(ticket)).toBe(50);
+    expect(ticketBelongsInWinnersList(ticket)).toBe(true);
   });
 
-  it('does not keep an early WINNER status when one linked draw is still pending', () => {
-    const ticket = {
-      status: 'WINNER',
-      ticketDraws: [{ draw: { status: 'RESULT_PUBLISHED' } }, { draw: { status: 'RESULT_PENDING' } }],
-      lines: [{ isWinner: true }],
-    };
-    expect(ticketDisplayStatus(ticket)).toBe('PENDING');
-  });
-
-  it('reconciles a stale PENDING status from completed line outcomes', () => {
-    expect(ticketDisplayStatus({ status: 'PENDING', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('LOSER');
-  });
-
-  it('keeps the server WINNER status when line flags are stale, while requiring review', () => {
-    const ticket = { status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, winning: { winningAmount: '0' }, lines: [{ isWinner: false }] };
-    expect(ticketDisplayStatus(ticket)).toBe('WINNER');
-    expect(ticketNeedsWinningReview(ticket)).toBe(true);
-  });
-
-  it('shows paid when a payout exists even if the ticket status is stale', () => {
-    expect(ticketDisplayStatus({ status: 'WINNER', payout: { amount: '50' } })).toBe('PAID');
-  });
-
-  it('does not label a confirmed winning amount as lost because line flags are stale', () => {
-    expect(ticketDisplayStatus({ status: 'LOSER', winning: { winningAmount: '50' }, draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: false }] })).toBe('WINNER');
-  });
-
-  it('reads the confirmed ticket amount from the top-level API field when provided', () => {
-    expect(ticketWinningAmount({ status: 'WINNER', winningAmount: '50' })).toBe(50);
-  });
-
-  it('keeps losing, cancelled, and unresolved tickets out of the winners list', () => {
-    expect(ticketBelongsInWinnersList({ status: 'LOSER' })).toBe(false);
+  it('does not mark cancelled tickets as winners', () => {
+    expect(ticketDisplayStatus({ status: 'CANCELLED', resultEvaluationConfirmed: true, lines: [{ resultConfirmed: true, isWinner: true }] })).toBe('CANCELLED');
     expect(ticketBelongsInWinnersList({ status: 'CANCELLED' })).toBe(false);
-    expect(ticketBelongsInWinnersList({ status: 'VALID', draw: { status: 'OPEN' } })).toBe(false);
-    expect(ticketBelongsInWinnersList({ status: 'WINNER', ticketDraws: [{ draw: { status: 'RESULT_PUBLISHED' } }, { draw: { status: 'RESULT_PENDING' } }], lines: [{ isWinner: true }] })).toBe(false);
-  });
-
-  it('includes only confirmed winners and paid winners', () => {
-    expect(ticketBelongsInWinnersList({ status: 'WINNER', draw: { status: 'RESULT_PUBLISHED' }, lines: [{ isWinner: true }] })).toBe(true);
-    expect(ticketBelongsInWinnersList({ status: 'PAID', payout: { amount: '50' } })).toBe(true);
   });
 });

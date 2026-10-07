@@ -80,7 +80,8 @@ describe('selection formatting and cancellation', () => {
     expect(winningSelectionCount('BOLET', '55@1', ['255'])).toBe(1);
     expect(isWinningSelection('BOLET', '25@1', ['255'])).toBe(false);
     expect(isWinningSelection('BOLET', '55@2', ['255'])).toBe(false);
-    expect(isWinningSelection('BOUL_PE', '55', ['255'])).toBe(false);
+    expect(isWinningSelection('BOUL_PE', '55', ['255'])).toBe(true);
+    expect(isWinningSelection('BOUL_PE', '55', ['256'])).toBe(false);
   });
   it('allows tenant cancellation only for unresolved, unpaid tickets', () => {
     expect(isTenantCancellationEligible('VALID', false, false)).toBe(true);

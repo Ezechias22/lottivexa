@@ -6,8 +6,21 @@ const language = readFileSync(new URL('./language-switcher.tsx', import.meta.url
 const reports = readFileSync(new URL('./merchant-reports.tsx', import.meta.url), 'utf8');
 const sessionRefresh = readFileSync(new URL('./session-refresh.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+const webMenu = readFileSync(new URL('./web-menu.tsx', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
+  it('removes the extra More screen and excludes primary tabs from the hamburger', () => {
+    expect(source).not.toContain("onNavigate('more')");
+    expect(source).not.toContain("screen==='more'");
+    expect(source).toContain('data-bottom-tab');
+    expect(webMenu).toContain('button:not([data-bottom-tab=');
+  });
+  it('shows the winning ball and payout only on confirmed lines', () => {
+    expect(source).toContain('line.matchedWinningKeys');
+    expect(source).toContain('lineConfirmed=line.resultConfirmed===true');
+    expect(source).toContain('lineWon=lineConfirmed&&line.isWinner===true');
+    expect(source).toContain('linePayout=lineWon?Number(line.winningAmount??0):0');
+  });
   it('has login only and no public account creation', () => {
     expect(source).toContain("t('login')");
     expect(source).toContain("t('intro')");

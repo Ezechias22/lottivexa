@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { evaluateTicketResults } from './results-policy';
 
 describe('ticket results across draws', () => {
+  it('matches Georgia Boul Pè 55 with 255 and rejects 256', () => {
+    const win = evaluateTicketResults('ga', ['ga'], [{ id: 'pair-55', drawId: 'ga', selectionKey: '55', betType: { code: 'BOUL_PE' } }], new Map([['ga', ['255']]]));
+    const loss = evaluateTicketResults('ga', ['ga'], [{ id: 'pair-55', drawId: 'ga', selectionKey: '55', betType: { code: 'BOUL_PE' } }], new Map([['ga', ['256']]]));
+    expect(win.lineResults[0]).toMatchObject({ winCount: 1, isWinner: true });
+    expect(loss.lineResults[0]).toMatchObject({ winCount: 0, isWinner: false });
+  });
   it('marks a two-digit Georgia Bolet selection as a winner for the first result 255', () => {
     const result = evaluateTicketResults('georgia-draw', ['georgia-draw'], [
       { id: 'line-55', drawId: 'georgia-draw', selectionKey: '55@1', betType: { code: 'BOLET' } },

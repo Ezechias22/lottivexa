@@ -611,6 +611,7 @@ export default function TenantConsole() {
         ).map((n) => (
           <button
             key={n.id}
+            data-bottom-tab={tenantMobileTabs(availableTabs).includes(n.id) ? "true" : undefined}
             className={tab === n.id ? "active" : ""}
             onClick={() => navigateTab(n.id)}
           >
@@ -1312,19 +1313,13 @@ function LegacyLottery({ data: d, submit, request, load, can }: any) {
   );
 }
 function tenantTicketDisplayStatus(ticket: Row): string {
-  const raw = String(ticket?.status ?? "VALID");
-  if (ticket?.payout || raw === "PAID") return "PAID";
-  if (["CANCELLED", "VOID", "EXPIRED"].includes(raw)) return raw;
-  const linked = Array.isArray(ticket?.ticketDraws) ? ticket.ticketDraws.map((item: Row) => item?.draw).filter(Boolean) : [];
-  const draws = linked.length ? linked : ticket?.draw ? [ticket.draw] : [];
-  const resolved = draws.length > 0 && draws.every((draw: Row) => draw?.status === "RESULT_PUBLISHED" || Boolean(draw?.result?.winningKeys?.length));
-  if (draws.length && !resolved) return "PENDING";
-  if (Number(ticket?.winning?.winningAmount ?? 0) > 0) return "WINNER";
+  const raw = String(ticket?.status ?? 'VALID');
+  if (ticket?.payout || raw === 'PAID') return 'PAID';
+  if (['CANCELLED', 'VOID', 'EXPIRED'].includes(raw)) return raw;
+  if (ticket?.resultEvaluationConfirmed !== true) return 'PENDING';
   const lines = Array.isArray(ticket?.lines) ? ticket.lines : [];
-  if (resolved && lines.length && lines.every((line: Row) => typeof line?.isWinner === "boolean")) return lines.some((line: Row) => line.isWinner) ? "WINNER" : "LOSER";
-  if (lines.some((line: Row) => line?.isWinner === true) || Number(ticket?.winning?.winningAmount ?? 0) > 0) return "WINNER";
-  if (raw === "WINNER" || raw === "LOSER") return raw;
-  return "PENDING";
+  if (!lines.length || lines.some((line: Row) => line?.resultConfirmed !== true || typeof line?.isWinner !== 'boolean')) return 'PENDING';
+  return lines.some((line: Row) => line.isWinner === true) ? 'WINNER' : 'LOSER';
 }
 
 function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];request:(path:string,init?:RequestInit)=>Promise<any>;can:(permission:string)=>boolean;currency:string;onOpen:(ticket:Row)=>void;onDelete:(ticket:Row)=>void}) {
@@ -1362,9 +1357,9 @@ function TicketDetailsDialog({ticket,currency,canDelete,onClose,onDelete}:{ticke
   return <div className="ticket-detail-overlay" onMouseDown={(event)=>event.target===event.currentTarget&&onClose()}>
     <section className="ticket-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="tenant-ticket-dialog-title">
       <header className="ticket-detail-heading"><div><span className="tenant-report-kicker">{french?"DOSSIER DU TICKET":"DOSYE TIKÈ A"}</span><h2 id="tenant-ticket-dialog-title">{ticket.ticketNumber}</h2></div><button className="secondary" onClick={onClose}>{french?"Fermer":"Fèmen"}</button></header>
-      <div className="ticket-detail-summary"><article><small>{french?"Statut":"Estati"}</small><strong>{statusNames[tenantTicketDisplayStatus(ticket)]?.[french?"fr":"ht"]??tenantTicketDisplayStatus(ticket)}</strong></article><article><small>{french?"Montant":"Montan"}</small><strong>{money(ticket.amount,ticket.currency??ticket.currencyCode??currency)}</strong></article>{Number(ticket.winning?.winningAmount??0)>0&&<article><small>{french?"Gain confirmé":"Gany konfime"}</small><strong>{money(ticket.winning.winningAmount,ticket.currency??ticket.currencyCode??currency)}</strong></article>}<article><small>{french?"Créé le":"Kreye le"}</small><strong>{ticket.createdAt?new Intl.DateTimeFormat(french?"fr-FR":"fr-HT",{timeZone:"America/Port-au-Prince",dateStyle:"medium",timeStyle:"short"}).format(new Date(ticket.createdAt)):"—"}</strong></article></div>
+      <div className="ticket-detail-summary"><article><small>{french?"Statut":"Estati"}</small><strong>{statusNames[tenantTicketDisplayStatus(ticket)]?.[french?"fr":"ht"]??tenantTicketDisplayStatus(ticket)}</strong></article><article><small>{french?"Montant":"Montan"}</small><strong>{money(ticket.amount,ticket.currency??ticket.currencyCode??currency)}</strong></article>{["WINNER","PAID"].includes(tenantTicketDisplayStatus(ticket))&&Number(ticket.winning?.winningAmount??0)>0&&<article><small>{french?"Gain confirmé":"Gany konfime"}</small><strong>{money(ticket.winning.winningAmount,ticket.currency??ticket.currencyCode??currency)}</strong></article>}<article><small>{french?"Créé le":"Kreye le"}</small><strong>{ticket.createdAt?new Intl.DateTimeFormat(french?"fr-FR":"fr-HT",{timeZone:"America/Port-au-Prince",dateStyle:"medium",timeStyle:"short"}).format(new Date(ticket.createdAt)):"—"}</strong></article></div>
       <section className="ticket-detail-section"><h3>{french?"Loteries et tirages":"Lotri ak tiraj"}</h3>{ticketDraws.length?<div className="ticket-detail-draws">{ticketDraws.map((draw:Row)=><span key={draw.id??draw.drawNumber}>{describeDraw(draw,language)}{draw.drawNumber?` · ${draw.drawNumber}`:""}</span>)}</div>:<p>—</p>}<p className="ticket-detail-byline">{ticket.merchant?.displayName??"—"}{ticket.merchant?.branch?.name?` · ${ticket.merchant.branch.name}`:""}</p></section>
-      <section className="ticket-detail-section"><h3>{french?"Lignes du ticket":"Liy tikè a"}</h3><div className="table-wrap"><table><thead><tr><th>{french?"Type":"Kalite"}</th><th>{french?"Sélection":"Chwa"}</th><th>{french?"Mise":"Miz"}</th><th>{french?"Résultat":"Rezilta"}</th></tr></thead><tbody>{(ticket.lines??[]).map((line:Row)=><tr key={line.id}><td>{line.betType?.name??"Bolet"}</td><td><strong>{String(line.selectionKey??line.selection??"—").replace(/@/g," · OP ").replace(/-/g," × ")}</strong></td><td>{line.isPromotional?(french?"Gratuit":"Gratis"):money(line.stake,ticket.currency??ticket.currencyCode??currency)}</td><td>{line.isWinner?<>{french?"Gagnant":"Gayan"}{Number(line.winningAmount??0)>0?` · ${money(line.winningAmount,ticket.currency??ticket.currencyCode??currency)}`:""}</>:(french?"En attente":"An atant")}</td></tr>)}{!(ticket.lines??[]).length&&<tr><td colSpan={4}>—</td></tr>}</tbody></table></div></section>
+      <section className="ticket-detail-section"><h3>{french?"Lignes du ticket":"Liy tikè a"}</h3><div className="table-wrap"><table><thead><tr><th>{french?"Type":"Kalite"}</th><th>{french?"Sélection":"Chwa"}</th><th>{french?"Mise":"Miz"}</th><th>{french?"Résultat":"Rezilta"}</th></tr></thead><tbody>{(ticket.lines??[]).map((line:Row)=><tr key={line.id}><td>{line.betType?.name??"Bolet"}</td><td><strong>{String(line.selectionKey??line.selection??"—").replace(/@/g," · OP ").replace(/-/g," × ")}</strong></td><td>{line.isPromotional?(french?"Gratuit":"Gratis"):money(line.stake,ticket.currency??ticket.currencyCode??currency)}</td><td>{line.resultConfirmed===true&&line.isWinner===true?<>{french?"Gagnant":"Gayan"}{(line.matchedWinningKeys??[]).length?` · ${french?"Boule":"Boul"} ${(line.matchedWinningKeys as unknown[]).map(String).join(", ")}`:""}{Number(line.winningAmount??0)>0?` · ${money(line.winningAmount,ticket.currency??ticket.currencyCode??currency)}`:""}</>:line.resultConfirmed===true&&line.isWinner===false?(french?"Perdu":"Pèdi"):(french?"En attente":"An atant")}</td></tr>)}{!(ticket.lines??[]).length&&<tr><td colSpan={4}>—</td></tr>}</tbody></table></div></section>
       {canDelete&&<section className="ticket-delete-panel"><div><h3>{french?"Suppression définitive":"Siprime tikè a definitivman"}</h3><p>{french?"Le ticket disparaîtra des listes du vendeur et du tenant. Les écritures financières et l’audit restent conservés.":"Tikè a ap disparèt nan lis machann nan ak tenant lan. Dosye finansye ak audit la ap rete konsève."}</p></div><button className="danger" onClick={()=>onDelete(ticket)}>{french?"Supprimer définitivement":"Siprime definitivement"}</button></section>}
     </section>
   </div>;

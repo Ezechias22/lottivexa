@@ -67,9 +67,9 @@ export function winningSelectionCount(betTypeCode: string, storedSelectionKey: s
   }
   if (betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') {
     const selection = clean(selectionKey);
-    const matches = ordered.filter(value => value === selection || (betTypeCode === 'BOLET' && /^\d{3}$/.test(value) && value.slice(-2) === selection)).length;
+    const matches = ordered.filter(value => value === selection || ((betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') && /^\d{3}$/.test(value) && value.slice(-2) === selection)).length;
     const positioned = ordered[resultPosition ? resultPosition - 1 : 0];
-    return resultPosition ? (positioned === selection || (betTypeCode === 'BOLET' && /^\d{3}$/.test(positioned ?? '') && positioned!.slice(-2) === selection) ? matches : 0) : matches;
+    return resultPosition ? (positioned === selection || ((betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') && /^\d{3}$/.test(positioned ?? '') && positioned!.slice(-2) === selection) ? matches : 0) : matches;
   }
   if (resultPosition) return ordered[resultPosition - 1] === clean(selectionKey) ? 1 : 0;
   const selection = selectionKey.split('-').map(clean);

@@ -11,7 +11,7 @@ export default function WebMenu(){
   useEffect(()=>{
     document.body.classList.add('web-menu-enabled');
     const collect=()=>{
-const nodes=[...document.querySelectorAll<HTMLElement>('.shell > aside:not(.web-menu-panel) button, .content > header button.secondary, .pos > nav button, .pos > header button.secondary')];
+const nodes=[...document.querySelectorAll<HTMLElement>('.shell > aside:not(.web-menu-panel) button:not([data-bottom-tab="true"]), .content > header button.secondary')];
       const next:Item[]=[];
       const seen=new Set<string>();
       targets.current.clear();
