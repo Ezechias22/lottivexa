@@ -5,6 +5,7 @@ import styles from './reports-dashboard.module.css';
 type StatusRow = { status?: string; count?: number | string };
 type PlanRow = { planId?: string; count?: number | string };
 type Plan = { id?: string; name?: string; code?: string };
+type TenantSales = { tenantId: string; tenantName: string; tenantSlug: string; currency: string; tickets: number; amount: string | number };
 
 type ReportData = {
   tenantStatus?: StatusRow[];
@@ -12,7 +13,7 @@ type ReportData = {
   planDistribution?: PlanRow[];
   subscriptionRevenue?: number | string;
   subscriptionRevenueByCurrency?: Array<{ currency: string; amount: unknown; payments?: number }>;
-  platformSales?: { tickets?: number | string; amount?: number | string; byCurrency?: Array<{ currency: string; amount: unknown; tickets?: number }> };
+  platformSales?: { tickets?: number | string; amount?: number | string; byCurrency?: Array<{ currency: string; amount: unknown; tickets?: number }>; byTenant?: TenantSales[] };
 };
 
 const numberValue = (value: unknown) => {
@@ -98,6 +99,7 @@ export default function ReportsDashboard({ data, plans = [] }: { data: ReportDat
   const tenants = data.tenantStatus ?? [];
   const subscriptions = data.subscriptionStatus ?? [];
   const planRows = data.planDistribution ?? [];
+  const tenantSales = data.platformSales?.byTenant ?? [];
   const planNames = new Map(plans.map((plan) => [plan.id, plan.name ?? plan.code ?? plan.id]));
   const maxPlanCount = Math.max(1, ...planRows.map((row) => numberValue(row.count)));
 
@@ -158,6 +160,21 @@ export default function ReportsDashboard({ data, plans = [] }: { data: ReportDat
         ) : (
           <p className={styles.empty}>Pa gen abonnman ki lye ak yon plan pou kounye a.</p>
         )}
+      </section>
+
+      <section className={styles.panel} aria-label="Lavant separe pa tenant">
+        <div className={styles.panelHeading}>
+          <div><p className={styles.eyebrow}>DETAY PA TENANT</p><h2>Vant ak tikè chak tenant</h2></div>
+          <strong>{integer(tenantSales.length)}</strong>
+        </div>
+        {tenantSales.length ? <div className={styles.tenantTableWrap}>
+          <table className={styles.tenantTable}><thead><tr><th>Tenant</th><th>Tikè vann</th><th>Vant</th><th>Lajan</th></tr></thead>
+            <tbody>{tenantSales.map((row) => <tr key={row.tenantId}>
+              <td><strong>{row.tenantName}</strong><small>{row.tenantSlug}</small></td>
+              <td>{integer(row.tickets)}</td><td><strong>{money(row.amount, row.currency)}</strong></td><td>{row.currency}</td>
+            </tr>)}</tbody>
+          </table>
+        </div> : <p className={styles.empty}>Pa gen done tenant disponib.</p>}
       </section>
     </div>
   );

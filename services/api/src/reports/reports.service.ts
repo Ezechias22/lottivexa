@@ -6,6 +6,7 @@ import { buildSalesPdf } from './pdf-report';
 import { ticketLineFlags } from '../tickets/ticket-line-flags';
 import { groupTicketSalesByDraw, reportDrawSession } from './report-draw-policy';
 import { parseMerchantIds } from './report-scope-policy';
+import { activeOperationalTicketFilter } from '../tickets/ticket-visibility-policy';
 
 const zone = 'America/Port-au-Prince';
 type ReportFilterInput = { merchantIds?: string | string[]; branchId?: string };
@@ -21,18 +22,18 @@ export class ReportsService {
       ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
       ...(scope.branchId ? { branchId: scope.branchId } : {}),
     };
-    const where = { tenantId, createdAt: range, ...ticketScope };
+    const where = { tenantId, createdAt: range, ...ticketScope, ...activeOperationalTicketFilter() };
     const saleWhere = { ...where, status: { notIn: ['CANCELLED', 'VOID'] as any } };
     const cancelledWhere = { ...where, status: { in: ['CANCELLED', 'VOID'] as any } };
     const payoutWhere = {
       tenantId,
       paidAt: range,
-      ticket: ticketScope,
+      ticket: { ...ticketScope, ...activeOperationalTicketFilter() },
     };
     const commissionWhere = {
       tenantId,
       createdAt: range,
-      ticket: { status: { notIn: ['CANCELLED', 'VOID'] as any } },
+      ticket: { status: { notIn: ['CANCELLED', 'VOID'] as any }, ...activeOperationalTicketFilter() },
       ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
       ...(scope.branchId ? { merchant: { branchId: scope.branchId } } : {}),
     };
@@ -53,7 +54,7 @@ export class ReportsService {
       prisma.tenantSetting.findUnique({ where: { tenantId }, select: { currency: true } }),
       this.salesByDay(tenantId, scope, range),
       prisma.winningTicket.findMany({
-        where: { tenantId, detectedAt: range, ticket: ticketScope },
+        where: { tenantId, detectedAt: range, ticket: { ...ticketScope, ...activeOperationalTicketFilter() } },
         orderBy: [{ winningAmount: 'desc' }, { detectedAt: 'desc' }],
         take: 5,
         include: {
@@ -146,12 +147,14 @@ export class ReportsService {
         tenantId,
         createdAt: range,
         status: { notIn: ['CANCELLED', 'VOID'] },
+        ...activeOperationalTicketFilter(),
         ...(scope.merchantIds ? { merchantId: { in: scope.merchantIds } } : {}),
         ...(scope.branchId ? { branchId: scope.branchId } : {}),
       },
       select: {
         drawId: true,
         amount: true,
+        currencyCode: true,
         lines: { select: { id: true, drawId: true, stake: true } },
         events: { select: { id: true, type: true, metadata: true, createdAt: true } },
         draw: { select: { id: true, drawNumber: true, drawDate: true, resultAt: true, opensAt: true, closesAt: true, game: { select: { name: true, code: true } } } },
@@ -219,6 +222,10 @@ export class ReportsService {
         AND "createdAt" >= ${range.gte}
         AND "createdAt" <= ${range.lte}
         AND "status" NOT IN ('CANCELLED', 'VOID')
+        AND NOT EXISTS (
+          SELECT 1 FROM "TicketEvent" AS deleted_event
+          WHERE deleted_event."ticketId" = "Ticket"."id" AND deleted_event."type" = 'DELETED'
+        )
         ${merchantFilter}
         ${branchFilter}
       GROUP BY 1

@@ -3,6 +3,7 @@
 import styles from './platform-dashboard.module.css';
 
 type CurrencyTotal = { currency: string; amount: string | number; tickets: number };
+type TenantSales = { tenantId: string; tenantName: string; tenantSlug: string; currency: string; tickets: number; amount: string | number };
 type DashboardData = {
   tenants?: number;
   activeTenants?: number;
@@ -12,6 +13,7 @@ type DashboardData = {
   tickets?: number;
   failedPayments?: number;
   salesByCurrency?: CurrencyTotal[];
+  salesByTenant?: TenantSales[];
 };
 
 const integer = (value: unknown) => {
@@ -45,7 +47,7 @@ export default function PlatformDashboard({ data }: { data: DashboardData }) {
       <div>
         <span className={styles.eyebrow}>SANT KONTWÒL · LOTTIVEXA</span>
         <h2>Apèsi jeneral</h2>
-        <p>Swiv aktivite tenant yo, rezo machann yo ak lavant platfòm nan.</p>
+        <p>Swiv aktivite ak lavant chak tenant separeman sou platfòm nan.</p>
       </div>
       <div className={styles.live}><i /> DONE AN TAN REYÈL</div>
     </section>
@@ -78,6 +80,21 @@ export default function PlatformDashboard({ data }: { data: DashboardData }) {
         <strong className={styles.alertCount}>{integer(data.failedPayments)}</strong>
         <p>{Number(data.failedPayments ?? 0) > 0 ? 'Gen peman ki bezwen verifikasyon.' : 'Pa gen peman echwe pou kounye a.'}</p>
       </article>
+    </section>
+
+    <section className={styles.tenantPanel} aria-label="Lavant pa tenant">
+      <div className={styles.panelHeading}>
+        <div><span className={styles.eyebrow}>DETAY PA TENANT</span><h3>Lavant ak tikè chak tenant</h3></div>
+        <span className={styles.tenantCount}>{integer((data.salesByTenant ?? []).length)} tenant</span>
+      </div>
+      {(data.salesByTenant ?? []).length ? <div className={styles.tenantTableWrap}>
+        <table className={styles.tenantTable}><thead><tr><th>Tenant</th><th>Tikè vann</th><th>Vant</th><th>Lajan</th></tr></thead>
+          <tbody>{(data.salesByTenant ?? []).map((row) => <tr key={row.tenantId}>
+            <td><strong>{row.tenantName}</strong><small>{row.tenantSlug}</small></td>
+            <td>{integer(row.tickets)}</td><td><strong>{money(row.amount, row.currency)}</strong></td><td>{row.currency}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <p className={styles.empty}>Pa gen done tenant disponib.</p>}
     </section>
   </div>;
 }
