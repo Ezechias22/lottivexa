@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8');
 const countries = readFileSync(new URL('./country-options.ts', import.meta.url), 'utf8');
+const platformDashboard = readFileSync(new URL('./platform-dashboard.tsx', import.meta.url), 'utf8');
+const platformDashboardStyles = readFileSync(new URL('./platform-dashboard.module.css', import.meta.url), 'utf8');
+const masterStyles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('master admin console', () => {
   it('uses platform authentication', () => {
@@ -32,5 +35,14 @@ describe('master admin console', () => {
   it('does not render fabricated dashboard values', () => {
     expect(source).toContain('/master/dashboard');
     expect(source).not.toMatch(/Total tenants','—|fake/i);
+  });
+
+  it('keeps Master Admin dashboard panels and tenant sales readable on phones', () => {
+    for (const label of ['Tenant', 'Tikè vann', 'Vant', 'Lajan']) {
+      expect(platformDashboard).toContain(`data-label=\"${label}\"`);
+    }
+    expect(platformDashboardStyles).toContain('.tenantTable td::before{content:attr(data-label)');
+    expect(platformDashboardStyles).toContain('grid-template-columns:repeat(2,minmax(0,1fr))');
+    expect(masterStyles).toContain('.table-panel{max-width:100%;overflow-x:auto');
   });
 });

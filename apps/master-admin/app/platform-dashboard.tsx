@@ -90,8 +90,8 @@ export default function PlatformDashboard({ data }: { data: DashboardData }) {
       {(data.salesByTenant ?? []).length ? <div className={styles.tenantTableWrap}>
         <table className={styles.tenantTable}><thead><tr><th>Tenant</th><th>Tikè vann</th><th>Vant</th><th>Lajan</th></tr></thead>
           <tbody>{(data.salesByTenant ?? []).map((row) => <tr key={row.tenantId}>
-            <td><strong>{row.tenantName}</strong><small>{row.tenantSlug}</small></td>
-            <td>{integer(row.tickets)}</td><td><strong>{money(row.amount, row.currency)}</strong></td><td>{row.currency}</td>
+            <td data-label="Tenant"><strong>{row.tenantName}</strong><small>{row.tenantSlug}</small></td>
+            <td data-label="Tikè vann">{integer(row.tickets)}</td><td data-label="Vant"><strong>{money(row.amount, row.currency)}</strong></td><td data-label="Lajan">{row.currency}</td>
           </tr>)}</tbody>
         </table>
       </div> : <p className={styles.empty}>Pa gen done tenant disponib.</p>}

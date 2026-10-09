@@ -1,5 +1,5 @@
 import{BadRequestException,ForbiddenException,Injectable,NotFoundException}from'@nestjs/common';
-import{canTenantDeleteTicket}from'./ticket-delete-policy';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{isConfiguredDrawEnabled}from'../lottery/draw-schedule-policy';import{blockedNumberMatches,chooseOdds,isNumberBlocked,cancellationDeadline,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{resolveFreeMaryajPolicy,randomFreeMaryajSelections}from'./free-maryaj-policy';import{currencyForOffice}from'../branches/office-currency-policy';import{officeCountryFromSettings}from'../branches/office-location-policy';import{postTicketCommission}from'../commissions/commission-processor.service';import{activeOperationalTicketFilter,isOperationallyDeleted}from'./ticket-visibility-policy';
+import{merchantTicketDeleteBlockReason}from'./ticket-delete-policy';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{isConfiguredDrawEnabled}from'../lottery/draw-schedule-policy';import{blockedNumberMatches,chooseOdds,isNumberBlocked,cancellationDeadline,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{resolveFreeMaryajPolicy,randomFreeMaryajSelections}from'./free-maryaj-policy';import{currencyForOffice}from'../branches/office-currency-policy';import{officeCountryFromSettings}from'../branches/office-location-policy';import{postTicketCommission}from'../commissions/commission-processor.service';import{activeOperationalTicketFilter,isOperationallyDeleted}from'./ticket-visibility-policy';
 @Injectable()export class TicketsService{async create(u:Principal,dto:{drawId:string;idempotencyKey:string;deviceId?:string;lines:{betTypeId:string;selection:Array<number|string>;stake:string;resultPosition?:number}[];freeMaryaj?:{selection:Array<number|string>}[]}){
   const tenantId=this.tenant(u);
   const existing=await prisma.ticket.findUnique({where:{tenantId_idempotencyKey:{tenantId,idempotencyKey:dto.idempotencyKey}},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
@@ -126,11 +126,39 @@ import{canTenantDeleteTicket}from'./ticket-delete-policy';import{prisma,Prisma,T
     return presentTicketLines(await tx.ticket.findUniqueOrThrow({where:{id:ticket.id},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}}));
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
 } async deleteTicket(u:Principal,ref:string){
-  const tenantId=this.tenant(u),merchantAccount=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub},select:{id:true}});if(!canTenantDeleteTicket(Boolean(merchantAccount)))throw new ForbiddenException('TICKET_DELETE_TENANT_ONLY');
+  const tenantId=this.tenant(u);
   return prisma.$transaction(async tx=>{
-    const ticket=await tx.ticket.findFirst({where:{tenantId,...activeOperationalTicketFilter(),OR:[{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},select:{id:true,ticketNumber:true,status:true,amount:true,currencyCode:true}});
+    const merchantAccount=await tx.merchantAccount.findFirst({
+      where:{tenantId,userId:u.sub},
+      select:{id:true,status:true,branchId:true,branch:{select:{status:true}}},
+    });
+    if(merchantAccount&&(merchantAccount.status!=='ACTIVE'||merchantAccount.branch.status!=='ACTIVE')){
+      throw new ForbiddenException('MERCHANT_ACCOUNT_INACTIVE');
+    }
+    const merchant=merchantAccount?{id:merchantAccount.id,branchId:merchantAccount.branchId}:null;
+    const ticket=await tx.ticket.findFirst({
+      where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{merchantId:merchant.id,branchId:merchant.branchId}:{}),OR:[{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},
+      include:{
+        draw:{select:{id:true,status:true,closesAt:true}},
+        ticketDraws:{include:{draw:{select:{id:true,status:true,closesAt:true}}}},
+        payout:{select:{id:true}},
+        winning:{select:{id:true}},
+      },
+    });
     if(!ticket)throw new NotFoundException('TICKET_NOT_FOUND');
-    await tx.printJob.updateMany({where:{tenantId,ticketId:ticket.id,status:{in:['QUEUED','FAILED']}},data:{status:'CANCELLED',lastError:'Ticket deleted from operational lists'}});const event=await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'DELETED',userId:u.sub,metadata:{source:'operational_ticket_list',financialRecordsRetained:true}}});
+    if(merchant){
+      const draws=[ticket.draw,...ticket.ticketDraws.map(item=>item.draw)];
+      const uniqueDraws=[...new Map(draws.map(draw=>[draw.id,draw])).values()];
+      const reason=merchantTicketDeleteBlockReason({
+        status:ticket.status,
+        hasPayout:Boolean(ticket.payout),
+        hasWinningRecord:Boolean(ticket.winning),
+        draws:uniqueDraws,
+      });
+      if(reason)throw new BadRequestException(reason);
+    }
+    await tx.printJob.updateMany({where:{tenantId,ticketId:ticket.id,status:{in:['QUEUED','FAILED']}},data:{status:'CANCELLED',lastError:'Ticket deleted from operational lists'}});
+    const event=await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'DELETED',userId:u.sub,metadata:{source:'operational_ticket_list',financialRecordsRetained:true}}});
     await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'DELETE',entityType:'Ticket',entityId:ticket.id,oldValues:{status:ticket.status,amount:ticket.amount.toString(),currencyCode:ticket.currencyCode},newValues:{hiddenFromOperations:true,financialRecordsRetained:true}}});
     return{deleted:true,alreadyDeleted:false,ticketNumber:ticket.ticketNumber,deletedAt:event.createdAt.toISOString()};
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});

@@ -1607,3 +1607,5 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
     max-height: 175px;
   }
 }
+
+.ticket-history-row{display:flex;align-items:stretch;gap:8px;min-width:0}.history .ticket-history-open{display:flex;flex:1 1 auto;justify-content:space-between;gap:10px;min-width:0;text-align:left;background:#f8fafc;border:1px solid #e2e8f0;color:inherit}.history .ticket-history-open>span{min-width:0;overflow-wrap:anywhere}.history .ticket-history-delete{flex:0 0 auto;align-self:center;padding:9px 11px;white-space:nowrap}@media(max-width:480px){.ticket-history-row{gap:5px}.history .ticket-history-open{gap:6px;padding:9px}.history .ticket-history-delete{padding:8px;font-size:11px}}

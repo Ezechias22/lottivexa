@@ -8,6 +8,7 @@ const sessionRefresh = readFileSync(new URL('./session-refresh.ts', import.meta.
 const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 const ticketSale = readFileSync(new URL('./ticket-sale.ts', import.meta.url), 'utf8');
 const replay = readFileSync(new URL('./replay-ticket.ts', import.meta.url), 'utf8');
+const ticketDelete = readFileSync(new URL('./ticket-delete.ts', import.meta.url), 'utf8');
 const webMenu = readFileSync(new URL('./web-menu.tsx', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
@@ -61,10 +62,16 @@ describe('merchant POS', () => {
     expect(source).toContain("document.addEventListener('visibilitychange',refresh)");
   });
 
-  it('hides permanent ticket deletion from the merchant interface', () => {
-    expect(source).not.toContain('deleteTicket');
+  it('allows merchants to remove their ticket only before every draw closes', () => {
+    expect(source).toContain("method:'DELETE'");
+    expect(source).toContain("can('tickets.cancel')&&canMerchantDeleteTicket(t)");
+    expect(source).toContain('ticket-history-delete');
+    expect(source).toContain('showDelete=!showWinners');
+    expect(source).toContain('TICKET_DELETE_DRAW_CLOSED:');
+    expect(source).toContain('TICKET_DELETE_FINALIZED:');
+    expect(ticketDelete).toContain("draw.status === 'OPEN'");
+    expect(ticketDelete).toContain('now < closesAt');
     expect(source).toContain('filter(ticketBelongsInWinnersList)');
-    expect(source).toContain('DRAW_CLOSED:');
     expect(source).toContain('closedDrawLines.length>0');
   });
 
