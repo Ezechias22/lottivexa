@@ -30,3 +30,12 @@ export function replayTicketLines(ticket: ReplayTicket): ReplayLine[] {
     };
   });
 }
+
+export type ReplayDraftLine = ReplayLine & { drawId?: string };
+
+/** Assigns copied lines to every chosen draw while preserving new lines already assigned to a draw. */
+export function assignUndrawnLinesToSelectedDraws(lines: ReplayDraftLine[], drawIds: string[]) {
+  return lines.flatMap((line) =>
+    line.drawId ? [line] : drawIds.map((drawId) => ({ ...line, drawId })),
+  );
+}

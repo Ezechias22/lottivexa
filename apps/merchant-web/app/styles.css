@@ -1504,3 +1504,106 @@ body:has(.lottivexa-language-switcher .languageMenu) .pos > header > .secondary 
 
 .merchant-result-date{display:flex;align-items:center;gap:8px;color:#52657e;font-size:12px;font-weight:800}.merchant-result-date input{min-height:38px;padding:7px 9px;border:1px solid #d5dfeb;border-radius:10px;background:#fff;color:#172b47;font:inherit}.merchant-result-date input:focus-visible{outline:3px solid #8cb5ed;outline-offset:2px}
 @media(max-width:720px){.merchant-results-panel>.title{align-items:flex-start;flex-wrap:wrap}.merchant-result-date{order:3;width:100%;justify-content:space-between}.merchant-result-date input{flex:1;max-width:190px}}
+
+
+.sell form .ticket-actions {
+  position: fixed;
+  left: max(12px, calc((100vw - 1200px) / 2 + 12px));
+  right: max(12px, calc((100vw - 1200px) / 2 + 12px));
+  bottom: 12px;
+  z-index: 10003;
+  margin: 0;
+  padding: 12px 18px;
+  border-top: 1px solid #dbe4ef;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 -8px 24px rgb(15 38 70 / 10%);
+  backdrop-filter: blur(12px);
+}
+.sell form {
+  padding-bottom: 84px;
+}
+.sell form .ticket-actions button {
+  min-height: 48px;
+  padding-inline: 20px;
+}
+.draw-multi-selector {
+  min-width: 0;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 13px;
+  background: #fbfdff;
+}
+.draw-multi-selector legend {
+  padding: 0 6px;
+  color: #233a59;
+  font-size: 13px;
+  font-weight: 850;
+}
+.draw-multi-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 7px;
+  max-height: 190px;
+  overflow: auto;
+}
+.draw-multi-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e2e9f2;
+  border-radius: 10px;
+  background: #fff;
+  color: #253b57;
+  font-size: 12px;
+  font-weight: 750;
+}
+.draw-multi-list input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 1px 0 0;
+  accent-color: #1f5fbf;
+}
+.draw-multi-list label span {
+  min-width: 0;
+}
+.draw-multi-hint {
+  display: block;
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.selected-draw-countdowns {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+.selected-draw-countdowns .selected-draw-countdown {
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .sell form .ticket-actions {
+    left: 8px;
+    right: 8px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .sell form .ticket-actions > b {
+    flex: 1 1 150px;
+    font-size: 12px;
+  }
+  .sell form .ticket-actions button {
+    flex: 0 0 auto;
+    min-height: 48px;
+  }
+  .draw-multi-list {
+    grid-template-columns: 1fr;
+    max-height: 175px;
+  }
+}

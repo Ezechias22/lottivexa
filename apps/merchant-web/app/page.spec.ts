@@ -6,6 +6,8 @@ const language = readFileSync(new URL('./language-switcher.tsx', import.meta.url
 const reports = readFileSync(new URL('./merchant-reports.tsx', import.meta.url), 'utf8');
 const sessionRefresh = readFileSync(new URL('./session-refresh.ts', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+const ticketSale = readFileSync(new URL('./ticket-sale.ts', import.meta.url), 'utf8');
+const replay = readFileSync(new URL('./replay-ticket.ts', import.meta.url), 'utf8');
 const webMenu = readFileSync(new URL('./web-menu.tsx', import.meta.url), 'utf8');
 
 describe('merchant POS', () => {
@@ -59,11 +61,10 @@ describe('merchant POS', () => {
     expect(source).toContain("document.addEventListener('visibilitychange',refresh)");
   });
 
-  it('removes a ticket through the audited delete action and filters the winners view', () => {
-    expect(source).toContain("method:'DELETE'");
-    expect(source).toContain('onClick={deleteTicket}');
+  it('hides permanent ticket deletion from the merchant interface', () => {
+    expect(source).not.toContain('deleteTicket');
     expect(source).toContain('filter(ticketBelongsInWinnersList)');
-    expect(source).toContain("DRAW_CLOSED:'Tiraj sa a fèmen.");
+    expect(source).toContain('DRAW_CLOSED:');
     expect(source).toContain('closedDrawLines.length>0');
   });
 
@@ -121,9 +122,24 @@ describe('merchant branding and multi-draw sales', () => {
     expect(source).toContain('state.dashboard?.logoUrl');
   });
 
-  it('keeps lines when changing the draw and stores the draw on each line', () => {
-    expect(source).toContain('setDraw(e.target.value);onDrawSelected?.()}} required');
-    expect(source).not.toContain('setDraw(e.target.value);setLines([])');
-    expect(source).toContain('drawId:draw');
+  it('lets the merchant select several draws and duplicates each added line per selected draw', () => {
+    expect(source).toContain('className="draw-multi-selector"');
+    expect(source).toContain('type="checkbox" checked={selectedDrawIds.includes(row.id)}');
+    expect(source).toContain('assignUndrawnLinesToSelectedDraws(lines,selectedDrawIds)');
+    expect(replay).toContain('drawIds.map((drawId)');
+    expect(ticketSale).toContain('draws: groups');
+    expect(source).toContain('name="drawId"');
+  });
+
+  it('keeps printer and template controls out of the sales form', () => {
+    expect(source).not.toContain('name="printerId"');
+    expect(source).not.toContain('name="templateId"');
+    expect(source).not.toContain("t('autoPrint')");
+  });
+
+  it('pins the sale button above the mobile navigation while scrolling', () => {
+    expect(styles).toContain('.sell form .ticket-actions {');
+    expect(styles).toContain('position: fixed;');
+    expect(styles).toContain('bottom: calc(64px + env(safe-area-inset-bottom));');
   });
 });
