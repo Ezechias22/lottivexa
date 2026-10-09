@@ -53,7 +53,7 @@ describe('Haitian result positions and dekabès', () => {
   });
   it('counts repeated winning positions as dekabès for a Bolet line', () => {
     expect(winningSelectionCount('BOLET', '12', ['12', '12', '34'])).toBe(2);
-    expect(winningSelectionCount('BOLET', '12@1', ['12', '12', '34'])).toBe(2);
+    expect(winningSelectionCount('BOLET', '12@1', ['12', '12', '34'])).toBe(1);
     expect(winningSelectionCount('BOLET', '12@3', ['12', '12', '34'])).toBe(0);
   });
   it('rejects positions outside 1 through 3', () => {

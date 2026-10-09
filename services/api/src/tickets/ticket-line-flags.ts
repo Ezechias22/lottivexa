@@ -29,13 +29,21 @@ export function ticketLineFlags(events: readonly EventRecord[], lineId: string) 
     if (a.id !== undefined && b.id !== undefined && a.id !== b.id) return Number(a.id) - Number(b.id);
     return 0;
   });
-  const latestCheck = [...orderedEvents].reverse().flatMap(event => {
+  const latestCheckRecord = [...orderedEvents].reverse().flatMap(event => {
     if (event.type !== 'RESULT_CHECKED') return [];
     const data = asRecord(event.metadata);
     const counts = Array.isArray(data?.lineWinCounts) ? data.lineWinCounts : [];
     const item = counts.map(asRecord).find(value => value?.lineId === lineId);
-    return item ? [{ item }] : [];
-  })[0]?.item;
+    return item && data ? [{ item, data }] : [];
+  })[0];
+  const latestCheck = latestCheckRecord?.item;
+  const lineWinningAmountRecord = (Array.isArray(latestCheckRecord?.data.lineWinAmounts) ? latestCheckRecord.data.lineWinAmounts : [])
+    .map(asRecord)
+    .find(value => value?.lineId === lineId);
+  const rawLineWinningAmount = lineWinningAmountRecord?.amount;
+  const lineWinningAmount = typeof rawLineWinningAmount === 'string' || typeof rawLineWinningAmount === 'number'
+    ? String(rawLineWinningAmount)
+    : undefined;
   const legacyWinner = latestCheck ? undefined : [...orderedEvents].reverse().find(event => event.type === 'MARKED_WINNER');
   const legacyData = asRecord(legacyWinner?.metadata);
   const legacyCounts = Array.isArray(legacyData?.lineWinCounts) ? legacyData.lineWinCounts : [];
@@ -51,6 +59,7 @@ export function ticketLineFlags(events: readonly EventRecord[], lineId: string) 
     isPromotional: promoIds.includes(lineId),
     winCount: typeof lineCount === 'number' && Number.isInteger(lineCount) ? lineCount : 0,
     winningDrawIds,
+    lineWinningAmount,
   };
 }
 
@@ -85,7 +94,7 @@ function hasCurrentDrawCheck(events: readonly EventRecord[], draw: DrawResultRec
     const versions = metadata?.checkedDrawVersions;
     return Array.isArray(versions) && versions.some(value => {
       const version = asRecord(value);
-      return version?.drawId === draw.id
+      return version !== undefined && version.drawId === draw.id
         && version?.publishedAt === publishedAt
         && version?.evaluationVersion === RESULT_EVALUATION_VERSION;
     });
@@ -114,7 +123,7 @@ function currentLineCheck(
     const versions = metadata?.checkedDrawVersions;
     const isCurrent = Array.isArray(versions) && versions.some(value => {
       const version = asRecord(value);
-      return version?.drawId === draw.id
+      return version !== undefined && version.drawId === draw.id
         && version?.publishedAt === dateIso(draw.publishedAt)
         && version?.evaluationVersion === RESULT_EVALUATION_VERSION;
     });
@@ -194,7 +203,8 @@ export function presentTicketLines<T extends {
   const hasWinningLine = resultEvaluationConfirmed && lineOutcomes.some(item => (item.result?.winCount ?? 0) > 0);
   const expectedAmount = lineOutcomes.reduce((total, { line, result }) => {
     if (!result || result.winCount <= 0) return total;
-    const amount = confirmedLineWinningAmount(line.potentialWin, result.winCount, true);
+    const flags = ticketLineFlags(ticket.events, line.id);
+    const amount = flags.lineWinningAmount ?? confirmedLineWinningAmount(line.potentialWin, result.winCount, true);
     return amount ? total.add(new Prisma.Decimal(amount)) : total;
   }, new Prisma.Decimal(0));
   const storedAmount = new Prisma.Decimal(String((ticket.winning as { winningAmount?: unknown } | null)?.winningAmount ?? 0));
@@ -217,7 +227,9 @@ export function presentTicketLines<T extends {
       const { potentialWin: _linePotentialWin, ...visibleLine } = line;
       const isWinner = result ? result.winCount > 0 : null;
       const winCount = result?.winCount ?? 0;
-      const winningAmount = confirmedLineWinningAmount(line.potentialWin, winCount, hasConfirmedWinnings && isWinner === true);
+      const winningAmount = hasConfirmedWinnings && isWinner === true && flags.lineWinningAmount !== undefined
+        ? flags.lineWinningAmount
+        : confirmedLineWinningAmount(line.potentialWin, winCount, hasConfirmedWinnings && isWinner === true);
       const matchedWinningKeys = result && result.winCount > 0 ? winningKeysForLine(line.betType?.code, line.selectionKey, draw) : [];
       return {
         ...visibleLine,

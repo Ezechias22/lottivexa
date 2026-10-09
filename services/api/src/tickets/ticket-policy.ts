@@ -56,6 +56,21 @@ function clean(value: string) {
   return normalized.replace(/^0+(?=\d)/, '');
 }
 
+export function winningResultPositions(betTypeCode: string, storedSelectionKey: string, winningKeys: readonly string[] | Set<string>): number[] {
+  const ordered = [...winningKeys].map(clean);
+  const [selectionKey, positionText] = storedSelectionKey.includes('@') ? storedSelectionKey.split('@') : [storedSelectionKey, undefined];
+  if (betTypeCode !== 'BOLET' && betTypeCode !== 'BOUL_PE') return [];
+  const selection = clean(selectionKey);
+  const matchesSelection = (value: string | undefined) => value === selection
+    || (typeof value === 'string' && /^\d{3}$/.test(value) && value.slice(-2) === selection);
+  if (positionText !== undefined) {
+    const position = Number(positionText);
+    if (!Number.isInteger(position) || position < 1) return [];
+    return matchesSelection(ordered[position - 1]) ? [position] : [];
+  }
+  return ordered.flatMap((value, index) => matchesSelection(value) ? [index + 1] : []);
+}
+
 export function winningSelectionCount(betTypeCode: string, storedSelectionKey: string, winningKeys: readonly string[] | Set<string>) {
   const ordered = [...winningKeys].map(clean);
   const hasPosition = storedSelectionKey.includes('@');
@@ -66,10 +81,7 @@ export function winningSelectionCount(betTypeCode: string, storedSelectionKey: s
     return selection.length === 2 && selection.every(value => ordered.includes(value)) ? 1 : 0;
   }
   if (betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') {
-    const selection = clean(selectionKey);
-    const matches = ordered.filter(value => value === selection || ((betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') && /^\d{3}$/.test(value) && value.slice(-2) === selection)).length;
-    const positioned = ordered[resultPosition ? resultPosition - 1 : 0];
-    return resultPosition ? (positioned === selection || ((betTypeCode === 'BOLET' || betTypeCode === 'BOUL_PE') && /^\d{3}$/.test(positioned ?? '') && positioned!.slice(-2) === selection) ? matches : 0) : matches;
+    return winningResultPositions(betTypeCode, storedSelectionKey, winningKeys).length;
   }
   if (resultPosition) return ordered[resultPosition - 1] === clean(selectionKey) ? 1 : 0;
   const selection = selectionKey.split('-').map(clean);

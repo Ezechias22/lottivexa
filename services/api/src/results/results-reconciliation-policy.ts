@@ -2,8 +2,7 @@ type ResultCheckEvent = {
   type?: unknown;
   metadata?: unknown;
 };
-
-export const RESULT_EVALUATION_VERSION = 4;
+export const RESULT_EVALUATION_VERSION = 5;
 
 export function checkedDrawVersion(drawId: string, publishedAt: Date | null) {
   return { drawId, publishedAt: publishedAt?.toISOString() ?? null, evaluationVersion: RESULT_EVALUATION_VERSION };
