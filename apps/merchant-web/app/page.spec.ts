@@ -122,7 +122,7 @@ describe('merchant branding and multi-draw sales', () => {
   });
 
   it('keeps lines when changing the draw and stores the draw on each line', () => {
-    expect(source).toContain('setDraw(e.target.value)} required');
+    expect(source).toContain('setDraw(e.target.value);onDrawSelected?.()}} required');
     expect(source).not.toContain('setDraw(e.target.value);setLines([])');
     expect(source).toContain('drawId:draw');
   });
