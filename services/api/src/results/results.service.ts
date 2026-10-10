@@ -241,7 +241,7 @@ export class ResultsService implements OnModuleInit{
       }
       await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'DrawResult',entityId:drawId,newValues:{winningKeys:result.winningKeys,ticketsProcessed:tickets.length,winners}}});
       return{drawId,ticketsProcessed:tickets.length,winners};
-    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable,maxWait:10_000,timeout:60_000});
   }
 
   private ticketsForDraw(tx:Prisma.TransactionClient,tenantId:string,drawId:string){
