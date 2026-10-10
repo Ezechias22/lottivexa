@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { localResultDate, publishedResultsForDate } from './results-date';
+import { localResultDate, orderedThreeDigitResult, publishedResultsForDate } from './results-date';
 
 type Row = Record<string, any>;
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -23,6 +23,15 @@ function readableDraw(row: Row) {
   const day = new Intl.DateTimeFormat(french ? 'fr-FR' : 'fr-HT', { timeZone: zone, day: '2-digit', month: '2-digit', year: 'numeric' }).format(validDate);
   const time = new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(validDate);
   return `${game} · ${normal} · ${session} · ${day} ${time}`;
+}
+
+function visibleWinningResult(row: Row) {
+  const keys = (row.result?.winningKeys ?? []).map((value: unknown) => String(value).split('@')[0]);
+  const positioned = orderedThreeDigitResult(keys);
+  if (!positioned) return keys.join(' · ') || '—';
+  const french = typeof document !== 'undefined' && document.documentElement.lang === 'fr';
+  const labels = french ? ['1er', '2e', '3e', 'Complet'] : ['1ye', '2yèm', '3yèm', 'Konplè'];
+  return `${labels[0]}: ${positioned.positions[0]} · ${labels[1]}: ${positioned.positions[1]} · ${labels[2]}: ${positioned.positions[2]} · ${labels[3]}: ${positioned.combined}`;
 }
 
 export default function Results() {
@@ -66,7 +75,7 @@ export default function Results() {
       {(data.results ?? []).map((row: Row) => <article key={row.id} style={{ border: '1px solid #ddd', borderRadius: 14, padding: 18 }}>
         <small>{row.game?.catalogCode}</small><h2>{row.game?.name}</h2>
         {row.game?.logoUrl && <img src={row.game.logoUrl} alt={`Logo ${row.game?.name ?? ''}`} style={{ height: 64, maxWidth: 180, objectFit: 'contain' }} />}
-        <b>{readableDraw(row)}</b><p style={{ fontSize: 24, fontWeight: 900 }}>{row.result?.winningKeys?.join(' · ') ?? '—'}</p>
+        <b>{readableDraw(row)}</b><p style={{ fontSize: 20, fontWeight: 900 }}>{visibleWinningResult(row)}</p>
         <time>{row.publishedAt ? new Date(row.publishedAt).toLocaleString() : '—'}</time>
       </article>)}
     </section>

@@ -14,6 +14,27 @@ export function drawResultDate(row: Record<string, unknown>) {
   return '';
 }
 
+function scheduledTime(row: Record<string, any>) {
+  for (const field of ['resultAt', 'closesAt', 'opensAt', 'drawDate', 'publishedAt']) {
+    const value = row[field];
+    if (typeof value === 'string') {
+      const timestamp = Date.parse(value);
+      if (Number.isFinite(timestamp)) return timestamp;
+    }
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
 export function publishedResultsForDate(rows: Record<string, any>[], date: string) {
-  return rows.filter(row => row.status === 'RESULT_PUBLISHED' && drawResultDate(row) === date);
+  return rows
+    .filter(row => row.status === 'RESULT_PUBLISHED' && drawResultDate(row) === date)
+    .sort((left, right) => scheduledTime(left) - scheduledTime(right));
+}
+
+export function orderedThreeDigitResult(keys: string[]) {
+  if (keys.length !== 4 || !/^\d{3}$/.test(keys[3])) return null;
+  const positions = keys.slice(0, 3);
+  if (positions.some(key => !/^\d{2}$/.test(key))) return null;
+  const combined = positions.map(key => key.replace(/^0+/, '') || '0').join('');
+  return combined === keys[3] ? { positions, combined: keys[3] } : null;
 }
