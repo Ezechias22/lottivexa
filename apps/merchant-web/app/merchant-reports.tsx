@@ -46,7 +46,7 @@ export default function MerchantReports({ request }: { request: Request }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (start = from, end = to) => {
+  const load = useCallback(async (start: string, end: string) => {
     if (start > end) { setError(t('invalidDateRange')); return; }
     setLoading(true);
     setError('');
@@ -58,7 +58,7 @@ export default function MerchantReports({ request }: { request: Request }) {
     } catch (value) {
       setError(value instanceof Error ? value.message : String(value));
     } finally { setLoading(false); }
-  }, [from, to, request, t]);
+  }, [request, t]);
 
   useEffect(() => { void load(shiftDay(today, -6), today); }, [load, today]);
   const choosePeriod = (days: number) => {
@@ -95,12 +95,12 @@ export default function MerchantReports({ request }: { request: Request }) {
   const biggestWins: Row[] = sales?.biggestWins ?? [];
 
   return <section className="merchant-reports">
-    <div className="reports-heading"><div><span className="eyebrow">{t('reports')}</span><h2>{t('reportSummary')}</h2></div><button className="secondary" onClick={() => void load()}>{t('reload')}</button></div>
+    <div className="reports-heading"><div><span className="eyebrow">{t('reports')}</span><h2>{t('reportSummary')}</h2></div><button className="secondary" onClick={() => void load(from, to)} disabled={loading}>{t('reload')}</button></div>
     <section className="report-filter panel">
       <div className="date-fields">
         <label>{t('from')}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
         <label>{t('to')}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
-        <button onClick={() => void load()} disabled={loading}>{t('showReport')}</button>
+        <button onClick={() => void load(from, to)} disabled={loading}>{t('showReport')}</button>
         <button className="secondary" onClick={() => void exportPdf()}>{t('downloadPdf')}</button>
       </div>
       <div className="period-buttons">

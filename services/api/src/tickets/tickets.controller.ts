@@ -56,5 +56,12 @@ export class TicketsController {
   get(@CurrentUser() user: Principal, @Param('reference') reference: string) { return this.service.get(user, reference); }
 
   @Get() @RequirePermissions('tickets.view')
-  search(@CurrentUser() user: Principal, @Query('status') status?: any, @Query('drawId') drawId?: string) { return this.service.search(user, { status, drawId }); }
+  search(
+    @CurrentUser() user: Principal,
+    @Query('status') status?: any,
+    @Query('drawId') drawId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+  ) { return this.service.search(user, { status, drawId, from, to, page }); }
 }

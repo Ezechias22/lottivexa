@@ -439,7 +439,7 @@ export default function TenantConsole() {
   }, [tab, tabReady, token, force, load]);
   useEffect(() => {
     if (!tabReady || !token || force) return;
-    const refresh = () => { if (!document.hidden) void load(tab, true); };
+    const refresh = () => { if (!document.hidden && tab !== "reports") void load(tab, true); };
     const timer = window.setInterval(refresh, 15000);
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("focus", refresh);
@@ -1324,26 +1324,41 @@ function tenantTicketDisplayStatus(ticket: Row): string {
 
 function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];request:(path:string,init?:RequestInit)=>Promise<any>;can:(permission:string)=>boolean;currency:string;onOpen:(ticket:Row)=>void;onDelete:(ticket:Row)=>void}) {
   const {language}=useI18n();
-  const tickets:Row[]=d[0]??[],draws:Row[]=d[1]??[];
+  const draws:Row[]=d[1]??[];
+  const [selectedDate,setSelectedDate]=useState(()=>haitiToday()),[ticketPage,setTicketPage]=useState(1),[ticketRows,setTicketRows]=useState<Row[]>([]),[ticketTotal,setTicketTotal]=useState(0),[ticketPageSize,setTicketPageSize]=useState(100),[ticketBusy,setTicketBusy]=useState(false),[ticketError,setTicketError]=useState('');
   const [winners,setWinners]=useState<Row[]>([]),[winnersPage,setWinnersPage]=useState(1),[winnersTotal,setWinnersTotal]=useState(0),[showWinners,setShowWinners]=useState(false),[winnersBusy,setWinnersBusy]=useState(false);
+  const loadTicketsByDate=useCallback(async(date:string,page:number)=>{
+    setTicketBusy(true);setTicketError('');
+    try{
+      const query=new URLSearchParams({from:date,to:date,page:String(page)}),result=await request(`/tickets?${query}`),items=Array.isArray(result)?result:(result.items??[]);
+      setTicketRows(items);setTicketTotal(Array.isArray(result)?items.length:Number(result.total??items.length));setTicketPageSize(Number(result.pageSize??100));
+    }catch(error){setTicketRows([]);setTicketTotal(0);setTicketError(error instanceof Error?error.message:String(error))}
+    finally{setTicketBusy(false)}
+  },[request]);
   const loadWinners=useCallback(async(page=1,silent=false)=>{if(!silent)setWinnersBusy(true);try{const result=await request(`/tickets/winners?page=${page}`);setWinners((result.items??[]).filter((ticket:Row)=>["WINNER","PAID"].includes(tenantTicketDisplayStatus(ticket))));setWinnersTotal(result.total??0);setWinnersPage(result.page??page);setShowWinners(true)}finally{if(!silent)setWinnersBusy(false)}},[request]);
+  useEffect(()=>{if(!showWinners)void loadTicketsByDate(selectedDate,ticketPage)},[d,showWinners,selectedDate,ticketPage,loadTicketsByDate]);
   useEffect(()=>{if(showWinners)void loadWinners(winnersPage,true)},[d,showWinners,winnersPage,loadWinners]);
-  const sourceRows=showWinners?winners:tickets;
+  const sourceRows=showWinners?winners:ticketRows;
   const rows=sourceRows.map((ticket:Row)=>({...ticket,status:showWinners?tenantTicketDisplayStatus(ticket):ticket.status,currency:ticket.currency??ticket.currencyCode??currency}));
   const labels=language==="fr"
-    ?{total:"Tickets chargés",draws:"Tirages ouverts",winners:"Gagnants",paid:"Payés",heading:showWinners?"Tickets gagnants":"Tickets de l’entreprise",open:"Ouvrir",all:"Tous les tickets",next:"Suivant",previous:"Précédent"}
-    :{total:"Tikè chaje",draws:"Tiraj ouvè",winners:"Gayan",paid:"Peye",heading:showWinners?"Tikè ki genyen yo":"Tikè biznis la",open:"Ouvri",all:"Tout tikè",next:"Pwochen",previous:"Anvan"};
+    ?{total:"Tickets dans la journée",draws:"Tirages ouverts",winners:"Gagnants",paid:"Payés",heading:showWinners?"Tickets gagnants":"Tickets de l’entreprise",open:"Ouvrir",all:"Tickets par date",next:"Suivant",previous:"Précédent",date:"Date des tickets",loading:"Recherche des tickets…",empty:"Aucun ticket pour cette date."}
+    :{total:"Tikè nan dat la",draws:"Tiraj ouvè",winners:"Gayan",paid:"Peye",heading:showWinners?"Tikè ki genyen yo":"Tikè biznis la",open:"Ouvri",all:"Tikè pa dat",next:"Pwochen",previous:"Anvan",date:"Dat tikè yo",loading:"N ap chèche tikè yo…",empty:"Pa gen tikè pou dat sa a."};
   return <>
     <div className="tenant-ticket-summary">
-      <article><span>{labels.total}</span><strong>{tickets.length}</strong></article>
+      <article><span>{labels.total}</span><strong>{showWinners?winnersTotal:ticketTotal}</strong></article>
       <article><span>{labels.draws}</span><strong>{draws.filter((x:Row)=>x.status==="OPEN").length}</strong></article>
-      <article><span>{labels.winners}</span><strong>{tickets.filter((x:Row)=>tenantTicketDisplayStatus(x)==="WINNER").length}</strong></article>
-      <article><span>{labels.paid}</span><strong>{tickets.filter((x:Row)=>tenantTicketDisplayStatus(x)==="PAID").length}</strong></article>
+      <article><span>{labels.winners}</span><strong>{sourceRows.filter((x:Row)=>tenantTicketDisplayStatus(x)==="WINNER").length}</strong></article>
+      <article><span>{labels.paid}</span><strong>{sourceRows.filter((x:Row)=>tenantTicketDisplayStatus(x)==="PAID").length}</strong></article>
     </div>
     <section className="panel tenant-ticket-list-panel">
-      <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><div className="tenant-ticket-filters"><button type="button" className={!showWinners?"active":"secondary"} onClick={()=>setShowWinners(false)}>{labels.all}</button><button type="button" className={showWinners?"active":"secondary"} onClick={()=>void loadWinners(1)}>{labels.winners}</button><span>{showWinners?`${winners.length} / ${winnersTotal}`:`${tickets.length} / 100`}</span></div></div>
+      <div className="tenant-ticket-list-heading"><h2>{labels.heading}</h2><div className="tenant-ticket-filters"><button type="button" className={!showWinners?"active":"secondary"} onClick={()=>setShowWinners(false)}>{labels.all}</button><button type="button" className={showWinners?"active":"secondary"} onClick={()=>void loadWinners(1)}>{labels.winners}</button><span>{showWinners?`${winners.length} / ${winnersTotal}`:`${ticketRows.length} / ${ticketTotal}`}</span></div></div>
+      {!showWinners&&<label className="tenant-ticket-date-filter" htmlFor="tenant-ticket-date">{labels.date}<input id="tenant-ticket-date" type="date" required value={selectedDate} onChange={(event)=>{if(event.target.value){setSelectedDate(event.target.value);setTicketPage(1);setShowWinners(false)}}} /></label>}
+      {ticketBusy&&!showWinners&&<p className="tenant-ticket-feedback">{labels.loading}</p>}
+      {ticketError&&!showWinners&&<p className="tenant-ticket-feedback is-error" role="alert">{ticketError}</p>}
+      {!ticketBusy&&!ticketError&&!showWinners&&!rows.length&&<p className="tenant-ticket-feedback">{labels.empty}</p>}
       <Table rows={rows} columns={[["ticketNumber","Ticket"],["status","Status"],["amount","Amount"],["createdAt","Date"]]} actions={(ticket)=><button className="tenant-ticket-open-button" onClick={()=>onOpen(ticket)}>{labels.open}</button>} />
       {showWinners&&<div className="tenant-ticket-pagination"><button className="secondary" disabled={winnersBusy||winnersPage<=1} onClick={()=>void loadWinners(winnersPage-1)}>{labels.previous}</button><span>{winnersPage}</span><button className="secondary" disabled={winnersBusy||winnersPage*50>=winnersTotal} onClick={()=>void loadWinners(winnersPage+1)}>{labels.next}</button></div>}
+      {!showWinners&&<div className="tenant-ticket-pagination"><button className="secondary" disabled={ticketBusy||ticketPage<=1} onClick={()=>setTicketPage(ticketPage-1)}>{labels.previous}</button><span>{ticketPage}</span><button className="secondary" disabled={ticketBusy||ticketPage*ticketPageSize>=ticketTotal} onClick={()=>setTicketPage(ticketPage+1)}>{labels.next}</button></div>}
     </section>
   </>;
 }
