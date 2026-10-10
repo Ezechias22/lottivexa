@@ -1,4 +1,4 @@
-import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{DrawStatus,LimitScope,prisma,Prisma}from'@lottivexa/database';import type{Principal}from'../common/guards/jwt-auth.guard';import{assertDrawTimes,assertDrawTransition,assertScheduleTimes,assertPositionedOddsType,normalizeBoletMultipliers}from'./lottery-policy';import{isDrawScheduleEnabled}from'./draw-schedule-policy';import{installHaitiCatalog}from'./haiti-catalog-installer';import{currencyForCountry,COUNTRY_CURRENCY}from'../tenants/country-currency-policy';import{resolveFreeMaryajPolicy,validateFreeMaryajPolicy}from'../tickets/free-maryaj-policy';import{drawDateFilter}from'./draw-date-filter';
+import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';import{DrawStatus,LimitScope,prisma,Prisma}from'@lottivexa/database';import type{Principal}from'../common/guards/jwt-auth.guard';import{assertDrawTimes,assertDrawTransition,assertScheduleTimes,assertPositionedOddsType,normalizeBoletMultipliers}from'./lottery-policy';import{isDrawScheduleEnabled}from'./draw-schedule-policy';import{installHaitiCatalog}from'./haiti-catalog-installer';import{currencyForCountry,COUNTRY_CURRENCY}from'../tenants/country-currency-policy';import{resolveFreeMaryajPolicy,validateFreeMaryajPolicy}from'../tickets/free-maryaj-policy';import{drawDateFilter}from'./draw-date-filter';import{scheduledDrawTimeUpdate,type ScheduleDrawTiming}from'./scheduled-draw-times';
 @Injectable()export class LotteryService{
  catalog(u:Principal){const tenantId=this.tenant(u);return prisma.game.findMany({where:{tenantId,catalogCode:{not:null}},include:{schedules:true,betTypes:{include:{betType:true}}},orderBy:{name:'asc'}})}
  async setCatalogStatus(u:Principal,catalogCode:string,enabled:boolean){const tenantId=this.tenant(u);const changed=await prisma.game.updateMany({where:{tenantId,catalogCode},data:{status:enabled?'ACTIVE':'SUSPENDED'}});if(changed.count!==1)throw new ForbiddenException('CATALOG_GAME_NOT_FOUND');await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'LotteryCatalog',entityId:catalogCode,newValues:{enabled}}});return{catalogCode,enabled}}
@@ -12,32 +12,36 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
   if(dto.enabled===undefined&&!hasOpensAt)throw new BadRequestException('NO_SCHEDULE_SLOT_CHANGES');
   if(hasOpensAt)assertScheduleTimes(dto.opensAt!,dto.closesAt!,dto.resultAt);
   const where={tenantId,gameId:dto.gameId,resultAt:dto.resultAt};
-  const schedules=await prisma.gameSchedule.findMany({where,select:{id:true,active:true,opensAt:true,closesAt:true}});
-  if(!schedules.length)throw new ForbiddenException('SCHEDULE_NOT_FOUND');
-  const data={
-   ...(dto.enabled!==undefined?{active:dto.enabled}:{}),
-   ...(hasOpensAt?{opensAt:dto.opensAt!,closesAt:dto.closesAt!}:{}),
-  };
-  await prisma.$transaction(async tx=>{
+  return prisma.$transaction(async tx=>{
+   const schedules=await tx.gameSchedule.findMany({where,select:{id:true,active:true,opensAt:true,closesAt:true,resultAt:true,weekday:true,timezone:true}});
+   if(!schedules.length)throw new ForbiddenException('SCHEDULE_NOT_FOUND');
+   const data={
+    ...(dto.enabled!==undefined?{active:dto.enabled}:{}),
+    ...(hasOpensAt?{opensAt:dto.opensAt!,closesAt:dto.closesAt!}:{}),
+   };
    await tx.gameSchedule.updateMany({where,data});
+   const updatedDraws=hasOpensAt?await this.syncUpcomingScheduledDraws(tx,tenantId,dto.gameId,schedules.map(schedule=>({
+    weekday:schedule.weekday,timezone:schedule.timezone,previousResultAt:schedule.resultAt,
+    opensAt:dto.opensAt!,closesAt:dto.closesAt!,resultAt:schedule.resultAt,
+   }))):0;
    await tx.auditLog.create({data:{
     tenantId,userId:u.sub,action:'UPDATE',entityType:'GameScheduleSlot',entityId:`${dto.gameId}:${dto.resultAt}`,
     oldValues:{enabled:schedules.some(schedule=>schedule.active),times:[...new Set(schedules.map(schedule=>`${schedule.opensAt}-${schedule.closesAt}`))]},
     newValues:{
      ...(dto.enabled!==undefined?{enabled:dto.enabled}:{}),
      ...(hasOpensAt?{opensAt:dto.opensAt,closesAt:dto.closesAt}:{}),
-     updatedSchedules:schedules.length,
+     updatedSchedules:schedules.length,updatedDraws,
     },
    }});
-  });
-  return{
-   gameId:dto.gameId,resultAt:dto.resultAt,
-   ...(dto.enabled!==undefined?{enabled:dto.enabled}:{}),
-   ...(hasOpensAt?{opensAt:dto.opensAt,closesAt:dto.closesAt}:{}),
-   updatedSchedules:schedules.length,
-  };
+   return{
+    gameId:dto.gameId,resultAt:dto.resultAt,
+    ...(dto.enabled!==undefined?{enabled:dto.enabled}:{}),
+    ...(hasOpensAt?{opensAt:dto.opensAt,closesAt:dto.closesAt}:{}),
+    updatedSchedules:schedules.length,updatedDraws,
+   };
+  },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
  }
- async updateScheduleTimes(u:Principal,id:string,dto:{opensAt?:string;closesAt?:string;resultAt?:string}){const tenantId=this.tenant(u);const schedule=await prisma.gameSchedule.findFirst({where:{id,tenantId}});if(!schedule)throw new ForbiddenException('SCHEDULE_NOT_FOUND');const opensAt=dto.opensAt??schedule.opensAt;const closesAt=dto.closesAt??schedule.closesAt;const resultAt=dto.resultAt??schedule.resultAt;assertScheduleTimes(opensAt,closesAt,resultAt);const updated=await prisma.gameSchedule.update({where:{id},data:{opensAt,closesAt,resultAt}});await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'GameSchedule',entityId:id,oldValues:{opensAt:schedule.opensAt,closesAt:schedule.closesAt,resultAt:schedule.resultAt},newValues:{opensAt,closesAt,resultAt}}});return updated}
+ async updateScheduleTimes(u:Principal,id:string,dto:{opensAt?:string;closesAt?:string;resultAt?:string}){const tenantId=this.tenant(u);return prisma.$transaction(async tx=>{const schedule=await tx.gameSchedule.findFirst({where:{id,tenantId}});if(!schedule)throw new ForbiddenException('SCHEDULE_NOT_FOUND');const opensAt=dto.opensAt??schedule.opensAt;const closesAt=dto.closesAt??schedule.closesAt;const resultAt=dto.resultAt??schedule.resultAt;assertScheduleTimes(opensAt,closesAt,resultAt);const updated=await tx.gameSchedule.update({where:{id},data:{opensAt,closesAt,resultAt}});const updatedDraws=await this.syncUpcomingScheduledDraws(tx,tenantId,schedule.gameId,[{weekday:schedule.weekday,timezone:schedule.timezone,previousResultAt:schedule.resultAt,opensAt,closesAt,resultAt}]);await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'GameSchedule',entityId:id,oldValues:{opensAt:schedule.opensAt,closesAt:schedule.closesAt,resultAt:schedule.resultAt},newValues:{opensAt,closesAt,resultAt,updatedDraws}}});return updated},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable})}
 
  settings(u:Principal){const tenantId=this.tenant(u);return prisma.game.findMany({where:{tenantId,archivedAt:null},include:{betTypes:{where:{active:true},include:{betType:true}},schedules:{include:{market:true},orderBy:[{weekday:'asc'},{opensAt:'asc'}]},odds:{where:{active:true},orderBy:{startsAt:'desc'}}},orderBy:{name:'asc'}})}
  async freeMaryajSettings(u:Principal,countryInput:string){const tenantId=this.tenant(u),countryCode=String(countryInput??'').trim().toUpperCase(),currency=currencyForCountry(countryCode);if(!currency)throw new BadRequestException('UNSUPPORTED_COUNTRY');const now=new Date(),rule=await prisma.lotteryRule.findFirst({where:{tenantId,jurisdictionCode:countryCode,key:'free_maryaj_policy',active:true,effectiveFrom:{lte:now},OR:[{effectiveTo:null},{effectiveTo:{gt:now}}]},orderBy:{effectiveFrom:'desc'}});return{...resolveFreeMaryajPolicy(countryCode,rule?.value),currency,countryName:COUNTRY_CURRENCY[countryCode as keyof typeof COUNTRY_CURRENCY].name}}
@@ -60,5 +64,6 @@ async createOdds(u:Principal,dto:{gameId:string;betTypeId:string;multiplier:stri
  createLimit(u:Principal,dto:{scope:LimitScope;scopeId?:string;gameId?:string;drawId?:string;betTypeId?:string;numberKey?:string;minStake?:string;maxStake?:string;maxExposure?:string;startsAt:string}){const tenantId=this.tenant(u);if(dto.minStake&&dto.maxStake&&Number(dto.maxStake)<Number(dto.minStake))throw new BadRequestException('INVALID_LIMIT_RANGE');return prisma.bettingLimit.create({data:{tenantId,...dto,startsAt:new Date(dto.startsAt)}})}
  createRule(u:Principal,dto:{jurisdictionCode:string;key:string;value:Record<string,unknown>;effectiveFrom:string;effectiveTo?:string}){const tenantId=this.tenant(u);return this.auditedCreate(tenantId,u.sub,'LotteryRule',()=>prisma.lotteryRule.create({data:{tenantId,jurisdictionCode:dto.jurisdictionCode,key:dto.key,value:dto.value as Prisma.InputJsonValue,effectiveFrom:new Date(dto.effectiveFrom),effectiveTo:dto.effectiveTo?new Date(dto.effectiveTo):undefined}}))}
  private async auditedCreate<T extends{id:string}>(tenantId:string,userId:string,entityType:string,create:()=>Promise<T>){const entity=await create();await prisma.auditLog.create({data:{tenantId,userId,action:'CREATE',entityType,entityId:entity.id}});return entity}
+ private async syncUpcomingScheduledDraws(tx:Prisma.TransactionClient,tenantId:string,gameId:string,schedules:ScheduleDrawTiming[]){if(!schedules.length)return 0;const game=await tx.game.findFirst({where:{id:gameId,tenantId},select:{code:true}});if(!game)return 0;const now=new Date(),draws=await tx.draw.findMany({where:{tenantId,gameId,status:'SCHEDULED',resultAt:{gt:now}},select:{id:true,drawNumber:true,status:true,opensAt:true,closesAt:true,resultAt:true}});let updated=0;for(const draw of draws){const next=schedules.map(schedule=>scheduledDrawTimeUpdate(draw,schedule,game.code,now)).find(Boolean);if(!next)continue;if(draw.drawNumber===next.drawNumber&&draw.opensAt.getTime()===next.opensAt.getTime()&&draw.closesAt.getTime()===next.closesAt.getTime()&&draw.resultAt.getTime()===next.resultAt.getTime())continue;const changed=await tx.draw.updateMany({where:{id:draw.id,tenantId,status:'SCHEDULED',drawNumber:draw.drawNumber,opensAt:draw.opensAt,closesAt:draw.closesAt,resultAt:draw.resultAt},data:next});updated+=changed.count}return updated}
  private tenant(u:Principal){if(!u.tenantId)throw new ForbiddenException('TENANT_ACCESS_REQUIRED');return u.tenantId}
 }
