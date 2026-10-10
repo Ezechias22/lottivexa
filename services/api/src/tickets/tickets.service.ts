@@ -1,5 +1,4 @@
-import{BadRequestException,ForbiddenException,Injectable,NotFoundException}from'@nestjs/common';
-import{merchantTicketDeleteBlockReason}from'./ticket-delete-policy';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{isConfiguredDrawEnabled}from'../lottery/draw-schedule-policy';import{blockedNumberMatches,chooseOdds,isNumberBlocked,cancellationDeadline,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{resolveFreeMaryajPolicy,randomFreeMaryajSelections}from'./free-maryaj-policy';import{currencyForOffice}from'../branches/office-currency-policy';import{officeCountryFromSettings}from'../branches/office-location-policy';import{postTicketCommission}from'../commissions/commission-processor.service';import{activeOperationalTicketFilter,isOperationallyDeleted}from'./ticket-visibility-policy';
+import{BadRequestException,ForbiddenException,Injectable,NotFoundException}from'@nestjs/common';import{prisma,Prisma,TicketStatus}from'@lottivexa/database';import{randomBytes,randomUUID}from'node:crypto';import type{Principal}from'../common/guards/jwt-auth.guard';import{isBettingOpen}from'../lottery/lottery-policy';import{isConfiguredDrawEnabled}from'../lottery/draw-schedule-policy';import{blockedNumberMatches,chooseOdds,isNumberBlocked,cancellationDeadline,isTicketCancellationAllowed,isTenantCancellationEligible,normalizeSelection,priceLines,validateHaitianBetType}from'./ticket-policy';import{presentTicketLines}from'./ticket-line-flags';import{resolveFreeMaryajPolicy,randomFreeMaryajSelections}from'./free-maryaj-policy';import{currencyForOffice}from'../branches/office-currency-policy';import{officeCountryFromSettings}from'../branches/office-location-policy';import{postTicketCommission}from'../commissions/commission-processor.service';import{activeOperationalTicketFilter,isOperationallyDeleted}from'./ticket-visibility-policy';import{merchantTicketDeleteBlockReason}from'./ticket-delete-policy';
 @Injectable()export class TicketsService{async create(u:Principal,dto:{drawId:string;idempotencyKey:string;deviceId?:string;lines:{betTypeId:string;selection:Array<number|string>;stake:string;resultPosition?:number}[];freeMaryaj?:{selection:Array<number|string>}[]}){
   const tenantId=this.tenant(u);
   const existing=await prisma.ticket.findUnique({where:{tenantId_idempotencyKey:{tenantId,idempotencyKey:dto.idempotencyKey}},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}});
@@ -31,7 +30,8 @@ import{merchantTicketDeleteBlockReason}from'./ticket-delete-policy';import{prism
     const position=line.resultPosition;
     if(position!==undefined&&(!/^LOTO[345]$/.test(bet.code)||![1,2,3].includes(position)))throw new BadRequestException('INVALID_RESULT_POSITION');
     const selection=normalizeSelection(bet.code,line.selection);
-    const odd=chooseOdds(odds,line.betTypeId,position);
+    const oddsPosition=bet.code==='BOLET'&&position===undefined?1:position;
+    const odd=chooseOdds(odds,line.betTypeId,oddsPosition);
     if(!odd)throw new BadRequestException('ODDS_NOT_CONFIGURED');
     validateHaitianBetType(bet.code,selection);
     return{...line,selection,resultPosition:position,betTypeCode:bet.code,odds:odd.multiplier.toString(),selectionCount:bet.selectionCount,numberMin:bet.numberMin,numberMax:bet.numberMax,allowRepeats:bet.allowRepeats,isPromotional:false};
@@ -126,44 +126,25 @@ import{merchantTicketDeleteBlockReason}from'./ticket-delete-policy';import{prism
     return presentTicketLines(await tx.ticket.findUniqueOrThrow({where:{id:ticket.id},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]}}}));
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
 } async deleteTicket(u:Principal,ref:string){
-  const tenantId=this.tenant(u);
+  const tenantId=this.tenant(u),merchantAccount=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub},select:{id:true,branchId:true,status:true}});
+  if(merchantAccount&&merchantAccount.status!=='ACTIVE')throw new ForbiddenException('MERCHANT_ACCOUNT_INACTIVE');
   return prisma.$transaction(async tx=>{
-    const merchantAccount=await tx.merchantAccount.findFirst({
-      where:{tenantId,userId:u.sub},
-      select:{id:true,status:true,branchId:true,branch:{select:{status:true}}},
-    });
-    if(merchantAccount&&(merchantAccount.status!=='ACTIVE'||merchantAccount.branch.status!=='ACTIVE')){
-      throw new ForbiddenException('MERCHANT_ACCOUNT_INACTIVE');
-    }
-    const merchant=merchantAccount?{id:merchantAccount.id,branchId:merchantAccount.branchId}:null;
-    const ticket=await tx.ticket.findFirst({
-      where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{merchantId:merchant.id,branchId:merchant.branchId}:{}),OR:[{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},
-      include:{
-        draw:{select:{id:true,status:true,closesAt:true}},
-        ticketDraws:{include:{draw:{select:{id:true,status:true,closesAt:true}}}},
-        payout:{select:{id:true}},
-        winning:{select:{id:true}},
-      },
-    });
+    const ticket=await tx.ticket.findFirst({where:{tenantId,...activeOperationalTicketFilter(),...(merchantAccount?{branchId:merchantAccount.branchId}:{}),OR:[{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},include:{draw:{select:{id:true,status:true,closesAt:true}},ticketDraws:{include:{draw:{select:{id:true,status:true,closesAt:true}}}},lines:{select:{draw:{select:{id:true,status:true,closesAt:true}}}},payout:{select:{id:true}},winning:{select:{id:true}}}});
     if(!ticket)throw new NotFoundException('TICKET_NOT_FOUND');
-    if(merchant){
-      const draws=[ticket.draw,...ticket.ticketDraws.map(item=>item.draw)];
-      const uniqueDraws=[...new Map(draws.map(draw=>[draw.id,draw])).values()];
-      const reason=merchantTicketDeleteBlockReason({
-        status:ticket.status,
-        hasPayout:Boolean(ticket.payout),
-        hasWinningRecord:Boolean(ticket.winning),
-        draws:uniqueDraws,
-      });
-      if(reason)throw new BadRequestException(reason);
+    if(merchantAccount){
+      const drawIds=[...new Set([ticket.draw?.id,...ticket.ticketDraws.map(item=>item.draw.id),...ticket.lines.map(line=>line.draw?.id)].filter((id):id is string=>Boolean(id)))];
+      if(drawIds.length===0)throw new ForbiddenException('TICKET_DELETE_DRAW_UNAVAILABLE_TENANT_ONLY');
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Draw" WHERE "tenantId"=${tenantId} AND "id" IN (${Prisma.join(drawIds)}) ORDER BY "id" FOR UPDATE`);
+      const draws=await tx.draw.findMany({where:{tenantId,id:{in:drawIds}},select:{id:true,status:true,closesAt:true}});
+      const blockReason=merchantTicketDeleteBlockReason({status:ticket.status,hasPayout:Boolean(ticket.payout),hasWinningRecord:Boolean(ticket.winning),draws},new Date());
+      if(blockReason)throw new ForbiddenException(blockReason);
     }
-    await tx.printJob.updateMany({where:{tenantId,ticketId:ticket.id,status:{in:['QUEUED','FAILED']}},data:{status:'CANCELLED',lastError:'Ticket deleted from operational lists'}});
-    const event=await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'DELETED',userId:u.sub,metadata:{source:'operational_ticket_list',financialRecordsRetained:true}}});
+    await tx.printJob.updateMany({where:{tenantId,ticketId:ticket.id,status:{in:['QUEUED','FAILED']}},data:{status:'CANCELLED',lastError:'Ticket deleted from operational lists'}});const event=await tx.ticketEvent.create({data:{tenantId,ticketId:ticket.id,type:'DELETED',userId:u.sub,metadata:{source:'operational_ticket_list',financialRecordsRetained:true}}});
     await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'DELETE',entityType:'Ticket',entityId:ticket.id,oldValues:{status:ticket.status,amount:ticket.amount.toString(),currencyCode:ticket.currencyCode},newValues:{hiddenFromOperations:true,financialRecordsRetained:true}}});
     return{deleted:true,alreadyDeleted:false,ticketNumber:ticket.ticketNumber,deletedAt:event.createdAt.toISOString()};
   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
-} async get(u:Principal,ref:string){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref);const ticket=await prisma.ticket.findFirst({where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{branchId:merchant.branchId}:{}),OR:[...(uuid?[{id:ref}]:[]),{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},include:{lines:{include:{betType:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},draw:{include:{game:true}},ticketDraws:{include:{draw:{include:{game:true}}}},merchant:{include:{branch:true}},winning:true,payout:true}});if(!ticket)throw new NotFoundException('TICKET_NOT_FOUND');return presentTicketLines(ticket)}
- async search(u:Principal,q:{status?:TicketStatus;drawId?:string}){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});return prisma.ticket.findMany({where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{merchantId:merchant.id}:{}),...(q.status?{status:q.status}:{}),...(q.drawId?{OR:[{drawId:q.drawId},{ticketDraws:{some:{drawId:q.drawId}}}]}:{})},orderBy:{createdAt:'desc'},take:100,include:{winning:true,payout:true,draw:{include:{game:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},ticketDraws:{include:{draw:{include:{game:true}}}},lines:{select:{id:true,isWinner:true,drawId:true,potentialWin:true,selectionKey:true,betType:{select:{code:true,name:true}}}}}}).then(rows=>rows.map(presentTicketLines))}
+} async get(u:Principal,ref:string){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ref);const ticket=await prisma.ticket.findFirst({where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{branchId:merchant.branchId}:{}),OR:[...(uuid?[{id:ref}]:[]),{ticketNumber:ref},{barcode:ref},{qrCode:ref}]},include:{lines:{include:{betType:true,draw:{select:{id:true,status:true,closesAt:true}}}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},draw:{include:{game:true}},ticketDraws:{include:{draw:{include:{game:true}}}},merchant:{include:{branch:true}},winning:true,payout:true}});if(!ticket)throw new NotFoundException('TICKET_NOT_FOUND');return presentTicketLines(ticket)}
+ async search(u:Principal,q:{status?:TicketStatus;drawId?:string}){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}});return prisma.ticket.findMany({where:{tenantId,...activeOperationalTicketFilter(),...(merchant?{merchantId:merchant.id}:{}),...(q.status?{status:q.status}:{}),...(q.drawId?{OR:[{drawId:q.drawId},{ticketDraws:{some:{drawId:q.drawId}}}]}:{})},orderBy:{createdAt:'desc'},take:100,include:{winning:true,payout:true,draw:{include:{game:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},ticketDraws:{include:{draw:{include:{game:true}}}},lines:{select:{id:true,isWinner:true}}}}).then(rows=>rows.map(presentTicketLines))}
  async winners(u:Principal,page=1){const tenantId=this.tenant(u),merchant=await prisma.merchantAccount.findFirst({where:{tenantId,userId:u.sub,status:'ACTIVE'}}),pageSize=50,safePage=Number.isInteger(page)&&page>0?Math.min(page,100000):1,where={tenantId,...activeOperationalTicketFilter(),status:{in:['WINNER','PAID'] as TicketStatus[]},...(merchant?{merchantId:merchant.id}:{})};const[rows,total]=await Promise.all([prisma.ticket.findMany({where,orderBy:{createdAt:'desc'},skip:(safePage-1)*pageSize,take:pageSize,include:{winning:true,payout:true,draw:{include:{game:true}},events:{select:{type:true,metadata:true,createdAt:true},orderBy:[{createdAt:'asc'},{id:'asc'}]},ticketDraws:{include:{draw:{include:{game:true}}}},merchant:{include:{branch:true}},lines:{include:{betType:true}}}}),prisma.ticket.count({where})]);return{items:rows.map(presentTicketLines),total,page:safePage,pageSize}}
  private async checkLimits(tenantId:string,drawId:string,gameId:string,merchantId:string,branchId:string,lines:ReturnType<typeof priceLines>){
   const now=new Date();

@@ -3,6 +3,44 @@ import { confirmedLineWinningAmount, presentTicketLines, ticketLineFlags } from 
 import { checkedDrawVersion } from '../results/results-reconciliation-policy';
 
 describe('ticket line flags from ticket events', () => {
+  it('calculates a multi-draw Bolet by each actual result rank and preserves confirmed amounts', () => {
+    const nyPublished = new Date('2026-10-09T18:00:00.000Z');
+    const floridaPublished = new Date('2026-10-09T21:00:00.000Z');
+    const ny = { id: 'draw-ny', status: 'RESULT_PUBLISHED', publishedAt: nyPublished, result: { winningKeys: ['33', '10', '20'] } };
+    const florida = { id: 'draw-fl', status: 'RESULT_PUBLISHED', publishedAt: floridaPublished, result: { winningKeys: ['10', '20', '33'] } };
+    const lineWinCounts = [
+      { lineId: 'line-ny', drawId: 'draw-ny', winCount: 1 },
+      { lineId: 'line-fl', drawId: 'draw-fl', winCount: 1 },
+    ];
+    const lineWinAmounts = [
+      { lineId: 'line-ny', drawId: 'draw-ny', amount: '900' },
+      { lineId: 'line-fl', drawId: 'draw-fl', amount: '150' },
+    ];
+    const ticket = presentTicketLines({
+      status: 'WINNER',
+      winning: { winningAmount: 1050 },
+      ticketDraws: [
+        { drawId: 'draw-ny', draw: ny },
+        { drawId: 'draw-fl', draw: florida },
+      ],
+      events: [{ type: 'RESULT_CHECKED', metadata: {
+        checkedDrawVersions: [checkedDrawVersion('draw-ny', nyPublished), checkedDrawVersion('draw-fl', floridaPublished)],
+        lineWinCounts,
+        lineWinAmounts,
+      } }],
+      lines: [
+        { id: 'line-ny', drawId: 'draw-ny', selectionKey: '33@1', betType: { code: 'BOLET' }, potentialWin: { mul: () => ({ toString: () => '900' }) } },
+        { id: 'line-fl', drawId: 'draw-fl', selectionKey: '33@1', betType: { code: 'BOLET' }, potentialWin: { mul: () => ({ toString: () => '900' }) } },
+      ],
+    });
+
+    expect(ticket.resultEvaluationConfirmed).toBe(true);
+    expect(ticket.status).toBe('WINNER');
+    expect(ticket.winning).toEqual({ winningAmount: 1050 });
+    expect(ticket.lines[0]).toMatchObject({ isWinner: true, winningAmount: '900', matchedWinningKeys: ['33'] });
+    expect(ticket.lines[1]).toMatchObject({ isWinner: true, winningAmount: '150', matchedWinningKeys: ['33'] });
+  });
+
   const events = [
     { type: 'CREATED', metadata: { freeMaryajLineIds: ['gift-1'] } },
     { type: 'MARKED_WINNER', metadata: { lineWinCounts: [{ lineId: 'bet-1', winCount: 2 }] } },

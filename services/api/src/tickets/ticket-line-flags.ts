@@ -146,7 +146,10 @@ function winningKeysForLine(code: string | undefined, selectionKey: string | und
   const [selection, positionText] = selectionKey.split('@');
   const position = positionText ? Number(positionText) : undefined;
   const keys = (rawKeys as string[]).map(value => value.split('@')[0]);
-  const candidates = position && Number.isInteger(position) && position > 0 ? keys.slice(position - 1, position) : keys;
+  const candidates = code === 'BOLET'
+    // Legacy tickets stored an automatic @1 suffix; Bolet pays by the actual result rank.
+    ? keys.slice(0, 3)
+    : position && Number.isInteger(position) && position > 0 ? keys.slice(position - 1, position) : keys;
   const normalizedSelection = normalizedBall(selection);
   if (code === 'BOLET' || code === 'BOUL_PE') {
     return candidates.filter(value => {
