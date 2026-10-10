@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { drawLabel } from './draw-label';
 import { useMerchantLanguage } from './language-switcher';
 
@@ -45,22 +45,33 @@ export default function MerchantReports({ request }: { request: Request }) {
   const [draws, setDraws] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const latestRequest = useRef(0);
+  const initialLoadStarted = useRef(false);
 
   const load = useCallback(async (start: string, end: string) => {
-    if (start > end) { setError(t('invalidDateRange')); return; }
+    const requestId = ++latestRequest.current;
+    if (!start || !end || start > end) { setError(t('invalidDateRange')); setLoading(false); return; }
     setLoading(true);
     setError('');
     try {
       const query = new URLSearchParams({ from: start, to: end }).toString();
       const values = await Promise.all([request('/reports/sales?' + query), request('/reports/draws?' + query)]);
-      setSales(values[0]);
-      setDraws(values[1]?.byDraw ?? []);
+      if (requestId === latestRequest.current) {
+        setSales(values[0]);
+        setDraws(values[1]?.byDraw ?? []);
+      }
     } catch (value) {
-      setError(value instanceof Error ? value.message : String(value));
-    } finally { setLoading(false); }
+      if (requestId === latestRequest.current) setError(value instanceof Error ? value.message : String(value));
+    } finally {
+      if (requestId === latestRequest.current) setLoading(false);
+    }
   }, [request, t]);
 
-  useEffect(() => { void load(shiftDay(today, -6), today); }, [load, today]);
+  useEffect(() => {
+    if (initialLoadStarted.current) return;
+    initialLoadStarted.current = true;
+    void load(shiftDay(today, -6), today);
+  }, [load, today]);
   const choosePeriod = (days: number) => {
     const start = shiftDay(dayInHaiti(), -(days - 1));
     const end = dayInHaiti();

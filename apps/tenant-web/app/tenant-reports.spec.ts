@@ -17,4 +17,11 @@ describe('tenant merchant commission report', () => {
     expect(source).toContain('request(`/reports/sales?${query}`)');
     expect(source).toContain('request(`/reports/draws?${query}`)');
   });
+
+  it('prevents the initial report response and older filters from replacing the latest selected range', () => {
+    expect(source).toContain('const latestReportRequest = useRef(0)');
+    expect(source).toContain('const hasAppliedReportFilter = useRef(false)');
+    expect(source).toContain('if (hasAppliedReportFilter.current) return;');
+    expect(source).toContain('values && requestId === latestReportRequest.current');
+  });
 });

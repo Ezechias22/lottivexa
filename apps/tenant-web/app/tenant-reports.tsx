@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { drawSessionLabel } from "./draw-label";
 import { useI18n } from "./i18n";
 
@@ -330,6 +330,8 @@ export default function TenantReports({
       };
   const [report, setReport] = useState(data[0] ?? {});
   const [drawReport, setDrawReport] = useState(data[1] ?? {});
+  const latestReportRequest = useRef(0);
+  const hasAppliedReportFilter = useRef(false);
   const [from, setFrom] = useState(() => shiftDate(localDate(), -29));
   const [to, setTo] = useState(() => localDate());
   const [filterError, setFilterError] = useState("");
@@ -355,6 +357,7 @@ export default function TenantReports({
   }, [request, french]);
 
   useEffect(() => {
+    if (hasAppliedReportFilter.current) return;
     setReport(data[0] ?? {});
     setDrawReport(data[1] ?? {});
   }, [data]);
@@ -382,6 +385,8 @@ export default function TenantReports({
 
   async function loadRange(start: string, end: string, merchantIds = selectedMerchantIds, branchId = selectedBranchId) {
     setFilterError("");
+    hasAppliedReportFilter.current = true;
+    const requestId = ++latestReportRequest.current;
     if (!start || !end || start > end) {
       setFilterError(text.invalidRange);
       return;
@@ -393,7 +398,7 @@ export default function TenantReports({
       request(`/reports/sales?${query}`),
       request(`/reports/draws?${query}`),
     ]));
-    if (values) {
+    if (values && requestId === latestReportRequest.current) {
       setReport(values[0]);
       setDrawReport(values[1]);
     }

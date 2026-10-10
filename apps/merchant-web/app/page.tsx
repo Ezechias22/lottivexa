@@ -113,17 +113,24 @@ function Check({selected:t,lookup,pay,deleteTicket,printTicket,downloadPdf,downl
   </section>}
  </>;
 }
+function formatTicketHistoryDate(value: unknown, language: string) {
+ const date=new Date(String(value??''));
+ if(!value||Number.isNaN(date.getTime()))return '—';
+ return new Intl.DateTimeFormat(language==='fr'?'fr-FR':'fr-HT',{timeZone:'America/Port-au-Prince',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(date);
+}
 function History({rows,select,currency='USD',request,can,onDelete}:{rows:Row[];select:(x:Row)=>void;currency?:string;request?:(path:string)=>Promise<any>;can?:(permission:string)=>boolean;onDelete?:(ticket:Row)=>void|Promise<void>}){
  const{t,language}=useMerchantLanguage();
  const[showWinners,setShowWinners]=useState(false),[winners,setWinners]=useState<Row[]>([]),[winnerPage,setWinnerPage]=useState(1),[winnerTotal,setWinnerTotal]=useState(0),[ticketRows,setTicketRows]=useState<Row[]>(rows),[ticketPage,setTicketPage]=useState(1),[ticketTotal,setTicketTotal]=useState(rows.length),[selectedDate,setSelectedDate]=useState(()=>businessDate()),[ticketError,setTicketError]=useState(''),[busy,setBusy]=useState(false);
+ const latestTicketRequest=useRef(0);
  const loadTickets=useCallback(async(date:string,nextPage:number)=>{
   if(!request)return;
+  const requestId=++latestTicketRequest.current;
   setBusy(true);setTicketError('');
   try{
    const query=new URLSearchParams({from:date,to:date,page:String(nextPage)}),result=await request(`/tickets?${query}`),items=Array.isArray(result)?result:(result.items??[]);
-   setTicketRows(items);setTicketTotal(Array.isArray(result)?items.length:Number(result.total??items.length));setTicketPage(Number(result.page??nextPage));
-  }catch(error){setTicketRows([]);setTicketTotal(0);setTicketError(error instanceof Error?error.message:String(error))}
-  finally{setBusy(false)}
+   if(requestId===latestTicketRequest.current){setTicketRows(items);setTicketTotal(Array.isArray(result)?items.length:Number(result.total??items.length));setTicketPage(Number(result.page??nextPage));}
+  }catch(error){if(requestId===latestTicketRequest.current){setTicketRows([]);setTicketTotal(0);setTicketError(error instanceof Error?error.message:String(error))}}
+  finally{if(requestId===latestTicketRequest.current)setBusy(false)}
  },[request]);
  const loadWinners=useCallback(async(nextPage=1,silent=false)=>{if(!request)return;if(!silent)setBusy(true);try{const result=await request(`/tickets/winners?page=${nextPage}`);setWinners((result.items??[]).filter(ticketBelongsInWinnersList));setWinnerTotal(result.total??0);setWinnerPage(result.page??nextPage);setShowWinners(true)}catch{}finally{if(!silent)setBusy(false)}},[request]);
  useEffect(()=>{if(showWinners||!request)return;void loadTickets(selectedDate,ticketPage)},[rows,showWinners,request,selectedDate,ticketPage,loadTickets]);
@@ -136,7 +143,7 @@ function History({rows,select,currency='USD',request,can,onDelete}:{rows:Row[];s
   </>}
   {ticketError&&<p className="message" role="alert">{ticketError}</p>}
   {busy&&!showWinners&&<p className="report-loading">{t('loading')}</p>}
-  <div className="history">{list.length?list.map(x=>{const status=ticketDisplayStatus(x),draw=ticketDrawLabels(x,language),code=x.currency??x.currencyCode??currency,showDelete=!showWinners&&Boolean(onDelete&&can?.('tickets.cancel')&&canMerchantDeleteTicket(x));return <div className="ticket-history-row" key={x.id}><button type="button" className="ticket-history-open" onClick={()=>select(x)}><span><b>{x.ticketNumber}</b><small>{draw}</small><small>{new Date(x.createdAt).toLocaleString()}</small></span><span><b>{currencyMark(code)}{cash(x.amount,code)}</b><small>{statusLabel(status,language)}</small></span></button>{showDelete&&<button type="button" className="danger ticket-history-delete" aria-label={language==='fr'?`Supprimer le ticket ${x.ticketNumber}`:`Siprime tikè ${x.ticketNumber}`} disabled={busy} onClick={()=>void onDelete?.(x)}>{language==='fr'?'Supprimer':'Siprime'}</button>}</div>}):<p>{showWinners?(language==='fr'?'Aucun ticket gagnant.':'Pa gen tikè gagnan pou kounye a.'):ticketError?'':t('none')}</p>}</div>
+  <div className="history">{list.length?list.map(x=>{const status=ticketDisplayStatus(x),draw=ticketDrawLabels(x,language),code=x.currency??x.currencyCode??currency,showDelete=!showWinners&&Boolean(onDelete&&can?.('tickets.cancel')&&canMerchantDeleteTicket(x));return <div className="ticket-history-row" key={x.id}><div className="ticket-history-open"><span><button type="button" className="ticket-history-number" aria-label={language==='fr'?`Ouvrir le ticket ${x.ticketNumber}`:`Ouvri tikè ${x.ticketNumber}`} onClick={()=>select(x)}>{x.ticketNumber}</button><small>{draw}</small><small>{formatTicketHistoryDate(x.createdAt,language)}</small></span><span><b>{currencyMark(code)}{cash(x.amount,code)}</b><small>{statusLabel(status,language)}</small></span></div>{showDelete&&<button type="button" className="danger ticket-history-delete" aria-label={language==='fr'?`Supprimer le ticket ${x.ticketNumber}`:`Siprime tikè ${x.ticketNumber}`} disabled={busy} onClick={()=>void onDelete?.(x)}>{language==='fr'?'Supprimer':'Siprime'}</button>}</div>}):<p>{showWinners?(language==='fr'?'Aucun ticket gagnant.':'Pa gen tikè gagnan pou kounye a.'):ticketError?'':t('none')}</p>}</div>
   {request&&!showWinners&&<div className="merchant-ticket-pages"><button className="secondary" disabled={busy||ticketPage<=1} onClick={()=>setTicketPage(ticketPage-1)}>{language==='fr'?'Précédent':'Anvan'}</button><span>{ticketPage} · {ticketTotal}</span><button className="secondary" disabled={busy||ticketPage*100>=ticketTotal} onClick={()=>setTicketPage(ticketPage+1)}>{language==='fr'?'Suivant':'Pwochen'}</button></div>}
   {request&&showWinners&&<div className="merchant-ticket-pages"><button className="secondary" disabled={busy||winnerPage<=1} onClick={()=>void loadWinners(winnerPage-1)}>{language==='fr'?'Précédent':'Anvan'}</button><span>{winnerPage} · {winnerTotal}</span><button className="secondary" disabled={busy||winnerPage*50>=winnerTotal} onClick={()=>void loadWinners(winnerPage+1)}>{language==='fr'?'Suivant':'Pwochen'}</button></div>}
  </>;

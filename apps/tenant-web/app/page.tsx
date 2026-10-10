@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
 import DeviceActions from "./device-actions";
 import MerchantActions from "./merchant-actions";
@@ -178,6 +178,20 @@ function shiftDate(date: string, days: number) {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
+function formatTableDate(value: unknown, language: string) {
+  if (!value) return "—";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(language === "fr" ? "fr-FR" : "fr-HT", {
+    timeZone: "America/Port-au-Prince",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
 function val(form: HTMLFormElement) {
   return Object.fromEntries(new FormData(form)) as Row;
 }
@@ -188,10 +202,12 @@ function Table({
   rows,
   columns,
   actions,
+  onTicketOpen,
 }: {
   rows: Row[];
   columns: [string, string][];
   actions?: (r: Row) => React.ReactNode;
+  onTicketOpen?: (r: Row) => void;
 }) {
   const { language, t } = useI18n();
   return (
@@ -212,7 +228,9 @@ function Table({
                 {columns.map((c) => {
                   const raw = c[0].split(".").reduce((x: any, k) => x?.[k], r);
                   const value =
-                    c[0].toLowerCase() === "currency"
+                    c[0].toLowerCase() === "createdat" || c[0].toLowerCase() === "lastseen"
+                      ? formatTableDate(raw, language)
+                    : c[0].toLowerCase() === "currency"
                       ? currencySymbol(raw)
                       : c[0].toLowerCase() === "officekind"
                         ? raw === "CENTRAL" ? "Santral" : "Biwo"
@@ -225,7 +243,9 @@ function Table({
                           Number.isFinite(Number(raw))
                         ? money(raw, String(r.currency ?? "USD"))
                         : String(raw ?? "—");
-                  return <td key={c[0]}>{value}</td>;
+                  return <td key={c[0]}>{c[0] === "ticketNumber" && onTicketOpen
+                    ? <button type="button" className="tenant-ticket-number-button" aria-label={`${language === "fr" ? "Ouvrir le ticket" : "Ouvri tikè"} ${r.ticketNumber}`} onClick={() => onTicketOpen(r)}>{value}</button>
+                    : value}</td>;
                 })}
                 {actions && <td className="actions">{actions(r)}</td>}
               </tr>
@@ -636,7 +656,7 @@ export default function TenantConsole() {
         </header>
         {message && <p className="message">{message}</p>}
         {tab === "dashboard" && (
-          <Dashboard data={current} onViewReports={() => navigateTab("reports")} />
+          <Dashboard data={current} onViewReports={() => navigateTab("reports")} onOpenTicket={openTicket} />
         )}{" "}
         {tab === "branches" && (
           <Branches data={current} submit={submit} can={can} />
@@ -721,9 +741,11 @@ export default function TenantConsole() {
 function Dashboard({
   data: d,
   onViewReports,
+  onOpenTicket,
 }: {
   data: any[];
   onViewReports: () => void;
+  onOpenTicket: (ticket: Row) => void;
 }) {
   const { t, language } = useI18n();
   const [r = {}, trend = {}, tickets = [], branches = [], merchants = [], notes = []] = d;
@@ -813,6 +835,7 @@ function Dashboard({
           timeZone: "America/Port-au-Prince",
           day: "2-digit",
           month: "short",
+          year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
           hourCycle: "h23",
@@ -933,7 +956,7 @@ function Dashboard({
             <tbody>
               {tickets.length ? tickets.slice(0, 8).map((ticket: Row, index: number) => (
                 <tr key={ticket.id ?? ticket.ticketNumber ?? index}>
-                  <td><strong>{ticket.ticketNumber ?? "—"}</strong><small>{ticket.merchant?.displayName ?? ticket.branch?.name ?? ""}</small></td>
+                  <td><button type="button" className="tenant-ticket-number-button" disabled={!ticket.ticketNumber} onClick={() => onOpenTicket(ticket)}>{ticket.ticketNumber ?? "—"}</button><small>{ticket.merchant?.displayName ?? ticket.branch?.name ?? ""}</small></td>
                   <td><span className={"dashboard-ticket-status status-" + String(ticket.status ?? "pending").toLowerCase()}>{statusLabel(String(ticket.status ?? "PENDING"))}</span></td>
                   <td className="dashboard-table-amount">{formatAmount(ticket.amount, ticket.currency ?? ticket.currencyCode ?? currency)}</td>
                   <td>{formatTicketDate(ticket.createdAt)}</td>
@@ -1327,13 +1350,15 @@ function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];requ
   const draws:Row[]=d[1]??[];
   const [selectedDate,setSelectedDate]=useState(()=>haitiToday()),[ticketPage,setTicketPage]=useState(1),[ticketRows,setTicketRows]=useState<Row[]>([]),[ticketTotal,setTicketTotal]=useState(0),[ticketPageSize,setTicketPageSize]=useState(100),[ticketBusy,setTicketBusy]=useState(false),[ticketError,setTicketError]=useState('');
   const [winners,setWinners]=useState<Row[]>([]),[winnersPage,setWinnersPage]=useState(1),[winnersTotal,setWinnersTotal]=useState(0),[showWinners,setShowWinners]=useState(false),[winnersBusy,setWinnersBusy]=useState(false);
+  const latestTicketRequest=useRef(0);
   const loadTicketsByDate=useCallback(async(date:string,page:number)=>{
+    const requestId=++latestTicketRequest.current;
     setTicketBusy(true);setTicketError('');
     try{
       const query=new URLSearchParams({from:date,to:date,page:String(page)}),result=await request(`/tickets?${query}`),items=Array.isArray(result)?result:(result.items??[]);
-      setTicketRows(items);setTicketTotal(Array.isArray(result)?items.length:Number(result.total??items.length));setTicketPageSize(Number(result.pageSize??100));
-    }catch(error){setTicketRows([]);setTicketTotal(0);setTicketError(error instanceof Error?error.message:String(error))}
-    finally{setTicketBusy(false)}
+      if(requestId===latestTicketRequest.current){setTicketRows(items);setTicketTotal(Array.isArray(result)?items.length:Number(result.total??items.length));setTicketPageSize(Number(result.pageSize??100));}
+    }catch(error){if(requestId===latestTicketRequest.current){setTicketRows([]);setTicketTotal(0);setTicketError(error instanceof Error?error.message:String(error))}}
+    finally{if(requestId===latestTicketRequest.current)setTicketBusy(false)}
   },[request]);
   const loadWinners=useCallback(async(page=1,silent=false)=>{if(!silent)setWinnersBusy(true);try{const result=await request(`/tickets/winners?page=${page}`);setWinners((result.items??[]).filter((ticket:Row)=>["WINNER","PAID"].includes(tenantTicketDisplayStatus(ticket))));setWinnersTotal(result.total??0);setWinnersPage(result.page??page);setShowWinners(true)}finally{if(!silent)setWinnersBusy(false)}},[request]);
   useEffect(()=>{if(!showWinners)void loadTicketsByDate(selectedDate,ticketPage)},[d,showWinners,selectedDate,ticketPage,loadTicketsByDate]);
@@ -1341,8 +1366,8 @@ function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];requ
   const sourceRows=showWinners?winners:ticketRows;
   const rows=sourceRows.map((ticket:Row)=>({...ticket,status:showWinners?tenantTicketDisplayStatus(ticket):ticket.status,currency:ticket.currency??ticket.currencyCode??currency}));
   const labels=language==="fr"
-    ?{total:"Tickets dans la journée",draws:"Tirages ouverts",winners:"Gagnants",paid:"Payés",heading:showWinners?"Tickets gagnants":"Tickets de l’entreprise",open:"Ouvrir",all:"Tickets par date",next:"Suivant",previous:"Précédent",date:"Date des tickets",loading:"Recherche des tickets…",empty:"Aucun ticket pour cette date."}
-    :{total:"Tikè nan dat la",draws:"Tiraj ouvè",winners:"Gayan",paid:"Peye",heading:showWinners?"Tikè ki genyen yo":"Tikè biznis la",open:"Ouvri",all:"Tikè pa dat",next:"Pwochen",previous:"Anvan",date:"Dat tikè yo",loading:"N ap chèche tikè yo…",empty:"Pa gen tikè pou dat sa a."};
+    ?{total:"Tickets dans la journée",draws:"Tirages ouverts",winners:"Gagnants",paid:"Payés",heading:showWinners?"Tickets gagnants":"Tickets de l’entreprise",all:"Tickets par date",next:"Suivant",previous:"Précédent",date:"Date des tickets",loading:"Recherche des tickets…",empty:"Aucun ticket pour cette date."}
+    :{total:"Tikè nan dat la",draws:"Tiraj ouvè",winners:"Gayan",paid:"Peye",heading:showWinners?"Tikè ki genyen yo":"Tikè biznis la",all:"Tikè pa dat",next:"Pwochen",previous:"Anvan",date:"Dat tikè yo",loading:"N ap chèche tikè yo…",empty:"Pa gen tikè pou dat sa a."};
   return <>
     <div className="tenant-ticket-summary">
       <article><span>{labels.total}</span><strong>{showWinners?winnersTotal:ticketTotal}</strong></article>
@@ -1356,7 +1381,7 @@ function Tickets({data: d,request,can,currency,onOpen,onDelete}:{data:any[];requ
       {ticketBusy&&!showWinners&&<p className="tenant-ticket-feedback">{labels.loading}</p>}
       {ticketError&&!showWinners&&<p className="tenant-ticket-feedback is-error" role="alert">{ticketError}</p>}
       {!ticketBusy&&!ticketError&&!showWinners&&!rows.length&&<p className="tenant-ticket-feedback">{labels.empty}</p>}
-      <Table rows={rows} columns={[["ticketNumber","Ticket"],["status","Status"],["amount","Amount"],["createdAt","Date"]]} actions={(ticket)=><button className="tenant-ticket-open-button" onClick={()=>onOpen(ticket)}>{labels.open}</button>} />
+      <Table rows={rows} columns={[["ticketNumber","Ticket"],["status","Status"],["amount","Amount"],["createdAt","Date"]]} onTicketOpen={onOpen} />
       {showWinners&&<div className="tenant-ticket-pagination"><button className="secondary" disabled={winnersBusy||winnersPage<=1} onClick={()=>void loadWinners(winnersPage-1)}>{labels.previous}</button><span>{winnersPage}</span><button className="secondary" disabled={winnersBusy||winnersPage*50>=winnersTotal} onClick={()=>void loadWinners(winnersPage+1)}>{labels.next}</button></div>}
       {!showWinners&&<div className="tenant-ticket-pagination"><button className="secondary" disabled={ticketBusy||ticketPage<=1} onClick={()=>setTicketPage(ticketPage-1)}>{labels.previous}</button><span>{ticketPage}</span><button className="secondary" disabled={ticketBusy||ticketPage*ticketPageSize>=ticketTotal} onClick={()=>setTicketPage(ticketPage+1)}>{labels.next}</button></div>}
     </section>
