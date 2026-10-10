@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSchedulesBySession, isScheduleSessionOpen } from "./schedule-sessions";
+import { groupSchedulesBySession, isScheduleSessionOpen, scheduleSlotUpdatePayload } from "./schedule-sessions";
 
 describe("draw session schedule grouping", () => {
   it("shows recurring weekdays as one session for each lottery and result time", () => {
@@ -27,5 +27,18 @@ describe("draw session schedule grouping", () => {
     ] }]);
 
     expect(isScheduleSessionOpen(session)).toBe(true);
+  });
+
+  it("sends the edited result time while keeping the existing slot as its identifier", () => {
+    expect(scheduleSlotUpdatePayload(
+      { gameId: "texas", resultAt: "13:00" },
+      { opensAt: "08:00", closesAt: "12:30", resultAt: "13:15" },
+    )).toEqual({
+      gameId: "texas",
+      resultAt: "13:00",
+      newResultAt: "13:15",
+      opensAt: "08:00",
+      closesAt: "12:30",
+    });
   });
 });

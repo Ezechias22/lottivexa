@@ -23,5 +23,6 @@ describe("tenant lottery settings policy", () => {
     expect(() => assertScheduleTimes("06:00", "17:00", "18:00")).not.toThrow();
     expect(() => assertScheduleTimes("17:00", "06:00", "18:00")).toThrow("INVALID_SCHEDULE_TIMES");
     expect(() => assertScheduleTimes("06:00", "17:00", "16:00")).toThrow("INVALID_SCHEDULE_TIMES");
+    expect(() => assertScheduleTimes("06:00", "17:00", "17:00")).toThrow("INVALID_SCHEDULE_TIMES");
   });
 });

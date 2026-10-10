@@ -1,8 +1,8 @@
 import{BadRequestException,ConflictException}from'@nestjs/common';import type{DrawStatus}from'@lottivexa/database';
 const transitions:Record<DrawStatus,DrawStatus[]>={SCHEDULED:['OPEN','CANCELLED'],OPEN:['CLOSED','CANCELLED'],CLOSED:['RESULT_PENDING','CANCELLED'],RESULT_PENDING:['RESULT_PUBLISHED','CANCELLED'],RESULT_PUBLISHED:[],CANCELLED:[]};
 export function assertDrawTransition(from:DrawStatus,to:DrawStatus){if(!transitions[from].includes(to))throw new ConflictException('INVALID_DRAW_TRANSITION')}
-export function assertDrawTimes(opensAt:Date,closesAt:Date,resultAt:Date){if(!(opensAt<closesAt&&closesAt<=resultAt))throw new BadRequestException('INVALID_DRAW_TIMES')}
-export function assertScheduleTimes(opensAt:string,closesAt:string,resultAt:string){if(!(opensAt<closesAt&&closesAt<=resultAt))throw new BadRequestException('INVALID_SCHEDULE_TIMES')}
+export function assertDrawTimes(opensAt:Date,closesAt:Date,resultAt:Date){if(!(opensAt<closesAt&&closesAt<resultAt))throw new BadRequestException('INVALID_DRAW_TIMES')}
+export function assertScheduleTimes(opensAt:string,closesAt:string,resultAt:string){if(!(opensAt<closesAt&&closesAt<resultAt))throw new BadRequestException('INVALID_SCHEDULE_TIMES')}
 export function assertPositionedOddsType(code:string,position:number){if(!/^(BOLET|LOTO[345])$/.test(code)||![1,2,3].includes(position))throw new BadRequestException('INVALID_RESULT_POSITION')}
 export function normalizeBoletMultipliers(values:string[]){if(values.length!==3)throw new BadRequestException('INVALID_BOLET_PAYOUTS');const parsed=values.map(Number);if(parsed.some(value=>!Number.isFinite(value)||value<=0||value>1_000_000_000_000))throw new BadRequestException('INVALID_BOLET_PAYOUTS');return values}
 export function isBettingOpen(status:DrawStatus,closesAt:Date,cutoffSeconds:number,now=new Date()){return status==='OPEN'&&now.getTime()<closesAt.getTime()-cutoffSeconds*1000}

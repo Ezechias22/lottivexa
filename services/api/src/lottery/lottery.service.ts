@@ -4,37 +4,45 @@ import{BadRequestException,ForbiddenException,Injectable}from'@nestjs/common';im
  async setCatalogStatus(u:Principal,catalogCode:string,enabled:boolean){const tenantId=this.tenant(u);const changed=await prisma.game.updateMany({where:{tenantId,catalogCode},data:{status:enabled?'ACTIVE':'SUSPENDED'}});if(changed.count!==1)throw new ForbiddenException('CATALOG_GAME_NOT_FOUND');await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'LotteryCatalog',entityId:catalogCode,newValues:{enabled}}});return{catalogCode,enabled}}
  async installHaitiCatalog(u:Principal){const tenantId=this.tenant(u);return prisma.$transaction(async tx=>{const installed=await installHaitiCatalog(tx,tenantId);await tx.auditLog.create({data:{tenantId,userId:u.sub,action:'CREATE',entityType:'LotteryCatalog',entityId:'HT-V1',newValues:installed}});return{installed:true,...installed}})}
  async setScheduleStatus(u:Principal,id:string,enabled:boolean){const tenantId=this.tenant(u);const changed=await prisma.gameSchedule.updateMany({where:{id,tenantId},data:{active:enabled}});if(changed.count!==1)throw new ForbiddenException('SCHEDULE_NOT_FOUND');await prisma.auditLog.create({data:{tenantId,userId:u.sub,action:'UPDATE',entityType:'GameSchedule',entityId:id,newValues:{enabled}}});return{id,enabled}}
- async setScheduleSlotStatus(u:Principal,dto:{gameId:string;resultAt:string;enabled?:boolean;opensAt?:string;closesAt?:string}){
+ async setScheduleSlotStatus(u:Principal,dto:{gameId:string;resultAt:string;newResultAt?:string;enabled?:boolean;opensAt?:string;closesAt?:string}){
   const tenantId=this.tenant(u);
   const hasOpensAt=dto.opensAt!==undefined;
   const hasClosesAt=dto.closesAt!==undefined;
+  const hasNewResultAt=dto.newResultAt!==undefined;
+  const hasTimeChange=hasOpensAt||hasClosesAt||hasNewResultAt;
   if(hasOpensAt!==hasClosesAt)throw new BadRequestException('INCOMPLETE_SCHEDULE_TIMES');
-  if(dto.enabled===undefined&&!hasOpensAt)throw new BadRequestException('NO_SCHEDULE_SLOT_CHANGES');
-  if(hasOpensAt)assertScheduleTimes(dto.opensAt!,dto.closesAt!,dto.resultAt);
+  if(dto.enabled===undefined&&!hasTimeChange)throw new BadRequestException('NO_SCHEDULE_SLOT_CHANGES');
   const where={tenantId,gameId:dto.gameId,resultAt:dto.resultAt};
   return prisma.$transaction(async tx=>{
    const schedules=await tx.gameSchedule.findMany({where,select:{id:true,active:true,opensAt:true,closesAt:true,resultAt:true,weekday:true,timezone:true}});
    if(!schedules.length)throw new ForbiddenException('SCHEDULE_NOT_FOUND');
+   if(hasTimeChange)for(const schedule of schedules){
+    assertScheduleTimes(dto.opensAt??schedule.opensAt,dto.closesAt??schedule.closesAt,dto.newResultAt??schedule.resultAt);
+   }
    const data={
     ...(dto.enabled!==undefined?{active:dto.enabled}:{}),
     ...(hasOpensAt?{opensAt:dto.opensAt!,closesAt:dto.closesAt!}:{}),
+    ...(hasNewResultAt?{resultAt:dto.newResultAt!}:{}),
    };
    await tx.gameSchedule.updateMany({where,data});
-   const updatedDraws=hasOpensAt?await this.syncUpcomingScheduledDraws(tx,tenantId,dto.gameId,schedules.map(schedule=>({
+   const updatedDraws=hasTimeChange?await this.syncUpcomingScheduledDraws(tx,tenantId,dto.gameId,schedules.map(schedule=>({
     weekday:schedule.weekday,timezone:schedule.timezone,previousResultAt:schedule.resultAt,
-    opensAt:dto.opensAt!,closesAt:dto.closesAt!,resultAt:schedule.resultAt,
+    opensAt:dto.opensAt??schedule.opensAt,closesAt:dto.closesAt??schedule.closesAt,
+    resultAt:dto.newResultAt??schedule.resultAt,
    }))):0;
    await tx.auditLog.create({data:{
     tenantId,userId:u.sub,action:'UPDATE',entityType:'GameScheduleSlot',entityId:`${dto.gameId}:${dto.resultAt}`,
-    oldValues:{enabled:schedules.some(schedule=>schedule.active),times:[...new Set(schedules.map(schedule=>`${schedule.opensAt}-${schedule.closesAt}`))]},
+    oldValues:{enabled:schedules.some(schedule=>schedule.active),resultAt:dto.resultAt,times:[...new Set(schedules.map(schedule=>`${schedule.opensAt}-${schedule.closesAt}`))]},
     newValues:{
      ...(dto.enabled!==undefined?{enabled:dto.enabled}:{}),
      ...(hasOpensAt?{opensAt:dto.opensAt,closesAt:dto.closesAt}:{}),
+     ...(hasNewResultAt?{resultAt:dto.newResultAt}:{}),
      updatedSchedules:schedules.length,updatedDraws,
     },
    }});
    return{
     gameId:dto.gameId,resultAt:dto.resultAt,
+    ...(hasNewResultAt?{newResultAt:dto.newResultAt}:{}),
     ...(dto.enabled!==undefined?{enabled:dto.enabled}:{}),
     ...(hasOpensAt?{opensAt:dto.opensAt,closesAt:dto.closesAt}:{}),
     updatedSchedules:schedules.length,updatedDraws,

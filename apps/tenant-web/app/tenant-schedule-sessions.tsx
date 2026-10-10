@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { drawSessionLabel } from "./draw-label";
 import { useI18n } from "./i18n";
-import { groupSchedulesBySession, isScheduleSessionOpen, type ScheduleSession } from "./schedule-sessions";
+import { groupSchedulesBySession, isScheduleSessionOpen, scheduleSlotUpdatePayload, type ScheduleSession } from "./schedule-sessions";
 
 type Row = Record<string, any>;
 type Request = (path: string, init?: RequestInit) => Promise<any>;
@@ -35,7 +35,11 @@ function SessionCard({
     try {
       await request("/lottery/schedules/slot", {
         method: "PATCH",
-        body: JSON.stringify({ gameId: session.gameId, resultAt: session.resultAt, opensAt: values.opensAt, closesAt: values.closesAt }),
+        body: JSON.stringify(scheduleSlotUpdatePayload(session, {
+          opensAt: String(values.opensAt ?? ""),
+          closesAt: String(values.closesAt ?? ""),
+          resultAt: String(values.resultAt ?? ""),
+        })),
       });
       setMessage(t("lottery.scheduleUpdated"));
       await reload();
@@ -68,7 +72,6 @@ function SessionCard({
       <div className="tenant-session-heading">
         <div>
           <strong>{session.gameName} · {label}</strong>
-          <small>{t("lottery.resultTime")}: {session.resultAt}</small>
         </div>
         <span className={`tenant-session-status ${open ? "is-open" : "is-closed"}`}>
           {open ? t("lottery.sessionOpen") : t("lottery.sessionClosed")}
@@ -81,6 +84,7 @@ function SessionCard({
       >
         <label>{t("lottery.opensAt")}<input name="opensAt" type="time" defaultValue={String(reference.opensAt ?? "").slice(0, 5)} required disabled={!canEdit || saving} /></label>
         <label>{t("lottery.closesAt")}<input name="closesAt" type="time" defaultValue={String(reference.closesAt ?? "").slice(0, 5)} required disabled={!canEdit || saving} /></label>
+        <label>{t("lottery.resultTime")}<input name="resultAt" type="time" defaultValue={session.resultAt} required disabled={!canEdit || saving} /></label>
         {canEdit && <button className="tenant-session-save" type="submit" disabled={saving}>{saving ? "…" : t("lottery.saveSchedule")}</button>}
       </form>
       {canEdit && <button className={`tenant-session-toggle ${open ? "is-close-action" : ""}`} disabled={saving} onClick={() => void toggleSession()}>

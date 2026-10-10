@@ -8,6 +8,19 @@ export type ScheduleSession = {
   schedules: Row[];
 };
 
+export function scheduleSlotUpdatePayload(
+  session: Pick<ScheduleSession, "gameId" | "resultAt">,
+  times: { opensAt: string; closesAt: string; resultAt: string },
+) {
+  return {
+    gameId: session.gameId,
+    resultAt: session.resultAt,
+    newResultAt: times.resultAt,
+    opensAt: times.opensAt,
+    closesAt: times.closesAt,
+  };
+}
+
 export function groupSchedulesBySession(games: Row[]): ScheduleSession[] {
   const sessions = new Map<string, ScheduleSession>();
 
