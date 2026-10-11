@@ -3,7 +3,7 @@ import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
 import {calculateLineWinningAmount} from './result-payout-policy';
-import {feedDrawNumber,feedEventDedupeKey,feedEventDedupeScope,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings,pick3Pick4WinningKeys} from './lottery-results-feed';
+import {feedDrawNumber,feedDrawTime,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings,pick3Pick4WinningKeys} from './lottery-results-feed';
 import {hasSameWinningKeys,isLotteryResultsFeedManagedResult,isOlderLotteryResultsFeedUpdate} from './provider-result-correction-policy';
 import {evaluateTicketResults} from './results-policy';
 import {checkedDrawVersion,hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
@@ -13,6 +13,7 @@ import {drawDateFilter} from '../lottery/draw-date-filter';
 @Injectable()
 export class ResultsService implements OnModuleInit{
   private lastProviderPoll=0;
+  private lastPick3Pick4Reconciliation=0;
   private readonly logger=new Logger(ResultsService.name);
 
   onModuleInit(){void this.reconcilePublishedTicketResults().catch(error=>this.retryPublishedTicketReconciliation(error))}
@@ -84,7 +85,17 @@ export class ResultsService implements OnModuleInit{
     return false;
   }
 
-  providerStatus(){let bindingCount=0,bindingsValid=true;try{bindingCount=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS).length}catch{bindingsValid=false}return{pollEnabled:process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED==='true',tokenConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_TOKEN),bindingCount,bindingsValid,lastPollAt:this.lastProviderPoll?new Date(this.lastProviderPoll).toISOString():null,webhookConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_WEBHOOK_SECRET)}}
+  async providerStatus(){
+    let bindingCount=0,bindingsValid=true;
+    try{bindingCount=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS).length}catch{bindingsValid=false}
+    const where={provider:'lottery-results-feed'};
+    const[pendingEventCount,failedEventCount,waitingForPick3Pick4Count]=await Promise.all([
+      prisma.providerResultEvent.count({where:{...where,status:'PENDING'}}),
+      prisma.providerResultEvent.count({where:{...where,status:'FAILED'}}),
+      prisma.providerResultEvent.count({where:{...where,status:'APPLIED',error:'WAITING_FOR_PICK3_PICK4_PAIR'}}),
+    ]);
+    return{pollEnabled:process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED==='true',tokenConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_TOKEN),bindingCount,bindingsValid,lastPollAt:this.lastProviderPoll?new Date(this.lastProviderPoll).toISOString():null,webhookConfigured:Boolean(process.env.LOTTERY_RESULTS_FEED_WEBHOOK_SECRET),pendingEventCount,failedEventCount,waitingForPick3Pick4Count};
+  }
 
   async platformDraws(){
     return prisma.draw.findMany({where:{status:{in:['CLOSED','RESULT_PENDING']}},include:{game:{select:{id:true,name:true,code:true,catalogCode:true}}},orderBy:[{resultAt:'desc'},{drawNumber:'desc'}],take:1000});
@@ -183,9 +194,43 @@ export class ResultsService implements OnModuleInit{
         }
         await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'APPLIED',processedAt:new Date()}});
       }catch(error){
-        await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'FAILED',error:(error instanceof Error?error.message:String(error)).slice(0,2000)}});
+        const message=(error instanceof Error?error.message:String(error)).slice(0,2000);
+        await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'FAILED',error:message}});
+        this.logger.error(`Lottery results feed event ${event.id} failed: ${message}`);
       }
     }
+    await this.reconcileAppliedPick3Pick4Events();
+  }
+
+  private async reconcileAppliedPick3Pick4Events(){
+    const bindings=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS);
+    const pick3LotteryIds=new Set(bindings.filter(binding=>binding.prizeSource==='PICK3').map(binding=>binding.lotteryId));
+    if(!pick3LotteryIds.size)return;
+    const interval=Math.max(60_000,Number(process.env.LOTTERY_RESULTS_FEED_POLL_MS??900_000)||900_000);
+    const now=Date.now();
+    if(now-this.lastPick3Pick4Reconciliation<interval)return;
+    const rows=await prisma.providerResultEvent.findMany({
+      where:{provider:'lottery-results-feed',status:'APPLIED',createdAt:{gte:new Date(now-3*86400_000)}},
+      select:{id:true,payload:true,error:true},orderBy:{createdAt:'desc'},take:1000,
+    });
+    this.lastPick3Pick4Reconciliation=now;
+    let checked=0,updated=0,duplicates=0,failed=0;
+    for(const row of rows){
+      const event=row.payload as LotteryResultsFeedEvent;
+      if(!pick3LotteryIds.has(event.lottery_id??-1)||!event.draw_date||!Array.isArray(event.numbers))continue;
+      checked++;
+      try{
+        const outcome=await this.applyLotteryResultsFeed(event);
+        if('waitingForPick3Pick4Pair' in outcome&&outcome.waitingForPick3Pick4Pair)continue;
+        if(row.error==='WAITING_FOR_PICK3_PICK4_PAIR')await prisma.providerResultEvent.update({where:{id:row.id},data:{error:null}});
+        updated+=outcome.applied;
+        duplicates+=outcome.duplicates;
+      }catch(error){
+        failed++;
+        this.logger.warn(`Pick 3/Pick 4 reconciliation failed for lottery ${event.lottery_id}, draw ${event.draw_date}: ${error instanceof Error?error.message:String(error)}`);
+      }
+    }
+    if(checked)this.logger.log(`Pick 3/Pick 4 feed reconciliation checked ${checked} events, updated ${updated} draws, skipped ${duplicates} unchanged draws, failed ${failed}.`);
   }
 
 
@@ -217,17 +262,16 @@ export class ResultsService implements OnModuleInit{
     const bindings=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS);
     const binding=bindings.find(item=>item.lotteryId===event.lottery_id);
     if(!binding)throw new Error(`LOTTERY_RESULTS_FEED_UNMAPPED:${event.lottery_id}`);
-    const drawType=event.draw_type?.trim().toLowerCase().replaceAll(' ','_')||'default';
-    const time=binding.drawTimes[drawType]??binding.drawTimes.default;
-    if(!time)throw new Error(`LOTTERY_RESULTS_FEED_DRAW_TYPE_UNMAPPED:${binding.catalogCode}:${drawType}`);
+    const time=feedDrawTime(binding,event.draw_type);
+    if(!time)throw new Error(`LOTTERY_RESULTS_FEED_DRAW_TYPE_UNMAPPED:${binding.catalogCode}:${event.draw_type??'unknown'}`);
     let winningKeys:string[],sourceUpdatedAt=event.published_at;
     if(binding.prizeSource){
       const pick3Binding=bindings.find(item=>item.catalogCode===binding.catalogCode&&item.prizeSource==='PICK3');
       const pick4Binding=bindings.find(item=>item.catalogCode===binding.catalogCode&&item.prizeSource==='PICK4');
       if(!pick3Binding||!pick4Binding)throw new Error(`INVALID_LOTTERY_RESULTS_FEED_PRIZE_PAIR:${binding.catalogCode}`);
       const [pick3Event,pick4Event]=await Promise.all([
-        this.latestLotteryResultsFeedEvent(pick3Binding,event),
-        this.latestLotteryResultsFeedEvent(pick4Binding,event),
+        this.latestLotteryResultsFeedEvent(pick3Binding,event,time),
+        this.latestLotteryResultsFeedEvent(pick4Binding,event,time),
       ]);
       if(!pick3Event||!pick4Event)return{applied:0,duplicates:0,missing:0,waitingForPick3Pick4Pair:true};
       const combined=pick3Pick4WinningKeys(pick3Event.numbers??[],pick4Event.numbers??[]);
@@ -261,16 +305,15 @@ export class ResultsService implements OnModuleInit{
     return{applied,duplicates,missing};
   }
 
-  private async latestLotteryResultsFeedEvent(binding:ReturnType<typeof parseFeedBindings>[number],reference:LotteryResultsFeedEvent){
-    const scope=feedEventDedupeScope({...reference,lottery_id:binding.lotteryId});
+  private async latestLotteryResultsFeedEvent(binding:ReturnType<typeof parseFeedBindings>[number],reference:LotteryResultsFeedEvent,drawTime:string){
+    const prefix=`lottery-results-feed:${binding.lotteryId}:${reference.draw_date}:`;
     const rows=await prisma.providerResultEvent.findMany({
-      where:{provider:'lottery-results-feed',dedupeKey:{startsWith:`${scope}:`}},
-      select:{payload:true,createdAt:true},orderBy:{createdAt:'desc'},take:25,
+      where:{provider:'lottery-results-feed',dedupeKey:{startsWith:prefix}},
+      select:{payload:true,createdAt:true},orderBy:{createdAt:'desc'},take:100,
     });
     const matching=rows.map(row=>({payload:row.payload as LotteryResultsFeedEvent,createdAt:row.createdAt})).filter(row=>
       row.payload.lottery_id===binding.lotteryId&&row.payload.draw_date===reference.draw_date&&
-      (row.payload.draw_type?.trim().toLowerCase()||'default')===(reference.draw_type?.trim().toLowerCase()||'default')&&
-      Array.isArray(row.payload.numbers),
+      feedDrawTime(binding,row.payload.draw_type)===drawTime&&Array.isArray(row.payload.numbers),
     );
     matching.sort((left,right)=>{
       const time=(value:LotteryResultsFeedEvent)=>Date.parse(value.published_at??'')||0;

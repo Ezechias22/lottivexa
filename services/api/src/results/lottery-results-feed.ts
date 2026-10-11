@@ -23,6 +23,18 @@ export type FeedBinding={
   prizeSource?:'PICK3'|'PICK4';
 };
 
+export function feedDrawTime(binding:FeedBinding,drawType:string|null|undefined){
+  const key=drawType?.trim().toLowerCase().replace(/\s+/g,'_')||'default';
+  const aliases:Record<string,string[]>={
+    midday:['day'],day:['midday'],
+    evening:['night'],night:['evening'],
+  };
+  for(const candidate of [key,...(aliases[key]??[])]){
+    if(binding.drawTimes[candidate])return binding.drawTimes[candidate];
+  }
+  return binding.drawTimes.default;
+}
+
 export function mapLotteryResultsFeedRestRow(row:Record<string,unknown>,lotteryId:number):LotteryResultsFeedEvent{
   // The REST API's canonical main-result field is `balls`. Prefer it when
   // compatibility aliases are also present so unrelated `numbers` fields
@@ -65,7 +77,9 @@ export function parseFeedBindings(raw:string|undefined):FeedBinding[]{
   const paired=bindings.filter(binding=>binding.prizeSource);
   for(const binding of paired){
     const companion=paired.find(other=>other.catalogCode===binding.catalogCode&&other.prizeSource!==binding.prizeSource);
-    const sameSchedule=companion&&Object.keys(binding.drawTimes).length===Object.keys(companion.drawTimes).length&&Object.keys(binding.drawTimes).every(key=>binding.drawTimes[key]===companion.drawTimes[key]);
+    const bindingTimes=Object.values(binding.drawTimes).sort();
+    const companionTimes=companion?Object.values(companion.drawTimes).sort():[];
+    const sameSchedule=companion&&bindingTimes.length===companionTimes.length&&bindingTimes.every((time,index)=>time===companionTimes[index]);
     if(!companion||!sameSchedule)throw new Error(`INVALID_LOTTERY_RESULTS_FEED_PRIZE_PAIR:${binding.catalogCode}`);
   }
   return bindings;

@@ -1,6 +1,6 @@
 import{createHmac}from'node:crypto';
 import{describe,expect,it}from'vitest';
-import{feedDrawNumber,feedEventDedupeKey,feedWinningKeys,mapLotteryResultsFeedRestRow,parseFeedBindings,parseLotteryResultsFeedEvent,pick3Pick4WinningKeys,verifyLotteryResultsFeedSignature}from'./lottery-results-feed';
+import{feedDrawNumber,feedDrawTime,feedEventDedupeKey,feedWinningKeys,mapLotteryResultsFeedRestRow,parseFeedBindings,parseLotteryResultsFeedEvent,pick3Pick4WinningKeys,verifyLotteryResultsFeedSignature}from'./lottery-results-feed';
 
 describe('LotteryResultsFeed adapter',()=>{
   const payload=Buffer.from(JSON.stringify({version:'1.0',event:'lottery.result.published',lottery_id:17,lottery_name:'New York',country:'us',draw_date:'2026-09-10',draw_type:'midday',numbers:[7,14,21],bonus_numbers:[],published_at:'2026-09-10T18:30:00Z'}));
@@ -19,6 +19,14 @@ describe('LotteryResultsFeed adapter',()=>{
     expect(feedEventDedupeKey({...event,numbers:[7,14,22]})).not.toBe(feedEventDedupeKey(event));
   });
   it('maps the provider session to generated draw numbers',()=>expect(feedDrawNumber('NY','2026-09-10','14:30')).toBe('NY-20260910-1430'));
+  it('resolves common Day and Midday labels to the same configured draw time',()=>{
+    const binding=parseFeedBindings('[{"catalogCode":"US-CT","lotteryId":39,"prizeSource":"PICK3","drawTimes":{"day":"14:00","night":"22:29"}},{"catalogCode":"US-CT","lotteryId":41,"prizeSource":"PICK4","drawTimes":{"day":"14:00","night":"22:29"}}]')[0];
+    expect(feedDrawTime(binding,'Midday')).toBe('14:00');
+  });
+  it('matches paired prize draws by configured time even if the provider labels sessions differently',()=>{
+    const bindings=parseFeedBindings('[{"catalogCode":"US-CT","lotteryId":39,"prizeSource":"PICK3","drawTimes":{"day":"14:00","night":"22:29"}},{"catalogCode":"US-CT","lotteryId":41,"prizeSource":"PICK4","drawTimes":{"midday":"14:00","night":"22:29"}}]');
+    expect(feedDrawTime(bindings[0],'Day')).toBe(feedDrawTime(bindings[1],'Midday'));
+  });
   it('maps provider REST balls and timestamp without mixing bonus balls',()=>expect(mapLotteryResultsFeedRestRow({draw_date:'2026-09-19',draw_type:'midday',balls:[7,14,21],ball_bonus:9,result_published_at:'2026-09-19T18:00:00Z'},17)).toMatchObject({lottery_id:17,draw_date:'2026-09-19',draw_type:'midday',numbers:[7,14,21],published_at:'2026-09-19T18:00:00Z'}));
   it('prefers canonical balls over compatibility numbers fields when both are present',()=>expect(mapLotteryResultsFeedRestRow({draw_date:'2026-09-19',draw_type:'midday',balls:[5,3,2],numbers:[7,8,9],winning_numbers:[1,1,1]},17).numbers).toEqual([5,3,2]));
   it('uses the provider result update timestamp so stale deliveries can be ignored',()=>expect(mapLotteryResultsFeedRestRow({draw_date:'2026-09-19',balls:[5,3,2],result_published_at:'2026-09-19T18:00:00Z',result_updated_at:'2026-09-19T18:05:00Z'},17).published_at).toBe('2026-09-19T18:05:00Z'));
