@@ -38,3 +38,8 @@ export function orderedThreeDigitResult(keys: string[]) {
   const combined = positions.map(key => key.replace(/^0+/, '') || '0').join('');
   return combined === keys[3] ? { positions, combined: keys[3] } : null;
 }
+
+export function resultKeysForDisplay(keys: string[]) {
+  const combined = orderedThreeDigitResult(keys);
+  return combined ? [combined.combined] : keys;
+}

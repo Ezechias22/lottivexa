@@ -23,13 +23,16 @@ export type FeedBinding={
 };
 
 export function mapLotteryResultsFeedRestRow(row:Record<string,unknown>,lotteryId:number):LotteryResultsFeedEvent{
-  const numbers=row.numbers??row.winning_numbers??row.balls;
+  // The REST API's canonical main-result field is `balls`. Prefer it when
+  // compatibility aliases are also present so unrelated `numbers` fields
+  // cannot replace the actual winning balls.
+  const numbers=row.balls??row.numbers??row.winning_numbers;
   return{
     version:'1.0',event:'lottery.result.published',lottery_id:lotteryId,
     lottery_name:String(row.lottery_name??(row.lottery as Record<string,unknown>|undefined)?.name??''),
     draw_date:String(row.draw_date??row.date??''),draw_type:typeof row.draw_type==='string'?row.draw_type:null,
     numbers:Array.isArray(numbers)?numbers as number[]:undefined,
-    published_at:String(row.published_at??row.result_published_at??row.updated_at??new Date().toISOString()),
+    published_at:String(row.result_updated_at??row.updated_at??row.published_at??row.result_published_at??new Date().toISOString()),
   };
 }
 
@@ -60,12 +63,15 @@ export function parseFeedBindings(raw:string|undefined):FeedBinding[]{
 }
 
 export function feedWinningKeys(numbers:number[]){
+  if(numbers.length===3&&numbers.every(value=>Number.isInteger(value)&&value>=0&&value<=9))return[numbers.join('')];
   const ordered=numbers.map(value=>String(value).padStart(2,'0'));
   const digitCombination=numbers.length>=3&&numbers.length<=5&&numbers.every(value=>value<=9)?numbers.join(''):undefined;
   return[...ordered,...(digitCombination&&!ordered.includes(digitCombination)?[digitCombination]:[])];
 }
 
-export function feedEventDedupeKey(event:LotteryResultsFeedEvent){return`lottery-results-feed:${event.lottery_id}:${event.draw_date}:${event.draw_type?.trim().toLowerCase()||'default'}`}
+export function feedEventDedupeScope(event:LotteryResultsFeedEvent){return`lottery-results-feed:${event.lottery_id}:${event.draw_date}:${event.draw_type?.trim().toLowerCase()||'default'}`}
+
+export function feedEventDedupeKey(event:LotteryResultsFeedEvent){return`${feedEventDedupeScope(event)}:${(event.numbers??[]).join(',')}`}
 
 export function feedDrawNumber(gameCode:string,date:string,time:string){
   return`${gameCode}-${date.replaceAll('-','')}-${time.replace(':','')}`;

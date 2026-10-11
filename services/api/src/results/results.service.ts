@@ -2,9 +2,10 @@ import {ConflictException,ForbiddenException,Injectable,Logger,OnModuleInit} fro
 import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
-import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
-import {evaluateTicketResults} from './results-policy';
 import {calculateLineWinningAmount} from './result-payout-policy';
+import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
+import {hasSameWinningKeys,isLotteryResultsFeedManagedResult,isOlderLotteryResultsFeedUpdate} from './provider-result-correction-policy';
+import {evaluateTicketResults} from './results-policy';
 import {checkedDrawVersion,hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
 import {presentTicketLines} from '../tickets/ticket-line-flags';
 import {drawDateFilter} from '../lottery/draw-date-filter';
@@ -130,7 +131,7 @@ export class ResultsService implements OnModuleInit{
     return{drawId,drawsProcessed:drawsProcessed||matchingDraws.length,ticketsProcessed,winners,alreadyPublished:drawsProcessed===0};
   }
 
-  async editPlatform(u:Principal,drawId:string,result:{winningKeys:string[]}){
+  async editPlatform(u:Principal,drawId:string,result:{winningKeys:string[];source?:string;sourceUpdatedAt?:string}){
     resultWinningKeys(result);
     return prisma.$transaction(async tx=>{
       const draw=await tx.draw.findUnique({where:{id:drawId},select:{id:true,tenantId:true,status:true}});
@@ -215,20 +216,29 @@ export class ResultsService implements OnModuleInit{
     if(!time)throw new Error(`LOTTERY_RESULTS_FEED_DRAW_TYPE_UNMAPPED:${binding.catalogCode}:${drawType}`);
     const games=await prisma.game.findMany({where:{catalogCode:binding.catalogCode,status:'ACTIVE',archivedAt:null},select:{id:true,code:true,tenantId:true}});
     let applied=0,duplicates=0,missing=0;
+    const winningKeys=feedWinningKeys(event.numbers!);
+    const feedResult={winningKeys,source:'LOTTERY_RESULTS_FEED',sourceUpdatedAt:event.published_at};
     for(const game of games){
       const drawNumber=feedDrawNumber(game.code,event.draw_date!,time);
-      const draw=await prisma.draw.findUnique({where:{tenantId_drawNumber:{tenantId:game.tenantId,drawNumber}},select:{id:true,status:true}});
+      const draw=await prisma.draw.findUnique({where:{tenantId_drawNumber:{tenantId:game.tenantId,drawNumber}},select:{id:true,status:true,result:true}});
       if(!draw){missing++;continue}
-      if(draw.status==='RESULT_PUBLISHED'){duplicates++;continue}
+      if(draw.status==='RESULT_PUBLISHED'){
+        if(!isLotteryResultsFeedManagedResult(draw.result)||hasSameWinningKeys(draw.result,winningKeys)||isOlderLotteryResultsFeedUpdate(draw.result,event.published_at)){duplicates++;continue}
+        const actor=await prisma.user.findFirst({where:{tenantId:game.tenantId,status:'ACTIVE',roles:{some:{role:{code:'TENANT_OWNER'}}}},select:{id:true,tokenVersion:true}});
+        if(!actor){missing++;continue}
+        await this.editPlatform({sub:actor.id,tenantId:game.tenantId,permissions:['settings.edit'],platform:false,tokenVersion:actor.tokenVersion},draw.id,feedResult);
+        applied++;
+        continue;
+      }
       const actor=await prisma.user.findFirst({where:{tenantId:game.tenantId,status:'ACTIVE',roles:{some:{role:{code:'TENANT_OWNER'}}}},select:{id:true,tokenVersion:true}});
       if(!actor){missing++;continue}
-      await this.publish({sub:actor.id,tenantId:game.tenantId,permissions:['settings.edit'],platform:false,tokenVersion:actor.tokenVersion},draw.id,{winningKeys:feedWinningKeys(event.numbers!)});
+      await this.publish({sub:actor.id,tenantId:game.tenantId,permissions:['settings.edit'],platform:false,tokenVersion:actor.tokenVersion},draw.id,feedResult);
       applied++;
     }
     return{applied,duplicates,missing};
   }
 
-  async publish(u:Principal,drawId:string,result:{winningKeys:string[]}){
+  async publish(u:Principal,drawId:string,result:{winningKeys:string[];source?:string;sourceUpdatedAt?:string}){
     const tenantId=this.tenant(u);resultWinningKeys(result);
     return prisma.$transaction(async tx=>{
       const changed=await tx.draw.updateMany({where:{id:drawId,tenantId,status:{in:['CLOSED','RESULT_PENDING']}},data:{status:'RESULT_PUBLISHED',result,publishedAt:new Date()}});

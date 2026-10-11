@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawResultDate, localResultDate, orderedThreeDigitResult, publishedResultsForDate } from './results-date';
+import { drawResultDate, localResultDate, orderedThreeDigitResult, publishedResultsForDate, resultKeysForDisplay } from './results-date';
 
 describe('tenant result date filters', () => {
   it('formats the local calendar date without converting it to UTC', () => {
@@ -29,5 +29,10 @@ describe('tenant result date filters', () => {
   it('identifies the first three ordered digits without changing their order', () => {
     expect(orderedThreeDigitResult(['07', '06', '03', '763'])).toEqual({ positions: ['07', '06', '03'], combined: '763' });
     expect(orderedThreeDigitResult(['506', '62', '64'])).toBeNull();
+  });
+
+  it('shows a legacy Pick 3 feed result as one number and keeps manual New York values', () => {
+    expect(resultKeysForDisplay(['07', '06', '03', '763'])).toEqual(['763']);
+    expect(resultKeysForDisplay(['506', '62', '64'])).toEqual(['506', '62', '64']);
   });
 });

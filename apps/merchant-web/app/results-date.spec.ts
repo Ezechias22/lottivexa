@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { localResultDate, orderedThreeDigitResult, publishedResultsForDate } from './results-date';
+import { localResultDate, orderedThreeDigitResult, publishedResultsForDate, resultKeysForDisplay } from './results-date';
 
 describe('merchant result date filters', () => {
   it('uses the local calendar day as the default', () => {
@@ -24,5 +24,10 @@ describe('merchant result date filters', () => {
   it('identifies the ordered digits and complete three-digit result', () => {
     expect(orderedThreeDigitResult(['05', '03', '02', '532'])).toEqual({ positions: ['05', '03', '02'], combined: '532' });
     expect(orderedThreeDigitResult(['506', '62', '64'])).toBeNull();
+  });
+
+  it('shows a legacy Pick 3 feed result as one number and keeps manual New York values', () => {
+    expect(resultKeysForDisplay(['07', '06', '03', '763'])).toEqual(['763']);
+    expect(resultKeysForDisplay(['506', '62', '64'])).toEqual(['506', '62', '64']);
   });
 });

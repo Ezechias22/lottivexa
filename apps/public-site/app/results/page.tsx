@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { localResultDate, orderedThreeDigitResult, publishedResultsForDate } from './results-date';
+import { localResultDate, orderedThreeDigitResult, publishedResultsForDate, resultKeysForDisplay } from './results-date';
 
 type Row = Record<string, any>;
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -26,7 +26,7 @@ function readableDraw(row: Row) {
 }
 
 function visibleWinningResult(row: Row) {
-  const keys = (row.result?.winningKeys ?? []).map((value: unknown) => String(value).split('@')[0]);
+  const keys = resultKeysForDisplay((row.result?.winningKeys ?? []).map((value: unknown) => String(value).split('@')[0]));
   const positioned = orderedThreeDigitResult(keys);
   if (!positioned) return keys.join(' · ') || '—';
   const french = typeof document !== 'undefined' && document.documentElement.lang === 'fr';
