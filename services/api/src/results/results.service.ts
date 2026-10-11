@@ -238,7 +238,7 @@ export class ResultsService implements OnModuleInit{
     if(process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED!=='true')return;
     const token=process.env.LOTTERY_RESULTS_FEED_TOKEN;
     const bindings=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS);
-    const interval=Number(process.env.LOTTERY_RESULTS_FEED_POLL_MS??900000);
+    const interval=Number(process.env.LOTTERY_RESULTS_FEED_POLL_MS??420000);
     if(!token||!bindings.length||Date.now()-this.lastProviderPoll<interval)return;
     this.lastProviderPoll=Date.now();
     const base=(process.env.LOTTERY_RESULTS_FEED_BASE_URL??'https://www.lotteryresultsfeed.com/api').replace(/\/$/,'');
