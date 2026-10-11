@@ -20,6 +20,7 @@ export type FeedBinding={
   catalogCode:string;
   lotteryId:number;
   drawTimes:Record<string,string>;
+  prizeSource?:'PICK3'|'PICK4';
 };
 
 export function mapLotteryResultsFeedRestRow(row:Record<string,unknown>,lotteryId:number):LotteryResultsFeedEvent{
@@ -55,11 +56,19 @@ export function parseFeedBindings(raw:string|undefined):FeedBinding[]{
   if(!raw)return[];
   const value=JSON.parse(raw) as unknown;
   if(!Array.isArray(value))throw new Error('INVALID_LOTTERY_RESULTS_FEED_BINDINGS');
-  return value.map((row:any)=>{
+  const bindings:FeedBinding[]=value.map((row:any)=>{
     if(!row||typeof row.catalogCode!=='string'||!Number.isInteger(row.lotteryId)||!row.drawTimes||typeof row.drawTimes!=='object')throw new Error('INVALID_LOTTERY_RESULTS_FEED_BINDING');
     for(const [key,time] of Object.entries(row.drawTimes))if(!key||typeof time!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw new Error('INVALID_LOTTERY_RESULTS_FEED_DRAW_TIME');
-    return{catalogCode:row.catalogCode,lotteryId:row.lotteryId,drawTimes:row.drawTimes};
+    if(row.prizeSource!==undefined&&row.prizeSource!=='PICK3'&&row.prizeSource!=='PICK4')throw new Error('INVALID_LOTTERY_RESULTS_FEED_PRIZE_SOURCE');
+    return{catalogCode:row.catalogCode,lotteryId:row.lotteryId,drawTimes:row.drawTimes,prizeSource:row.prizeSource};
   });
+  const paired=bindings.filter(binding=>binding.prizeSource);
+  for(const binding of paired){
+    const companion=paired.find(other=>other.catalogCode===binding.catalogCode&&other.prizeSource!==binding.prizeSource);
+    const sameSchedule=companion&&Object.keys(binding.drawTimes).length===Object.keys(companion.drawTimes).length&&Object.keys(binding.drawTimes).every(key=>binding.drawTimes[key]===companion.drawTimes[key]);
+    if(!companion||!sameSchedule)throw new Error(`INVALID_LOTTERY_RESULTS_FEED_PRIZE_PAIR:${binding.catalogCode}`);
+  }
+  return bindings;
 }
 
 export function feedWinningKeys(numbers:number[]){
@@ -67,6 +76,13 @@ export function feedWinningKeys(numbers:number[]){
   const ordered=numbers.map(value=>String(value).padStart(2,'0'));
   const digitCombination=numbers.length>=3&&numbers.length<=5&&numbers.every(value=>value<=9)?numbers.join(''):undefined;
   return[...ordered,...(digitCombination&&!ordered.includes(digitCombination)?[digitCombination]:[])];
+}
+
+export function pick3Pick4WinningKeys(pick3Numbers:number[],pick4Numbers:number[]):string[]|undefined{
+  if(pick3Numbers.length!==3||pick3Numbers.some(value=>!Number.isInteger(value)||value<0||value>9))return undefined;
+  if(pick4Numbers.length!==4||pick4Numbers.some(value=>!Number.isInteger(value)||value<0||value>9))return undefined;
+  const pick4=pick4Numbers.map(String).join('');
+  return[pick3Numbers.map(String).join(''),pick4.slice(0,2),pick4.slice(2,4)];
 }
 
 export function feedEventDedupeScope(event:LotteryResultsFeedEvent){return`lottery-results-feed:${event.lottery_id}:${event.draw_date}:${event.draw_type?.trim().toLowerCase()||'default'}`}

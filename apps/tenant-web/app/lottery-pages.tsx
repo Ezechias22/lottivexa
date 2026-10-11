@@ -5,7 +5,7 @@ import ManualResults from './manual-results';
 import { describeDraw, drawSessionLabel } from './draw-label';
 import { useI18n } from './i18n';
 import TenantScheduleSessions from './tenant-schedule-sessions';
-import { localResultDate, orderedThreeDigitResult, publishedResultsForDate, resultKeysForDisplay } from './results-date';
+import { localResultDate, orderedPick3Pick4Result, orderedThreeDigitResult, publishedResultsForDate, resultKeysForDisplay } from './results-date';
 
 type Row = Record<string, any>;
 type Request = (path: string, init?: RequestInit) => Promise<any>;
@@ -102,9 +102,10 @@ export function PublishedResults({ draws, request }: { draws: Row[]; request: Re
       <div className="tenant-result-brand">{group.game?.logoUrl ? <img src={group.game.logoUrl} alt="" /> : <span>{String(group.game?.code ?? group.game?.name ?? 'L').slice(0, 2)}</span>}<b>{group.game?.name ?? '—'}</b></div>
       <div className="tenant-result-sessions">{group.draws.map((draw: Row) => {
         const keys = resultKeysForDisplay((draw.result?.winningKeys ?? []).map((key: unknown) => String(key).split('@')[0]));
+        const ranked = orderedPick3Pick4Result(keys);
         const positioned = orderedThreeDigitResult(keys);
         const detail = describeDraw(draw, language).split(' · ').slice(1).join(' · ');
-        return <div className="tenant-result-session" key={draw.id}><div className="tenant-result-session-label"><b>{detail || drawSessionLabel(draw, language)}</b><small>{draw.drawNumber}</small></div><div className="tenant-result-balls">{positioned ? <>{positioned.positions.map((key: string, index: number) => <span className="tenant-result-position" key={index}><small>{language === 'fr' ? `${index + 1}${index === 0 ? 'er' : 'e'}` : `${index + 1}${index === 0 ? 'ye' : 'yèm'}`}</small><strong className={`result-ball ball-${index}`}>{key}</strong></span>)}<span className="tenant-result-position"><small>{language === 'fr' ? 'Complet' : 'Konplè'}</small><strong className="result-ball ball-2">{positioned.combined}</strong></span></> : keys.length ? keys.map((key: string, ball: number) => <strong className={`result-ball ball-${ball % 3}`} key={`${key}-${ball}`}>{key}</strong>) : <span className="tenant-result-empty">—</span>}</div></div>;
+        return <div className="tenant-result-session" key={draw.id}><div className="tenant-result-session-label"><b>{detail || drawSessionLabel(draw, language)}</b><small>{draw.drawNumber}</small></div><div className="tenant-result-balls">{ranked ? ranked.positions.map((key: string, index: number) => <span className="tenant-result-position" key={index}><small>{language === 'fr' ? `${index + 1}${index === 0 ? 'er' : 'e'}` : ['Premye lo', 'Dezyèm lo', 'Twazyèm lo'][index]}</small><strong className={`result-ball ball-${index}`}>{key}</strong></span>) : positioned ? <>{positioned.positions.map((key: string, index: number) => <span className="tenant-result-position" key={index}><small>{language === 'fr' ? `${index + 1}${index === 0 ? 'er' : 'e'}` : `${index + 1}${index === 0 ? 'ye' : 'yèm'}`}</small><strong className={`result-ball ball-${index}`}>{key}</strong></span>)}<span className="tenant-result-position"><small>{language === 'fr' ? 'Complet' : 'Konplè'}</small><strong className="result-ball ball-2">{positioned.combined}</strong></span></> : keys.length ? keys.map((key: string, ball: number) => <strong className={`result-ball ball-${ball % 3}`} key={`${key}-${ball}`}>{key}</strong>) : <span className="tenant-result-empty">—</span>}</div></div>;
       })}</div>
     </article>)}{!rows.length && <p className="empty">{t('table.empty')}</p>}</div>
   </section>;

@@ -3,7 +3,7 @@ import {prisma,Prisma} from '@lottivexa/database';
 import type {Principal} from '../common/guards/jwt-auth.guard';
 import {resultWinningKeys} from '../tickets/ticket-policy';
 import {calculateLineWinningAmount} from './result-payout-policy';
-import {feedDrawNumber,feedEventDedupeKey,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings} from './lottery-results-feed';
+import {feedDrawNumber,feedEventDedupeKey,feedEventDedupeScope,feedWinningKeys,LotteryResultsFeedEvent,mapLotteryResultsFeedRestRow,parseFeedBindings,pick3Pick4WinningKeys} from './lottery-results-feed';
 import {hasSameWinningKeys,isLotteryResultsFeedManagedResult,isOlderLotteryResultsFeedUpdate} from './provider-result-correction-policy';
 import {evaluateTicketResults} from './results-policy';
 import {checkedDrawVersion,hasCurrentResultCheck,needsWinnerRepair} from './results-reconciliation-policy';
@@ -170,19 +170,24 @@ export class ResultsService implements OnModuleInit{
     return{accepted:true,eventId:queued.id,status:queued.status,duplicate:queued.status!=='PENDING',createdAt:queued.createdAt};
   }
 
-  async processProviderEvents(limit=10){
+    async processProviderEvents(limit=10){
     const events=await prisma.providerResultEvent.findMany({where:{status:{in:['PENDING','FAILED']},attempts:{lt:8}},orderBy:{createdAt:'asc'},take:limit});
     for(const event of events){
       const claimed=await prisma.providerResultEvent.updateMany({where:{id:event.id,status:event.status},data:{status:'PROCESSING',attempts:{increment:1},error:null}});
       if(!claimed.count)continue;
       try{
-        await this.applyLotteryResultsFeed(event.payload as LotteryResultsFeedEvent);
+        const applied=await this.applyLotteryResultsFeed(event.payload as LotteryResultsFeedEvent);
+        if('waitingForPick3Pick4Pair' in applied&&applied.waitingForPick3Pick4Pair){
+          await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'APPLIED',processedAt:new Date(),error:'WAITING_FOR_PICK3_PICK4_PAIR'}});
+          continue;
+        }
         await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'APPLIED',processedAt:new Date()}});
       }catch(error){
         await prisma.providerResultEvent.update({where:{id:event.id},data:{status:'FAILED',error:(error instanceof Error?error.message:String(error)).slice(0,2000)}});
       }
     }
   }
+
 
   async pollLotteryResultsFeed(){
     if(process.env.LOTTERY_RESULTS_FEED_POLL_ENABLED!=='true')return;
@@ -208,22 +213,40 @@ export class ResultsService implements OnModuleInit{
     }
   }
 
-  private async applyLotteryResultsFeed(event:LotteryResultsFeedEvent){
-    const binding=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS).find(item=>item.lotteryId===event.lottery_id);
+    private async applyLotteryResultsFeed(event:LotteryResultsFeedEvent){
+    const bindings=parseFeedBindings(process.env.LOTTERY_RESULTS_FEED_BINDINGS);
+    const binding=bindings.find(item=>item.lotteryId===event.lottery_id);
     if(!binding)throw new Error(`LOTTERY_RESULTS_FEED_UNMAPPED:${event.lottery_id}`);
     const drawType=event.draw_type?.trim().toLowerCase().replaceAll(' ','_')||'default';
     const time=binding.drawTimes[drawType]??binding.drawTimes.default;
     if(!time)throw new Error(`LOTTERY_RESULTS_FEED_DRAW_TYPE_UNMAPPED:${binding.catalogCode}:${drawType}`);
+    let winningKeys:string[],sourceUpdatedAt=event.published_at;
+    if(binding.prizeSource){
+      const pick3Binding=bindings.find(item=>item.catalogCode===binding.catalogCode&&item.prizeSource==='PICK3');
+      const pick4Binding=bindings.find(item=>item.catalogCode===binding.catalogCode&&item.prizeSource==='PICK4');
+      if(!pick3Binding||!pick4Binding)throw new Error(`INVALID_LOTTERY_RESULTS_FEED_PRIZE_PAIR:${binding.catalogCode}`);
+      const [pick3Event,pick4Event]=await Promise.all([
+        this.latestLotteryResultsFeedEvent(pick3Binding,event),
+        this.latestLotteryResultsFeedEvent(pick4Binding,event),
+      ]);
+      if(!pick3Event||!pick4Event)return{applied:0,duplicates:0,missing:0,waitingForPick3Pick4Pair:true};
+      const combined=pick3Pick4WinningKeys(pick3Event.numbers??[],pick4Event.numbers??[]);
+      if(!combined)throw new Error(`INVALID_PICK3_PICK4_FEED_RESULT:${binding.catalogCode}`);
+      winningKeys=combined;
+      const updatedTimes=[pick3Event.published_at,pick4Event.published_at].filter((value):value is string=>Boolean(value));
+      sourceUpdatedAt=updatedTimes.sort((left,right)=>Date.parse(right)-Date.parse(left))[0];
+    }else{
+      winningKeys=feedWinningKeys(event.numbers??[]);
+    }
     const games=await prisma.game.findMany({where:{catalogCode:binding.catalogCode,status:'ACTIVE',archivedAt:null},select:{id:true,code:true,tenantId:true}});
     let applied=0,duplicates=0,missing=0;
-    const winningKeys=feedWinningKeys(event.numbers!);
-    const feedResult={winningKeys,source:'LOTTERY_RESULTS_FEED',sourceUpdatedAt:event.published_at};
+    const feedResult={winningKeys,source:'LOTTERY_RESULTS_FEED',sourceUpdatedAt};
     for(const game of games){
       const drawNumber=feedDrawNumber(game.code,event.draw_date!,time);
       const draw=await prisma.draw.findUnique({where:{tenantId_drawNumber:{tenantId:game.tenantId,drawNumber}},select:{id:true,status:true,result:true}});
       if(!draw){missing++;continue}
       if(draw.status==='RESULT_PUBLISHED'){
-        if(!isLotteryResultsFeedManagedResult(draw.result)||hasSameWinningKeys(draw.result,winningKeys)||isOlderLotteryResultsFeedUpdate(draw.result,event.published_at)){duplicates++;continue}
+        if(!isLotteryResultsFeedManagedResult(draw.result)||hasSameWinningKeys(draw.result,winningKeys)||isOlderLotteryResultsFeedUpdate(draw.result,sourceUpdatedAt)){duplicates++;continue}
         const actor=await prisma.user.findFirst({where:{tenantId:game.tenantId,status:'ACTIVE',roles:{some:{role:{code:'TENANT_OWNER'}}}},select:{id:true,tokenVersion:true}});
         if(!actor){missing++;continue}
         await this.editPlatform({sub:actor.id,tenantId:game.tenantId,permissions:['settings.edit'],platform:false,tokenVersion:actor.tokenVersion},draw.id,feedResult);
@@ -237,6 +260,25 @@ export class ResultsService implements OnModuleInit{
     }
     return{applied,duplicates,missing};
   }
+
+  private async latestLotteryResultsFeedEvent(binding:ReturnType<typeof parseFeedBindings>[number],reference:LotteryResultsFeedEvent){
+    const scope=feedEventDedupeScope({...reference,lottery_id:binding.lotteryId});
+    const rows=await prisma.providerResultEvent.findMany({
+      where:{provider:'lottery-results-feed',dedupeKey:{startsWith:`${scope}:`}},
+      select:{payload:true,createdAt:true},orderBy:{createdAt:'desc'},take:25,
+    });
+    const matching=rows.map(row=>({payload:row.payload as LotteryResultsFeedEvent,createdAt:row.createdAt})).filter(row=>
+      row.payload.lottery_id===binding.lotteryId&&row.payload.draw_date===reference.draw_date&&
+      (row.payload.draw_type?.trim().toLowerCase()||'default')===(reference.draw_type?.trim().toLowerCase()||'default')&&
+      Array.isArray(row.payload.numbers),
+    );
+    matching.sort((left,right)=>{
+      const time=(value:LotteryResultsFeedEvent)=>Date.parse(value.published_at??'')||0;
+      return time(right.payload)-time(left.payload)||right.createdAt.valueOf()-left.createdAt.valueOf();
+    });
+    return matching[0]?.payload??(reference.lottery_id===binding.lotteryId?reference:undefined);
+  }
+
 
   async publish(u:Principal,drawId:string,result:{winningKeys:string[];source?:string;sourceUpdatedAt?:string}){
     const tenantId=this.tenant(u);resultWinningKeys(result);
@@ -277,23 +319,26 @@ export class ResultsService implements OnModuleInit{
     }
     const evaluation=evaluateTicketResults(ticket.drawId,ticketDrawIds,ticket.lines,resultKeysByDraw);
     const lineResults=new Map(evaluation.lineResults.map(item=>[item.lineId,item]));
-        const gameIds:string[]=[...new Set<string>(drawRows.map((draw:any)=>draw.gameId).filter((id:any):id is string=>typeof id==='string'))];
-    const rankedBetTypeIds:string[]=[...new Set<string>(ticket.lines.filter((line:any)=>line.betType.code==='BOLET'||line.betType.code==='BOUL_PE').map((line:any)=>line.betTypeId).filter((id:any):id is string=>typeof id==='string'))];
-    const historicalOdds=gameIds.length&&rankedBetTypeIds.length?await tx.oddsRule.findMany({
-      where:{tenantId:ticket.tenantId,gameId:{in:gameIds},betTypeId:{in:rankedBetTypeIds},active:true,startsAt:{lte:ticket.createdAt},OR:[{endsAt:null},{endsAt:{gt:ticket.createdAt}}]},
+    const positionLines=ticket.lines.filter((line:any)=>line.betType.code==='BOLET'||line.betType.code==='BOUL_PE');
+    const gameIds=Array.from(new Set<string>(drawRows.map((draw:any)=>String(draw.gameId)).filter((id:string)=>id.length>0)));
+    const positionOdds=positionLines.length&&gameIds.length?await tx.oddsRule.findMany({
+      where:{tenantId:ticket.tenantId,gameId:{in:gameIds},betTypeId:{in:Array.from(new Set<string>(positionLines.map((line:any)=>String(line.betTypeId))))},active:true,startsAt:{lte:ticket.createdAt},OR:[{endsAt:null},{endsAt:{gt:ticket.createdAt}}]},
       select:{gameId:true,betTypeId:true,resultPosition:true,multiplier:true},
-      orderBy:{startsAt:'desc'},
+      orderBy:[{startsAt:'desc'},{resultPosition:'asc'}],
     }):[];
     let winningAmount=new Prisma.Decimal(0);
-    const lineWinAmounts:Array<{lineId:string;drawId:string;amount:string}>=[];
+    const lineWinAmounts:{lineId:string;drawId:string;amount:string}[]=[];
     for(const line of ticket.lines){
       const outcome=lineResults.get(line.id)!;
       await tx.ticketLine.update({where:{id:line.id},data:{isWinner:outcome.isWinner}});
-      const winningKeys=outcome.winCount&&outcome.winCount>0?resultKeysByDraw.get(outcome.drawId)??[]:[];
-      const positionOdds=historicalOdds.filter((rule:any)=>rule.gameId===drawById.get(outcome.drawId)?.gameId&&rule.betTypeId===line.betTypeId);
-      const lineAmount=calculateLineWinningAmount({betTypeCode:line.betType.code,selectionKey:line.selectionKey,winningKeys,winCount:outcome.winCount??0,stake:line.stake,storedOdds:line.odds,potentialWin:line.potentialWin,positionOdds});
-      winningAmount=winningAmount.add(lineAmount);
+      const winningKeys=resultKeysByDraw.get(outcome.drawId);
+      const draw=drawById.get(outcome.drawId);
+      const linePositionOdds=positionOdds.filter((rule:any)=>rule.betTypeId===line.betTypeId&&rule.gameId===draw?.gameId);
+      const lineAmount=outcome.winCount&&outcome.winCount>0&&winningKeys
+        ?calculateLineWinningAmount({betTypeCode:line.betType.code,selectionKey:line.selectionKey,winningKeys,winCount:outcome.winCount,stake:line.stake,storedOdds:line.odds,potentialWin:line.potentialWin,positionOdds:linePositionOdds})
+        :new Prisma.Decimal(0);
       lineWinAmounts.push({lineId:line.id,drawId:outcome.drawId,amount:lineAmount.toString()});
+      if(lineAmount.isPositive())winningAmount=winningAmount.add(lineAmount);
     }
     const allLinesResolved=evaluation.lineResults.every(item=>item.isWinner!==null);
     const allDrawsResolved=evaluation.allDrawsResolved&&allLinesResolved&&evaluation.drawIds.every(id=>drawById.has(id));
@@ -310,7 +355,7 @@ export class ResultsService implements OnModuleInit{
     if(winningAmount.isPositive()){
       await tx.ticket.update({where:{id:ticket.id},data:{status:'WINNER'}});
       await tx.winningTicket.upsert({where:{ticketId:ticket.id},update:{winningAmount,detectedAt:new Date()},create:{tenantId:ticket.tenantId,ticketId:ticket.id,winningAmount}});
-      await tx.ticketEvent.create({data:{tenantId:ticket.tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:actorId,metadata:{winningAmount:winningAmount.toString(),lineWinCounts}}});
+      await tx.ticketEvent.create({data:{tenantId:ticket.tenantId,ticketId:ticket.id,type:'MARKED_WINNER',userId:actorId,metadata:{winningAmount:winningAmount.toString(),lineWinCounts,lineWinAmounts}}});
       if(notifyWinner&&ticket.status!=='WINNER')await tx.notification.create({data:{tenantId:ticket.tenantId,userId:ticket.merchant.userId,type:'TICKET_WINNER',title:'Winning ticket',body:`Ticket ${ticket.ticketNumber} won ${winningAmount.toString()}`,data:{ticketId:ticket.id,ticketNumber:ticket.ticketNumber,amount:winningAmount.toString()},status:'SENT',sentAt:new Date()}});
       return 'WINNER' as const;
     }

@@ -39,6 +39,12 @@ export function orderedThreeDigitResult(keys: string[]) {
   return combined === keys[3] ? { positions, combined: keys[3] } : null;
 }
 
+export function orderedPick3Pick4Result(keys: string[]) {
+  return keys.length === 3 && /^\d{3}$/.test(keys[0]) && /^\d{2}$/.test(keys[1]) && /^\d{2}$/.test(keys[2])
+    ? { positions: keys }
+    : null;
+}
+
 export function resultKeysForDisplay(keys: string[]) {
   const combined = orderedThreeDigitResult(keys);
   return combined ? [combined.combined] : keys;
